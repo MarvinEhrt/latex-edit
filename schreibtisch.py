@@ -240,10 +240,93 @@ def freier_port() -> int:
         return s.getsockname()[1]
 
 
+def _kann_sonderzeichen() -> bool:
+    """Ältere Windows-Konsolen laufen auf cp850 und werfen bei ✓ einen
+    UnicodeEncodeError — der Start bräche ab, bevor irgendetwas passiert."""
+    try:
+        "✓".encode(sys.stdout.encoding or "ascii")
+        return True
+    except (UnicodeEncodeError, LookupError, TypeError):
+        return False
+
+
+def diagnose():
+    """python schreibtisch.py --diagnose
+
+    Sammelt alles, was man zur Fehlersuche braucht — vor allem, wenn der
+    Rechner nicht der eigene ist."""
+    import platform
+    print()
+    print("  Schreibtisch — Diagnose")
+    print("  " + "-" * 52)
+    print(f"  System        {platform.platform()}")
+    print(f"  Python        {sys.version.split()[0]}  ({sys.executable})")
+    print(f"  Konsole       {sys.stdout.encoding}  "
+          f"Dateisystem: {sys.getfilesystemencoding()}")
+    print(f"  Ordner        {HIER}")
+    print(f"  Oberfläche    {'da' if os.path.exists(OBERFLAECHE) else 'FEHLT'}")
+    print(f"  Arbeitsordner {ARBEITSORDNER}")
+    print()
+    for name in ("pdflatex", "biber"):
+        pfad = uebersetzen_modul.finde(name)
+        print(f"  {name:<13} {pfad or 'NICHT GEFUNDEN'}")
+        if pfad:
+            print(f"  {'':<13} {uebersetzen_modul._fassung(pfad)}")
+    print()
+    try:
+        import bauen                                    # noqa: F401
+        print("  bauen.py      importierbar")
+    except Exception as f:
+        print(f"  bauen.py      NICHT importierbar: {f}")
+    try:
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            print(f"  Netzwerk      127.0.0.1 belegbar (Port {s.getsockname()[1]})")
+    except Exception as f:
+        print(f"  Netzwerk      FEHLER: {f}")
+    print()
+
+
+def _konsole_vorbereiten():
+    """Nicht die Kodierung erzwingen — das erzeugt auf einer cp850-Konsole
+    nur Buchstabensalat. Stattdessen: unter Windows die Konsole nach
+    Möglichkeit auf UTF-8 stellen, und in jedem Fall dafür sorgen, dass ein
+    nicht darstellbares Zeichen den Start nicht abbricht."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+        except Exception:
+            pass
+    try:
+        sys.stdout.reconfigure(errors="replace")
+    except Exception:
+        pass
+
+
 def main():
+    _konsole_vorbereiten()
+
+    if "--diagnose" in sys.argv:
+        diagnose()
+        return
+
+    ja, nein = ("✓", "✗") if _kann_sonderzeichen() else ("[ok]", "[--]")
+
     if not os.path.exists(OBERFLAECHE):
-        print("  oberflaeche.html fehlt. Ich baue sie …")
-        os.system(f'"{sys.executable}" "{os.path.join(HIER, "bauen.py")}"')
+        print("  oberflaeche.html fehlt — wird gebaut ...")
+        # Bewusst kein os.system: unter Windows geht das durch cmd, und
+        # cmd zerlegt eine Befehlszeile, die mit einem Anführungszeichen
+        # beginnt. Direkt aufrufen umgeht Zitierregeln, PATH und die
+        # Frage, ob das Programm py oder python heißt.
+        try:
+            import bauen
+            bauen.main()
+        except SystemExit:
+            raise
+        except Exception as f:
+            sys.exit(f"\n  Die Oberfläche konnte nicht gebaut werden: {f}\n"
+                     f"  Bitte einmal von Hand: {sys.executable} bauen.py\n")
 
     werkzeuge = uebersetzen_modul.pruefe_werkzeuge()
     port = freier_port()
@@ -253,14 +336,20 @@ def main():
     print("  Schreibtisch")
     print("  " + "-" * 52)
     for name, angabe in werkzeuge["programme"].items():
-        zeichen = "✓" if angabe["gefunden"] else "✗"
+        zeichen = ja if angabe["gefunden"] else nein
         print(f"  {zeichen} {name:<9} {angabe['fassung'] or 'NICHT GEFUNDEN'}")
     if not werkzeuge["vollstaendig"]:
         print()
         print("  Ohne pdflatex und biber kann kein PDF entstehen.")
         print("  Linux:   sudo apt install texlive-full biber")
         print("  Windows: MiKTeX von miktex.org installieren")
-        print("  Der Editor startet trotzdem — schreiben geht, drucken nicht.")
+        print("  Der Editor startet trotzdem - schreiben geht, drucken nicht.")
+    elif sys.platform == "win32":
+        print()
+        print("  MiKTeX-Hinweis: beim ersten Bau werden Pakete nachgeladen.")
+        print("  Erscheint ein Installationsfenster, bitte zustimmen. Dauerhaft")
+        print("  ruhig wird es unter MiKTeX Console > Einstellungen >")
+        print("  \"Pakete bei Bedarf installieren: Ja, ohne zu fragen\".")
     print()
     print(f"  Läuft auf {adresse}")
     print("  Zum Beenden: Strg+C")

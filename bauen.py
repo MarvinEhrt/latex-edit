@@ -60,9 +60,11 @@ def main() -> None:
     ZIEL.write_text(seite, encoding="utf-8")
     groesse = ZIEL.stat().st_size / 1024
     print(f"  {ZIEL.name} gebaut  ({groesse:.0f} KB)")
-    print(f"  CSS {len(css) / 1024:.0f} KB · JS {len(js) / 1024:.0f} KB "
-          f"· {len(JS_DATEIEN)} Module")
-    print(f"  Öffnen mit:  xdg-open {ZIEL}")
+    print(f"  CSS {len(css) / 1024:.0f} KB, JS {len(js) / 1024:.0f} KB, "
+          f"{len(JS_DATEIEN)} Module")
+    if __name__ == "__main__":     # beim Start aus schreibtisch.py unnötig
+        oeffner = "start" if sys.platform == "win32" else "xdg-open"
+        print(f"  Öffnen mit:  {oeffner} {ZIEL}")
 
 
 

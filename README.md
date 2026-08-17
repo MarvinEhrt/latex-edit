@@ -22,10 +22,19 @@ Linux    sudo apt install texlive-full biber
 Windows  MiKTeX von miktex.org
 ```
 
-> **MiKTeX-Nutzer:** In den MiKTeX-Einstellungen **„Pakete immer installieren"**
-> wählen. Sonst öffnet MiKTeX beim ersten Bau einen Dialog, der auf einen Klick
-> wartet — im Hintergrund, unsichtbar — und der Bau bleibt bis zum Zeitablauf
-> hängen.
+> **MiKTeX-Nutzer:** Beim ersten Bau lädt MiKTeX fehlende Pakete nach und
+> fragt dabei nach. Dauerhaft ruhig wird es über
+> *MiKTeX Console → Einstellungen → „Pakete bei Bedarf installieren: Ja, ohne
+> zu fragen"*. Sonst wartet der Bau auf einen Klick, den man leicht übersieht.
+
+Klemmt etwas, hilft:
+
+```
+python schreibtisch.py --diagnose
+```
+
+Das zeigt System, Python-Fassung, Konsolen-Kodierung, gefundene
+LaTeX-Programme und ob der Port belegt werden kann.
 
 Beim Start prüft der Schreibtisch beides und sagt, was fehlt.
 
@@ -152,10 +161,12 @@ Browser. Stand: beide vollständig grün, keine Konsolenfehler.
 
 ## Bekannte Grenzen
 
-- **Windows ist ungetestet.** Entwickelt und geprüft wurde unter Linux.
-  Abgefangen ist, was bekannt ist (Pfade mit Leerzeichen, `CREATE_NO_WINDOW`,
-  Protokolle als `cp1252` lesbar, `subprocess` ohne Shell) — der erste echte
-  Windows-Lauf steht aber noch aus.
+- **Windows ist nur teilweise erprobt.** Entwickelt und automatisch geprüft
+  wird unter Linux. Auf Windows 11 gemeldete und behobene Stolpersteine:
+  der Selbstbau der Oberfläche lief über `os.system` und scheiterte an
+  cmd-Zitierregeln (jetzt direkter Aufruf), und Sonderzeichen im Startbericht
+  konnten auf Konsolen ohne UTF-8 abbrechen (jetzt mit Rückfall auf ASCII).
+  Weitere Meldungen sind willkommen — `--diagnose` liefert das Nötige.
 - Citavi-Projektdateien (`.ctv6`) werden nicht direkt gelesen, nur Exporte.
 - Kein gleichzeitiges Bearbeiten zu zweit, keine Änderungsverfolgung.
 - Bilder liegen in der Projektdatei; sehr große Scans lassen sie wachsen.
