@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+einstellungen.json
+Arbeiten/
+oberflaeche.html
+node_modules/

@@ -1,0 +1,13 @@
+{
+  "name": "schreibtisch",
+  "version": "1.0.0",
+  "description": "Wissenschaftliche Arbeiten schreiben — LaTeX setzt sie.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "pruefe": "node pruefungen/pruefe_ganz.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.60.0"
+  }
+}

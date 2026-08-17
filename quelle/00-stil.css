@@ -1,0 +1,523 @@
+/* ===================================================================
+   00-stil.css  --  Oberfläche
+   Akzent = #2D4869, derselbe Ton, den das erzeugte LaTeX benutzt.
+   =================================================================== */
+
+:root {
+  --papier:      #ffffff;
+  --papier-rand: #d9dde4;
+  --grund:       #eef0f4;
+  --flaeche:     #f7f8fa;
+  --flaeche-2:   #ffffff;
+  --linie:       #dde1e8;
+  --linie-stark: #c3cad5;
+  --tinte:       #161b22;
+  --tinte-2:     #4a5566;
+  --tinte-3:     #7b8698;
+  --akzent:      #2d4869;
+  --akzent-hell: #e6ecf3;
+  --akzent-text: #ffffff;
+  --zitat:       #1f6f63;
+  --zitat-bg:    #e4f0ed;
+  --verweis:     #2d4869;
+  --verweis-bg:  #e6ecf3;
+  --kennwert:    #7a5b12;
+  --kennwert-bg: #f6eedb;
+  --warn:        #9a3412;
+  --warn-bg:     #fbeae4;
+  --ok:          #1f6f4a;
+
+  --schrift-ui:  ui-sans-serif, -apple-system, "Segoe UI", Roboto,
+                 "Liberation Sans", "Helvetica Neue", sans-serif;
+  --schrift-doc: "Times New Roman", "Liberation Serif", Tinos,
+                 "Nimbus Roman", Georgia, serif;
+  --schrift-ma:  ui-monospace, "DejaVu Sans Mono", "Liberation Mono",
+                 "SFMono-Regular", Menlo, monospace;
+
+  --r: 5px;
+  --schatten: 0 1px 2px rgba(22,27,34,.06), 0 8px 24px rgba(22,27,34,.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --papier: #e9e9e6; --papier-rand: #3a4150;
+    --grund: #14181f; --flaeche: #1a1f28; --flaeche-2: #212733;
+    --linie: #2c3340; --linie-stark: #3e4757;
+    --tinte: #e6e9ee; --tinte-2: #a4aebd; --tinte-3: #78829200;
+    --tinte-3: #7a8496;
+    --akzent: #7ba3d0; --akzent-hell: #22303f; --akzent-text: #10151c;
+    --zitat: #6cc0b0; --zitat-bg: #1a2e2b;
+    --verweis: #8fb4dd; --verweis-bg: #1d2836;
+    --kennwert: #d4ac5e; --kennwert-bg: #2e2718;
+    --warn: #e8927a; --warn-bg: #33201a;
+    --ok: #6cc08d;
+    --schatten: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"] {
+  --papier: #e9e9e6; --papier-rand: #3a4150;
+  --grund: #14181f; --flaeche: #1a1f28; --flaeche-2: #212733;
+  --linie: #2c3340; --linie-stark: #3e4757;
+  --tinte: #e6e9ee; --tinte-2: #a4aebd; --tinte-3: #7a8496;
+  --akzent: #7ba3d0; --akzent-hell: #22303f; --akzent-text: #10151c;
+  --zitat: #6cc0b0; --zitat-bg: #1a2e2b;
+  --verweis: #8fb4dd; --verweis-bg: #1d2836;
+  --kennwert: #d4ac5e; --kennwert-bg: #2e2718;
+  --warn: #e8927a; --warn-bg: #33201a; --ok: #6cc08d;
+  --schatten: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+}
+:root[data-theme="light"] {
+  --papier: #ffffff; --papier-rand: #d9dde4;
+  --grund: #eef0f4; --flaeche: #f7f8fa; --flaeche-2: #ffffff;
+  --linie: #dde1e8; --linie-stark: #c3cad5;
+  --tinte: #161b22; --tinte-2: #4a5566; --tinte-3: #7b8698;
+  --akzent: #2d4869; --akzent-hell: #e6ecf3; --akzent-text: #ffffff;
+  --zitat: #1f6f63; --zitat-bg: #e4f0ed;
+  --verweis: #2d4869; --verweis-bg: #e6ecf3;
+  --kennwert: #7a5b12; --kennwert-bg: #f6eedb;
+  --warn: #9a3412; --warn-bg: #fbeae4; --ok: #1f6f4a;
+  --schatten: 0 1px 2px rgba(22,27,34,.06), 0 8px 24px rgba(22,27,34,.06);
+}
+
+/* Farben immer als background-color, nie als background-Kurzform:
+   Chromium löst var() in der Kurzform nach einem Themenwechsel
+   falsch auf und malt dann eine fremde Farbe. */
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%; margin: 0;
+  background-color: var(--grund); color: var(--tinte);
+  font-family: var(--schrift-ui);
+  font-size: 14px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--akzent); outline-offset: 2px; border-radius: 3px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ---------------- Grundgerüst ---------------- */
+
+#app { display: flex; flex-direction: column; height: 100%; }
+
+.kopf {
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 14px; height: 52px; flex: none;
+  background-color: var(--flaeche-2);
+  border-bottom: 1px solid var(--linie);
+}
+.marke { display: flex; align-items: baseline; gap: 8px; }
+.marke b { font-size: 14px; font-weight: 650; letter-spacing: -.01em; }
+.marke span {
+  font-family: var(--schrift-ma); font-size: 10px;
+  color: var(--tinte-3); letter-spacing: .08em; text-transform: uppercase;
+}
+.kopf-titel {
+  flex: 1; min-width: 0;
+  font-size: 13px; color: var(--tinte-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.kopf-titel b { color: var(--tinte); font-weight: 600; }
+.kopf-knoepfe { display: flex; gap: 6px; align-items: center; }
+
+.raum { display: flex; flex: 1; min-height: 0; }
+
+.spalte { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.spalte-links  { width: 248px; flex: none; background-color: var(--flaeche);
+                 border-right: 1px solid var(--linie); }
+.spalte-mitte  { flex: 1; background-color: var(--grund); }
+.spalte-rechts { width: 470px; flex: none; background-color: var(--flaeche);
+                 border-left: 1px solid var(--linie); }
+
+.panelkopf {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 9px 12px; flex: none;
+  border-bottom: 1px solid var(--linie);
+  font-family: var(--schrift-ma); font-size: 10px;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--tinte-3);
+}
+.panelkoerper { flex: 1; overflow: auto; min-height: 0; }
+
+/* ---------------- Knöpfe ---------------- */
+
+.knopf {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 11px; border-radius: var(--r);
+  border: 1px solid var(--linie-stark);
+  background-color: var(--flaeche-2); color: var(--tinte);
+  font-size: 13px; cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.knopf:hover { background-color: var(--akzent-hell); border-color: var(--akzent); }
+.knopf:active { transform: translateY(1px); }
+.knopf-haupt {
+  background-color: var(--akzent); border-color: var(--akzent); color: var(--akzent-text);
+  font-weight: 550;
+}
+.knopf-haupt:hover { background-color: var(--akzent); filter: brightness(1.12); }
+.knopf-still { border-color: transparent; background: transparent; color: var(--tinte-2); }
+.knopf-still:hover { background-color: var(--akzent-hell); border-color: transparent; color: var(--tinte); }
+.knopf-klein { padding: 3px 7px; font-size: 12px; }
+.knopf[disabled] { opacity: .45; cursor: not-allowed; }
+
+/* ---------------- Gliederung ---------------- */
+
+.gliederung { padding: 6px 0 20px; }
+.gl-eintrag {
+  display: flex; gap: 8px; align-items: baseline;
+  padding: 4px 12px 4px 12px; cursor: pointer;
+  font-size: 13px; color: var(--tinte-2);
+  border-left: 2px solid transparent;
+}
+.gl-eintrag:hover { background-color: var(--akzent-hell); color: var(--tinte); }
+.gl-eintrag.aktiv { border-left-color: var(--akzent); color: var(--tinte); font-weight: 550; }
+.gl-nr {
+  font-family: var(--schrift-ma); font-size: 11px; font-variant-numeric: tabular-nums;
+  color: var(--tinte-3); flex: none; min-width: 2.4em;
+}
+.gl-e1 { font-weight: 600; color: var(--tinte); }
+.gl-e2 { padding-left: 26px; }
+.gl-e3 { padding-left: 42px; font-size: 12.5px; }
+.gl-trenner {
+  margin: 10px 12px 6px; padding-top: 10px; border-top: 1px solid var(--linie);
+  font-family: var(--schrift-ma); font-size: 10px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--tinte-3);
+}
+.gl-leer { padding: 14px 12px; color: var(--tinte-3); font-size: 12.5px; }
+
+/* ---------------- Editorfläche ---------------- */
+
+.editorflaeche { padding: 22px 0 40vh; }
+.blockliste { max-width: 760px; margin: 0 auto; padding: 0 18px; }
+
+.block {
+  position: relative; display: grid;
+  grid-template-columns: 34px 1fr; gap: 10px;
+  padding: 2px 0; border-radius: var(--r);
+}
+.block.gewaehlt { background-color: var(--akzent-hell); }
+.block.zieht { opacity: .4; }
+.block.zielmarke { box-shadow: 0 -2px 0 var(--akzent); }
+
+.block-griff {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding-top: 5px; opacity: 0; transition: opacity .12s;
+}
+.block:hover .block-griff, .block.gewaehlt .block-griff { opacity: 1; }
+.block-marke {
+  font-family: var(--schrift-ma); font-size: 10px; color: var(--tinte-3);
+  cursor: grab; user-select: none; padding: 2px 4px; border-radius: 3px;
+}
+.block-marke:hover { background-color: var(--linie); color: var(--tinte); }
+
+.block-inhalt { min-width: 0; padding: 3px 0; }
+
+.blockleiste {
+  position: absolute; top: -13px; right: 4px; z-index: 5;
+  display: none; gap: 2px; padding: 3px;
+  background-color: var(--flaeche-2); border: 1px solid var(--linie);
+  border-radius: var(--r); box-shadow: var(--schatten);
+}
+.block:hover .blockleiste, .block.gewaehlt .blockleiste { display: flex; }
+.blockleiste button {
+  border: 0; background: transparent; cursor: pointer; color: var(--tinte-2);
+  padding: 3px 6px; border-radius: 3px; font-size: 12px; line-height: 1;
+}
+.blockleiste button:hover { background-color: var(--akzent-hell); color: var(--tinte); }
+.blockleiste button.gefahr:hover { background-color: var(--warn-bg); color: var(--warn); }
+
+/* Textinhalte im Editor: Dokumentschrift, damit es sich wie das PDF liest */
+.tx {
+  font-family: var(--schrift-doc); font-size: 16.5px; line-height: 1.62;
+  color: var(--tinte); outline: none; min-height: 1.6em;
+  padding: 2px 4px; border-radius: 3px; white-space: pre-wrap; word-wrap: break-word;
+}
+.tx:focus { background-color: var(--flaeche-2); box-shadow: inset 0 0 0 1px var(--linie); }
+.tx:empty::before { content: attr(data-leer); color: var(--tinte-3); font-style: italic; }
+.platzhalter { color: var(--tinte-3); font-style: italic; }
+
+.tx-h1 { font-family: var(--schrift-ui); font-size: 22px; font-weight: 650;
+         letter-spacing: -.015em; line-height: 1.28; }
+.tx-h2 { font-family: var(--schrift-ui); font-size: 17.5px; font-weight: 650; line-height: 1.32; }
+.tx-h3 { font-family: var(--schrift-ui); font-size: 15px; font-weight: 650;
+         font-style: italic; line-height: 1.35; }
+.ueberschrift-zeile { display: flex; align-items: baseline; gap: 9px; }
+.ueberschrift-nr {
+  font-family: var(--schrift-ma); font-size: 12px; font-variant-numeric: tabular-nums;
+  color: var(--tinte-3); flex: none; padding-top: 2px;
+}
+
+.tx-zitat {
+  border-left: 3px solid var(--linie-stark); padding-left: 14px;
+  font-size: 15.5px; color: var(--tinte-2);
+}
+
+/* ---------------- Chips: eingebettete Objekte ---------------- */
+
+/* Wenig Innenabstand: im Fließtext soll ein Chip wie ein Wort sitzen,
+   nicht wie ein Knopf. Erkennbar bleibt er durch die Farbe. */
+.chip {
+  display: inline; border-radius: 2px; padding: 0 2px;
+  font-family: var(--schrift-ui); font-size: .84em;
+  white-space: nowrap; cursor: pointer;
+  box-shadow: inset 0 -1px 0 currentColor;
+}
+.chip-zitat    { background-color: var(--zitat-bg);    color: var(--zitat); }
+.chip-verweis  { background-color: var(--verweis-bg);  color: var(--verweis); }
+.chip-kennwert { background-color: var(--kennwert-bg); color: var(--kennwert); }
+.chip-fussnote { background-color: var(--linie);       color: var(--tinte-2); }
+.chip:hover { filter: brightness(.94); }
+/* In der Papiervorschau kein Chip-Aussehen -- da zählt, wie es gedruckt wird */
+.blatt .chip { box-shadow: none; }
+
+/* ---------------- Tabellen im Editor ---------------- */
+
+.tab-karte, .abb-karte, .formel-karte {
+  border: 1px solid var(--linie); border-radius: var(--r);
+  background-color: var(--flaeche-2); padding: 11px 13px;
+}
+.karte-kopf {
+  display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px;
+  font-size: 12.5px;
+}
+.karte-nr {
+  font-family: var(--schrift-ma); font-size: 11px; font-weight: 600;
+  color: var(--akzent); letter-spacing: .04em;
+}
+.karte-titel { font-family: var(--schrift-doc); font-style: italic; font-size: 15px;
+               color: var(--tinte); flex: 1; min-width: 0; }
+.karte-anm { margin-top: 8px; font-size: 12px; color: var(--tinte-2);
+             font-family: var(--schrift-doc); }
+.karte-anm i { color: var(--tinte-3); }
+
+.tabgitter { width: 100%; border-collapse: collapse; font-family: var(--schrift-doc);
+             font-size: 14px; overflow-x: auto; display: block; }
+.tabgitter table { width: 100%; border-collapse: collapse; }
+.tabgitter th, .tabgitter td { border: 1px solid var(--linie); padding: 4px 7px; text-align: left; }
+.tabgitter th { background-color: var(--flaeche); font-weight: 650; }
+.tabgitter td[contenteditable]:focus, .tabgitter th[contenteditable]:focus {
+  outline: 2px solid var(--akzent); outline-offset: -2px; background-color: var(--akzent-hell); }
+
+.abb-vorschau { display: block; max-width: 100%; margin: 0 auto;
+                border: 1px solid var(--linie); border-radius: 3px; }
+.abb-leer {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 26px; border: 1.5px dashed var(--linie-stark);
+  border-radius: var(--r); color: var(--tinte-3); font-size: 13px; text-align: center;
+}
+.abb-leer.hover { border-color: var(--akzent); background-color: var(--akzent-hell); color: var(--akzent); }
+
+.formel-karte code { font-family: var(--schrift-ma); font-size: 13px; color: var(--tinte); }
+
+.umbruch-marke {
+  display: flex; align-items: center; gap: 10px; color: var(--tinte-3);
+  font-family: var(--schrift-ma); font-size: 10px; letter-spacing: .1em;
+  text-transform: uppercase; padding: 6px 0;
+}
+.umbruch-marke::before, .umbruch-marke::after {
+  content: ""; flex: 1; border-top: 1px dashed var(--linie-stark);
+}
+.anhang-marke { color: var(--akzent); }
+.anhang-marke::before, .anhang-marke::after { border-top: 1px solid var(--akzent); opacity: .45; }
+
+/* ---------------- Einfügeleiste ---------------- */
+
+.einfuegen { max-width: 760px; margin: 14px auto 0; padding: 0 18px 0 62px; }
+.einfuegen-knoepfe { display: flex; flex-wrap: wrap; gap: 5px; }
+.einfuegen-knoepfe .knopf { color: var(--tinte-2); }
+
+/* ---------------- PDF-Ansicht ---------------- */
+
+.pdfbereich { position: relative; display: flex; overflow: hidden; }
+#pdfrahmen {
+  flex: 1; width: 100%; height: 100%; border: 0; display: none;
+  background-color: var(--grund);
+}
+.pdfleer {
+  position: absolute; inset: 0; display: flex; align-items: center;
+  justify-content: center; padding: 24px;
+  color: var(--tinte-3); font-size: 13px; line-height: 1.5;
+}
+
+.bauzustand {
+  display: flex; align-items: center; gap: 6px;
+  text-transform: none; letter-spacing: 0; font-family: var(--schrift-ui);
+  font-size: 11.5px;
+}
+.bauzustand.ok     { color: var(--ok); }
+.bauzustand.fehler { color: var(--warn); }
+.bauzustand.laeuft { color: var(--akzent); }
+.bauzustand.wartet { color: var(--tinte-3); }
+.dreher {
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 2px solid currentColor; border-top-color: transparent;
+  animation: drehen .7s linear infinite; flex: none;
+}
+@keyframes drehen { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .dreher { animation: none; border-top-color: currentColor; opacity: .5; }
+}
+
+.fehlerliste {
+  display: none; flex: none; max-height: 42%; overflow: auto;
+  border-bottom: 1px solid var(--linie);
+  background-color: var(--warn-bg);
+  padding: 8px;
+}
+.fehler {
+  border-radius: var(--r); padding: 8px 10px; margin-bottom: 6px;
+  background-color: var(--flaeche-2); border: 1px solid var(--linie);
+}
+.fehler:last-child { margin-bottom: 0; }
+.fehler.anklickbar { cursor: pointer; }
+.fehler.anklickbar:hover { border-color: var(--warn); }
+.fehler-kopf { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
+.fehler-marke {
+  font-family: var(--schrift-ma); font-size: 9px; letter-spacing: .06em;
+  padding: 2px 5px; border-radius: 3px; flex: none;
+  background-color: var(--warn); color: #fff;
+}
+.fehler-rat { font-size: 11.5px; color: var(--tinte-2); margin-top: 4px; line-height: 1.45; }
+.fehler-roh { margin-top: 6px; }
+.fehler-roh summary { font-size: 11.5px; color: var(--tinte-3); cursor: pointer; }
+.fehler-roh pre {
+  font-family: var(--schrift-ma); font-size: 10.5px; white-space: pre-wrap;
+  background-color: var(--flaeche); padding: 7px; border-radius: 3px;
+  margin: 5px 0 0; color: var(--tinte-2); overflow-x: auto;
+}
+
+/* Baustein, auf den ein Fehler zeigt */
+.block.hatfehler { box-shadow: inset 3px 0 0 var(--warn); background-color: var(--warn-bg); }
+
+/* ---------------- Dialoge ---------------- */
+
+.schleier {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(12,16,22,.45); backdrop-filter: blur(2px);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 5vh 16px; overflow: auto;
+}
+.dialog {
+  width: 100%; max-width: 560px;
+  background-color: var(--flaeche-2); border: 1px solid var(--linie);
+  border-radius: 8px; box-shadow: 0 12px 48px rgba(0,0,0,.28);
+  display: flex; flex-direction: column; max-height: 90vh;
+}
+.dialog-breit { max-width: 800px; }
+.dialog-kopf {
+  padding: 15px 18px 12px; border-bottom: 1px solid var(--linie);
+}
+.dialog-kopf h2 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -.01em; }
+.dialog-kopf p { margin: 4px 0 0; font-size: 12.5px; color: var(--tinte-2); }
+.dialog-koerper { padding: 16px 18px; overflow: auto; }
+.dialog-fuss {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 12px 18px; border-top: 1px solid var(--linie); background-color: var(--flaeche);
+  border-radius: 0 0 8px 8px;
+}
+.dialog-fuss .links { margin-right: auto; }
+
+.feldgitter { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+.feld { display: flex; flex-direction: column; gap: 4px; }
+.feld-breit { grid-column: 1 / -1; }
+.feld label { font-size: 12px; font-weight: 550; color: var(--tinte-2); }
+.feld label .pflicht { color: var(--warn); }
+.feld input, .feld select, .feld textarea {
+  padding: 7px 9px; border: 1px solid var(--linie-stark); border-radius: var(--r);
+  background-color: var(--flaeche-2); font-size: 13px; width: 100%;
+}
+.feld textarea { resize: vertical; min-height: 74px; font-family: var(--schrift-doc); font-size: 14px; }
+.feld input:focus, .feld select:focus, .feld textarea:focus {
+  outline: none; border-color: var(--akzent); box-shadow: 0 0 0 3px var(--akzent-hell);
+}
+.feld .hilfe { font-size: 11.5px; color: var(--tinte-3); line-height: 1.4; }
+.feld.fehlt input, .feld.fehlt select { border-color: var(--warn); }
+
+.schalterzeile {
+  display: flex; align-items: flex-start; gap: 9px; padding: 7px 0;
+  border-bottom: 1px solid var(--linie);
+}
+.schalterzeile:last-child { border-bottom: 0; }
+.schalterzeile input[type=checkbox] { margin-top: 3px; width: 15px; height: 15px; accent-color: var(--akzent); }
+.schalterzeile .txt { flex: 1; }
+.schalterzeile .txt b { font-weight: 550; font-size: 13px; }
+.schalterzeile .txt span { display: block; font-size: 11.5px; color: var(--tinte-3); line-height: 1.4; }
+
+.gruppe { margin-bottom: 18px; }
+.gruppe > h3 {
+  margin: 0 0 9px; font-family: var(--schrift-ma); font-size: 10px;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--tinte-3);
+  padding-bottom: 5px; border-bottom: 1px solid var(--linie);
+}
+
+/* Quellenliste */
+.quellenliste { display: flex; flex-direction: column; gap: 1px; }
+.quelle-zeile {
+  display: flex; gap: 10px; align-items: flex-start; padding: 9px 10px;
+  border: 1px solid transparent; border-radius: var(--r); cursor: pointer;
+  font-family: var(--schrift-doc); font-size: 13.5px; line-height: 1.45;
+}
+.quelle-zeile:hover { background-color: var(--akzent-hell); border-color: var(--linie); }
+.quelle-zeile.gewaehlt { background-color: var(--akzent-hell); border-color: var(--akzent); }
+.quelle-art {
+  font-family: var(--schrift-ma); font-size: 9px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--tinte-3); flex: none;
+  padding: 2px 5px; background-color: var(--linie); border-radius: 3px; margin-top: 2px;
+}
+.quelle-txt { flex: 1; min-width: 0; }
+.quelle-warn { color: var(--tinte-3); font-family: var(--schrift-ui); font-size: 11.5px; }
+
+.leerhinweis {
+  padding: 26px 16px; text-align: center; color: var(--tinte-3); font-size: 13px;
+  border: 1.5px dashed var(--linie-stark); border-radius: var(--r);
+}
+
+.notiz {
+  display: flex; gap: 8px; padding: 10px 12px; border-radius: var(--r);
+  background-color: var(--akzent-hell); font-size: 12.5px; color: var(--tinte-2);
+  line-height: 1.45; margin-bottom: 14px;
+}
+.notiz.warnung { background-color: var(--warn-bg); color: var(--warn); }
+
+/* Meldungen */
+#meldungen {
+  position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+  z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: center;
+  pointer-events: none;
+}
+.meldung {
+  background-color: var(--tinte); color: var(--grund);
+  padding: 9px 15px; border-radius: 100px; font-size: 13px;
+  box-shadow: 0 6px 22px rgba(0,0,0,.28);
+}
+.meldung.fehler { background-color: var(--warn); color: #fff; }
+
+/* LaTeX-Einblick */
+.texblick {
+  font-family: var(--schrift-ma); font-size: 11.5px; line-height: 1.6;
+  background-color: var(--flaeche); border: 1px solid var(--linie); border-radius: var(--r);
+  padding: 12px; overflow: auto; max-height: 58vh; white-space: pre;
+  color: var(--tinte-2); margin: 0;
+}
+.reiter { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
+.reiter button {
+  padding: 4px 10px; border-radius: 100px; border: 1px solid var(--linie-stark);
+  background: transparent; cursor: pointer; font-size: 12px;
+  font-family: var(--schrift-ma); color: var(--tinte-2);
+}
+.reiter button.aktiv { background-color: var(--akzent); border-color: var(--akzent); color: var(--akzent-text); }
+
+/* ---------------- Schmale Fenster ---------------- */
+
+.ansichtswahl { display: none; gap: 4px; }
+@media (max-width: 1100px) {
+  .spalte-rechts { width: 380px; }
+  .spalte-links { width: 210px; }
+}
+@media (max-width: 900px) {
+  .ansichtswahl { display: flex; }
+  .spalte-links, .spalte-rechts { width: 100%; border: 0; }
+  .raum > .spalte { display: none; }
+  .raum > .spalte.sichtbar { display: flex; }
+  .kopf-titel { display: none; }
+}

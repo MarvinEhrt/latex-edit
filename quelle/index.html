@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schreibtisch — wissenschaftliche Arbeiten</title>
+<style>/*<<<CSS>>>*/</style>
+</head>
+<body>
+
+<script>
+  // Wird beim Ausliefern durch den Begleiter ersetzt. Bleibt der
+  // Platzhalter stehen, wurde die Datei direkt geöffnet.
+  window.__schreibtischZeichen = "__ZEICHEN__";
+</script>
+
+<div id="app">
+
+  <header class="kopf">
+    <div class="marke">
+      <b>Schreibtisch</b>
+      <span>APA 7</span>
+    </div>
+
+    <div class="ansichtswahl">
+      <button class="knopf knopf-klein" data-ansicht="gliederung">Gliederung</button>
+      <button class="knopf knopf-klein knopf-haupt" data-ansicht="editor">Text</button>
+      <button class="knopf knopf-klein" data-ansicht="pdf">PDF</button>
+    </div>
+
+    <div class="kopf-titel" id="kopf-titel"></div>
+
+    <div class="kopf-knoepfe">
+      <button class="knopf knopf-still" id="knopf-hilfe" title="Kurzanleitung">Hilfe</button>
+      <button class="knopf" id="knopf-quellen">Quellen</button>
+      <button class="knopf" id="knopf-deckblatt">Deckblatt</button>
+      <button class="knopf" id="knopf-layout">Layout</button>
+      <button class="knopf knopf-haupt" id="knopf-bauen" title="PDF jetzt bauen (Strg+Enter)">PDF bauen</button>
+    </div>
+  </header>
+
+  <div class="raum">
+
+    <aside class="spalte spalte-links" data-ansicht="gliederung">
+      <div class="panelkopf">
+        <span>Gliederung</span>
+      </div>
+      <div class="panelkoerper">
+        <div class="gliederung" id="gliederung"></div>
+      </div>
+    </aside>
+
+    <main class="spalte spalte-mitte sichtbar" data-ansicht="editor">
+      <div class="panelkopf">
+        <span>Text</span>
+        <span style="display:flex;gap:6px;align-items:center">
+          <span id="speicherstand" style="text-transform:none;letter-spacing:0"></span>
+          <button class="knopf knopf-klein knopf-still" id="knopf-neu">Neu</button>
+          <button class="knopf knopf-klein knopf-still" id="knopf-oeffnen">Öffnen</button>
+          <button class="knopf knopf-klein knopf-still" id="knopf-sichern">Sichern</button>
+          <button class="knopf knopf-klein knopf-still" id="knopf-zotero">Zotero</button>
+          <button class="knopf knopf-klein knopf-still" id="knopf-import">Import</button>
+          <button class="knopf knopf-klein knopf-still" id="knopf-tex">LaTeX</button>
+          <button class="knopf knopf-klein knopf-still" id="knopf-export">ZIP</button>
+          <button class="knopf knopf-klein knopf-still" id="knopf-einstellungen" title="Einstellungen">⚙</button>
+          <button class="knopf knopf-klein knopf-still" id="knopf-thema" title="Hell oder dunkel">◐</button>
+        </span>
+      </div>
+      <div class="panelkoerper">
+        <div class="editorflaeche">
+          <div class="blockliste" id="blockliste"></div>
+          <div class="einfuegen">
+            <div class="einfuegen-knoepfe" id="einfuegen-knoepfe"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <aside class="spalte spalte-rechts" data-ansicht="pdf">
+      <div class="panelkopf">
+        <span>PDF</span>
+        <span id="bauzustand" class="bauzustand"></span>
+      </div>
+      <div id="fehlerliste" class="fehlerliste"></div>
+      <div class="panelkoerper pdfbereich">
+        <div id="pdfleer" class="pdfleer">
+          <div style="text-align:center;max-width:300px">
+            <div style="font-size:24px;margin-bottom:8px">📄</div>
+            Noch kein PDF. Sobald du schreibst, wird es gebaut.
+          </div>
+        </div>
+        <iframe id="pdfrahmen" title="PDF-Vorschau"></iframe>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<div id="meldungen"></div>
+
+<script>/*<<<JS>>>*/</script>
+</body>
+</html>
