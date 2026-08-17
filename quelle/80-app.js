@@ -88,7 +88,7 @@ const App = (() => {
     if (!Begleiter.verbunden) return;
     if (baeuftGerade) { nochmalBauen = true; return; }
     baeuftGerade = true;
-    PdfAnsicht.zustand('laeuft', 'PDF wird gebaut …');
+    PdfAnsicht.starteUhr();
 
     try {
       const projekt = Latex.erzeuge(dok);
@@ -118,6 +118,7 @@ const App = (() => {
       PdfAnsicht.zustand('fehler', 'Begleiter antwortet nicht');
       melde('Der lokale Begleiter antwortet nicht: ' + f.message, true);
     } finally {
+      PdfAnsicht.stoppeUhr();
       baeuftGerade = false;
       if (nochmalBauen) { nochmalBauen = false; baue(); }
     }

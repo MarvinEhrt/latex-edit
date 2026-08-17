@@ -20,7 +20,11 @@ if sys.platform == "win32":
     _OHNE_FENSTER = {"creationflags": 0x08000000}  # CREATE_NO_WINDOW
 
 HAUPTDATEI = "arbeit"
-ZEITABLAUF = 120          # Sekunden je Einzellauf
+# Der allererste Lauf ist ein Sonderfall: MiKTeX lädt dabei die benötigten
+# Pakete nach -- babel-german, biblatex-apa, tgtermes und ein Dutzend mehr.
+# Das dauert je nach Leitung Minuten und darf nicht als Fehler gelten.
+ZEITABLAUF_ERSTLAUF = 900
+ZEITABLAUF = 180
 MAX_DURCHLAEUFE = 3
 
 
@@ -197,6 +201,7 @@ class Uebersetzer:
         self._letzte_bib = ""
         self._letzte_zitate = ""
         self.pdf_fassung = 0
+        self._erstlauf = True
         self._sperre = threading.Lock()
         self._laufender: subprocess.Popen | None = None
         self._abbruch = False
@@ -216,7 +221,7 @@ class Uebersetzer:
 
     # ------------------------------------------------------------- Ausführen
 
-    def _lauf(self, befehl: list[str]) -> tuple[int, str]:
+    def _lauf(self, befehl: list[str], grenze: int = ZEITABLAUF) -> tuple[int, str]:
         if self._abbruch:
             return -1, ""
         try:
@@ -228,13 +233,14 @@ class Uebersetzer:
             return -2, f"Programm nicht gefunden: {befehl[0]}"
         self._laufender = p
         try:
-            ausgabe, _ = p.communicate(timeout=ZEITABLAUF)
+            ausgabe, _ = p.communicate(timeout=grenze)
             return p.returncode, ausgabe or ""
         except subprocess.TimeoutExpired:
             p.kill()
             p.communicate()
-            return -3, (f"Zeitablauf nach {ZEITABLAUF} Sekunden. Unter MiKTeX "
-                        "wartet der Lauf womöglich auf einen Installationsdialog.")
+            return -3, (f"Zeitablauf nach {grenze} Sekunden. Unter MiKTeX "
+                        "wartet der Lauf womöglich auf einen "
+                        "Installationsdialog, der im Hintergrund steht.")
         finally:
             self._laufender = None
 
@@ -287,15 +293,16 @@ class Uebersetzer:
                            "-halt-on-error", "-file-line-error",
                            HAUPTDATEI + ".tex"]
 
+            grenze = ZEITABLAUF_ERSTLAUF if self._erstlauf else ZEITABLAUF
             protokoll = []
-            rc, ausgabe = self._lauf(grundbefehl)
+            rc, ausgabe = self._lauf(grundbefehl, grenze)
             protokoll.append(ausgabe)
 
             if self._abbruch:
                 return {"status": "abgebrochen", "fehler": [], "log": "", "dauerMs": 0}
 
             if biber_noetig and biber and rc == 0:
-                rcb, ausgabeb = self._lauf([biber, HAUPTDATEI])
+                rcb, ausgabeb = self._lauf([biber, HAUPTDATEI], grenze)
                 protokoll.append(ausgabeb)
                 if rcb == 0:
                     self._letzte_bib = bib
@@ -305,7 +312,7 @@ class Uebersetzer:
             while (rc == 0 and durchlauf < MAX_DURCHLAEUFE
                    and (_braucht_neuen_lauf(ausgabe) or biber_noetig)
                    and not self._abbruch):
-                rc, ausgabe = self._lauf(grundbefehl)
+                rc, ausgabe = self._lauf(grundbefehl, grenze)
                 protokoll.append(ausgabe)
                 biber_noetig = False
                 durchlauf += 1
@@ -325,6 +332,7 @@ class Uebersetzer:
 
             if rc == 0 and pdf_da:
                 self.pdf_fassung += 1
+                self._erstlauf = False        # ab jetzt sind Pakete da
                 status = "ok"
             elif rc == -3:
                 status = "zeitablauf"

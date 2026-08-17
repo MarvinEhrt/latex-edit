@@ -33,6 +33,29 @@ const PdfAnsicht = (() => {
     rahmen.style.display = 'block';
   }
 
+  /* Beim ersten Bau lädt MiKTeX die benötigten Pakete nach; das dauert
+     Minuten. Ohne mitlaufende Uhr sieht das aus, als hinge das Programm --
+     und man bricht ab, kurz bevor es fertig wäre. */
+  let uhr = null;
+
+  function starteUhr() {
+    stoppeUhr();
+    const beginn = Date.now();
+    const schlag = () => {
+      const s = Math.round((Date.now() - beginn) / 1000);
+      let text = `PDF wird gebaut … ${s} s`;
+      if (s >= 20) text += ' · beim ersten Mal lädt MiKTeX Pakete nach';
+      zustand('laeuft', text);
+    };
+    schlag();
+    uhr = setInterval(schlag, 1000);
+  }
+
+  function stoppeUhr() {
+    if (uhr) clearInterval(uhr);
+    uhr = null;
+  }
+
   function zustand(art, text) {
     const leiste = el('bauzustand');
     if (!leiste) return;
@@ -98,6 +121,6 @@ const PdfAnsicht = (() => {
       }));
   }
 
-  return { zeige, zustand, zeigeFehler, merkeSeite,
+  return { zeige, zustand, zeigeFehler, merkeSeite, starteUhr, stoppeUhr,
            seite: () => letzteSeite };
 })();

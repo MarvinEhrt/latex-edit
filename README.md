@@ -22,8 +22,11 @@ Linux    sudo apt install texlive-full biber
 Windows  MiKTeX von miktex.org
 ```
 
-> **MiKTeX-Nutzer:** Beim ersten Bau lädt MiKTeX fehlende Pakete nach und
-> fragt dabei nach. Dauerhaft ruhig wird es über
+> **MiKTeX-Nutzer:** **Der allererste Bau dauert einige Minuten** — MiKTeX
+> lädt dabei die benötigten Pakete nach (babel-german, biblatex-apa, tgtermes
+> und rund ein Dutzend mehr). Die Statusleiste zählt die Sekunden mit; bitte
+> laufen lassen, nicht abbrechen. Jeder weitere Bau dauert dann Sekunden.
+> MiKTeX Dauerhaft ruhig wird es über
 > *MiKTeX Console → Einstellungen → „Pakete bei Bedarf installieren: Ja, ohne
 > zu fragen"*. Sonst wartet der Bau auf einen Klick, den man leicht übersieht.
 
@@ -140,6 +143,7 @@ selben Browser mitreden kann.
 ```
 python3 pruefungen/pruefe_begleiter.py   # 29 Prüfungen: LaTeX-Läufe, Logauswertung,
                                          #   Zeilenkarte, Zotero-Abbildung, Ablage
+python3 pruefungen/pruefe_abbruch.py     # 4 Prüfungen: Dienst übersteht Verbindungsabbrüche
 npm install                              # einmalig, holt playwright-core
 node pruefungen/pruefe_ganz.mjs          # 12 Schritte: Browser bis fertiges PDF
 ```
@@ -164,8 +168,10 @@ Browser. Stand: beide vollständig grün, keine Konsolenfehler.
 - **Windows ist nur teilweise erprobt.** Entwickelt und automatisch geprüft
   wird unter Linux. Auf Windows 11 gemeldete und behobene Stolpersteine:
   der Selbstbau der Oberfläche lief über `os.system` und scheiterte an
-  cmd-Zitierregeln (jetzt direkter Aufruf), und Sonderzeichen im Startbericht
-  konnten auf Konsolen ohne UTF-8 abbrechen (jetzt mit Rückfall auf ASCII).
+  cmd-Zitierregeln (jetzt direkter Aufruf), Sonderzeichen im Startbericht
+  konnten auf Konsolen ohne UTF-8 abbrechen (jetzt mit Rückfall auf ASCII),
+  und ein abbrechender Browser erzeugte eine Traceback-Wand (jetzt still
+  behandelt, mit eigener Prüfung abgesichert).
   Weitere Meldungen sind willkommen — `--diagnose` liefert das Nötige.
 - Citavi-Projektdateien (`.ctv6`) werden nicht direkt gelesen, nur Exporte.
 - Kein gleichzeitiges Bearbeiten zu zweit, keine Änderungsverfolgung.

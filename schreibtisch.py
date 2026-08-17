@@ -45,14 +45,24 @@ ARBEITSORDNER = os.path.join(tempfile.gettempdir(),
 UEBERSETZER = uebersetzen_modul.Uebersetzer(ARBEITSORDNER)
 
 
+# Der Browser darf jederzeit auflegen: Tab zu, Seite neu geladen, Warten
+# abgebrochen. Das ist kein Fehler, sondern Alltag -- es darf nur nicht in
+# einer Traceback-Wand enden, die aussieht, als sei alles kaputt.
+VERBINDUNG_WEG = (ConnectionAbortedError, ConnectionResetError,
+                  BrokenPipeError, TimeoutError)
+
+
 def _json_antwort(handler, daten, code=200):
     roh = json.dumps(daten, ensure_ascii=False).encode("utf-8")
-    handler.send_response(code)
-    handler.send_header("Content-Type", "application/json; charset=utf-8")
-    handler.send_header("Content-Length", str(len(roh)))
-    handler.send_header("Cache-Control", "no-store")
-    handler.end_headers()
-    handler.wfile.write(roh)
+    try:
+        handler.send_response(code)
+        handler.send_header("Content-Type", "application/json; charset=utf-8")
+        handler.send_header("Content-Length", str(len(roh)))
+        handler.send_header("Cache-Control", "no-store")
+        handler.end_headers()
+        handler.wfile.write(roh)
+    except VERBINDUNG_WEG:
+        pass                       # Gegenstelle ist weg -- nichts zu tun
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -133,6 +143,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 threading.Timer(0.4, lambda: os._exit(0)).start()
                 return _json_antwort(self, {"gut": True})
 
+        except VERBINDUNG_WEG:
+            return                                # Browser ist weg
         except zotero_modul.ZoteroFehler as f:
             return _json_antwort(self, {"fehler": str(f)}, 400)
         except FileNotFoundError:
@@ -177,6 +189,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return _json_antwort(self, {"gut": True,
                                             "anzahl": len(ABLAGE.setze_einstellungen(daten))})
 
+        except VERBINDUNG_WEG:
+            return                                # Browser ist weg
         except zotero_modul.ZoteroFehler as f:
             return _json_antwort(self, {"fehler": str(f)}, 400)
         except Exception as f:                    # noqa: BLE001
@@ -209,12 +223,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return _json_antwort(self, {"fehler": "noch kein PDF"}, 404)
         with open(pfad, "rb") as f:
             roh = f.read()
-        self.send_response(200)
-        self.send_header("Content-Type", "application/pdf")
-        self.send_header("Content-Length", str(len(roh)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(roh)
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/pdf")
+            self.send_header("Content-Length", str(len(roh)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(roh)
+        except VERBINDUNG_WEG:
+            pass
 
     def _uebersetze(self, daten):
         bilder = []
@@ -232,6 +249,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
 class Dienst(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        """Standardmäßig druckt socketserver einen vollständigen Traceback.
+        Für jemanden, der nur schreiben will, sieht das aus, als sei das
+        Programm zerstört -- dabei ist meistens nur ein Tab zugegangen."""
+        art = sys.exc_info()[0]
+        if art is not None and issubclass(art, VERBINDUNG_WEG):
+            return
+        fehler = sys.exc_info()[1]
+        print(f"  [Hinweis] {art.__name__ if art else 'Fehler'}: {fehler}")
+        print("  Der Schreibtisch läuft weiter. Bitte melden, wenn es "
+              "wiederholt auftritt.")
 
 
 def freier_port() -> int:
