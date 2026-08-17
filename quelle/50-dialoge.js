@@ -483,7 +483,8 @@ const Dialoge = (() => {
   function verweisEinfuegen(dok) {
     return new Promise((fertig) => {
       const nummern = Modell.nummeriere(dok);
-      const ziele = dok.bloecke.filter(b => ['tabelle', 'abbildung', 'ueberschrift'].includes(b.typ));
+      const ziele = dok.bloecke.filter(
+        b => ['tabelle', 'abbildung', 'diagramm', 'ueberschrift'].includes(b.typ));
       const { koerper, fuss, schliessen } = basis({
         titel: 'Querverweis einfügen',
         unter: 'Der Verweis passt sich automatisch an, wenn du Blöcke verschiebst oder ergänzt.'
@@ -495,8 +496,8 @@ const Dialoge = (() => {
         for (const b of ziele) {
           const n = (nummern.get(b.id) || {}).nummer || '?';
           const beschriftung = b.typ === 'tabelle' ? `Tabelle ${n}`
-                             : b.typ === 'abbildung' ? `Abbildung ${n}`
-                             : `Abschnitt ${n}`;
+                             : (b.typ === 'abbildung' || b.typ === 'diagramm')
+                               ? `Abbildung ${n}` : `Abschnitt ${n}`;
           const titel = b.typ === 'ueberschrift' ? b.text : b.titel;
           const zeile = el('div', 'quelle-zeile');
           zeile.innerHTML = `<span class="quelle-art">${escHtml(b.typ)}</span>
@@ -771,7 +772,7 @@ const Dialoge = (() => {
     fuss.append(knopf('Alles klar', 'knopf-haupt', schliessen));
   }
 
-  return { basis, knopf, formular, bestaetigen, neuesDokument, deckblatt, layout,
+  return { basis, knopf, feldElement, formular, bestaetigen, neuesDokument, deckblatt, layout,
            quellenverwaltung, quelleBearbeiten, zitatEinfuegen, verweisEinfuegen,
            kennwert, fussnote, tabelle, abbildung, formel, texAnsehen, hilfe };
 })();

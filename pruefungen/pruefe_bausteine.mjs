@@ -1,0 +1,199 @@
+/* Prüft das Verhalten der Bausteine im Editor: Absätze teilen und
+   zusammenführen, ohne Zitat-Chips zu zerreißen.
+       node pruefungen/pruefe_bausteine.mjs                            */
+
+import { spawn } from 'node:child_process';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const { chromium } = await import(process.env.PLAYWRIGHT_CORE || 'playwright-core');
+const W = dirname(dirname(fileURLToPath(import.meta.url)));
+const d=spawn('python3',['-u',W+'/schreibtisch.py'],{cwd:W});
+let adr=''; d.stdout.on('data',x=>{const m=x.toString().match(/http:\S+/); if(m)adr=m[0];});
+for(let i=0;i<80&&!adr;i++) await new Promise(r=>setTimeout(r,100));
+const b=await chromium.launch({executablePath:process.env.CHROMIUM || undefined,
+  args:['--no-sandbox','--disable-gpu']});
+const s=await b.newPage(); s.on('pageerror',f=>console.log('PAGEERROR:',f.message));
+await s.goto(adr); await s.waitForTimeout(1500);
+await s.locator('.dialog .knopf-haupt').first().click().catch(()=>{});
+await s.waitForTimeout(400);
+
+let ok=0,fehl=0;
+const p=(n,b2,h='')=>{(b2?ok++:fehl++);console.log(`  ${b2?'✓':'✗'} ${n}${b2?'':'\n      '+h}`);};
+const txt = () => s.evaluate(() => App.dok.bloecke
+  .filter(x=>x.typ==='absatz').map(x=>Richtext.zuText(x.runs,{quellen:App.dok.quellen,verweisText:()=>'[V]'})));
+
+const setze = (js) => s.evaluate(js).then(()=>s.waitForTimeout(350));
+
+console.log('\nAbsatzprüfung\n');
+
+// A) Enter mitten im Satz
+await setze(()=>{App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'ErsterTeil ZweiterTeil'}]})];Editor.zeichne();});
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('Home');
+for(let i=0;i<10;i++) await s.keyboard.press('ArrowRight');
+await s.keyboard.press('Enter'); await s.waitForTimeout(450);
+let t = await txt();
+p('Enter teilt den Absatz an der Marke',
+  t.length===2 && t[0]==='ErsterTeil' && t[1]===' ZweiterTeil', JSON.stringify(t));
+
+// A2) danach weitertippen landet im neuen Absatz
+await s.keyboard.type('X'); await s.waitForTimeout(400);
+t = await txt();
+p('Schreibmarke steht im neuen Absatz', t[1]==='X ZweiterTeil', JSON.stringify(t));
+
+// B) Rücktaste am Anfang verschmilzt
+await setze(()=>{App.dok.bloecke=[
+  Modell.neuerBlock('absatz',{runs:[{text:'Absatz eins'}]}),
+  Modell.neuerBlock('absatz',{runs:[{text:'Absatz zwei'}]})];Editor.zeichne();});
+await s.locator('.block .tx').nth(1).click();
+await s.keyboard.press('Home');
+await s.keyboard.press('Backspace'); await s.waitForTimeout(450);
+t = await txt();
+p('Rücktaste am Anfang führt zusammen',
+  t.length===1 && t[0]==='Absatz einsAbsatz zwei', JSON.stringify(t));
+
+// B2) Marke steht an der Nahtstelle
+await s.keyboard.type('|'); await s.waitForTimeout(400);
+t = await txt();
+p('Schreibmarke steht an der Nahtstelle', t[0]==='Absatz eins|Absatz zwei', JSON.stringify(t));
+
+// C) Teilen mit Zitat im hinteren Stück
+await setze(()=>{
+  App.dok.quellen=[{key:'holland1997',typ:'buch',felder:{autoren:'Holland, John L.',jahr:'1997',titel:'T',verlag:'P'}}];
+  App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[
+    {text:'Vorne '},{zitat:'holland1997',form:'klammer'},{text:' hinten'}]})];
+  Editor.zeichne();});
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('Home');
+for(let i=0;i<6;i++) await s.keyboard.press('ArrowRight');   // hinter "Vorne "
+await s.keyboard.press('Enter'); await s.waitForTimeout(450);
+const runs = await s.evaluate(()=>App.dok.bloecke.map(x=>x.runs));
+p('Zitat bleibt beim Teilen unversehrt',
+  JSON.stringify(runs).includes('"zitat":"holland1997"') &&
+  runs.filter(r=>r&&r.some&&r.some(x=>x.zitat)).length===1, JSON.stringify(runs));
+p('Chip landet im hinteren Absatz',
+  runs[1] && runs[1][0] && runs[1][0].zitat==='holland1997', JSON.stringify(runs[1]));
+
+// D) Zusammenführen, wenn vorne ein Chip steht -> Marke hinter dem Chip
+await setze(()=>{
+  App.dok.bloecke=[
+    Modell.neuerBlock('absatz',{runs:[{text:'A '},{zitat:'holland1997',form:'klammer'}]}),
+    Modell.neuerBlock('absatz',{runs:[{text:'B'}]})];
+  Editor.zeichne();});
+await s.locator('.block .tx').nth(1).click();
+await s.keyboard.press('Home');
+await s.keyboard.press('Backspace'); await s.waitForTimeout(450);
+await s.keyboard.type('|'); await s.waitForTimeout(400);
+const r2 = await s.evaluate(()=>App.dok.bloecke[0].runs);
+p('Marke landet hinter dem Chip, nicht darin',
+  JSON.stringify(r2).includes('"text":"|B"') && r2.some(x=>x.zitat), JSON.stringify(r2));
+
+// E) Umschalt+Enter unverändert
+await setze(()=>{App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'Zeile A'}]})];Editor.zeichne();});
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('End');
+await s.keyboard.down('Shift'); await s.keyboard.press('Enter'); await s.keyboard.up('Shift');
+await s.keyboard.type('Zeile B'); await s.waitForTimeout(400);
+const r3 = await s.evaluate(()=>App.dok.bloecke[0].runs);
+p('Umschalt+Enter bleibt Zeilenumbruch',
+  JSON.stringify(r3).includes('\\n'), JSON.stringify(r3));
+
+// F) Rücktaste am Anfang des ersten Absatzes tut nichts
+await setze(()=>{App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'Einziger'}]})];Editor.zeichne();});
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('Home'); await s.keyboard.press('Backspace'); await s.waitForTimeout(400);
+t = await txt();
+p('erster Absatz bleibt bei Rücktaste unversehrt', t.length===1 && t[0]==='Einziger', JSON.stringify(t));
+
+
+// ---------------------------------------------- Bilder und Tabellen
+
+const PNG='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+// G) Tabelle aus Excel einfügen
+await setze(()=>{App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'Text'}]})];Editor.zeichne();});
+await s.evaluate(() => {
+  const feld = document.querySelector('.block .tx');
+  feld.focus();
+  const dt = new DataTransfer();
+  dt.setData('text/plain', 'Skala\tM\tSD\nRealistic\t89,4\t12,1\nInvestigative\t97,2\t11,8');
+  feld.dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true}));
+});
+await s.waitForTimeout(500);
+let tab = await s.evaluate(()=>App.dok.bloecke.find(b=>b.typ==='tabelle'));
+p('Excel-Bereich wird zur Tabelle',
+  tab && tab.kopf.join('|')==='Skala|M|SD' && tab.zeilen.length===2, JSON.stringify(tab));
+p('erste Spalte links, Zahlenspalten zentriert',
+  tab && tab.spaltenAusrichtung.join('')==='lcc', JSON.stringify(tab&&tab.spaltenAusrichtung));
+
+// H) Fließtext bleibt Fließtext
+await setze(()=>{App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[]})];Editor.zeichne();});
+await s.evaluate(() => {
+  const feld = document.querySelector('.block .tx');
+  feld.focus();
+  const dt = new DataTransfer();
+  dt.setData('text/plain', 'Erster Satz.\nZweiter Satz.');
+  feld.dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true}));
+});
+await s.waitForTimeout(450);
+p('mehrzeiliger Fließtext wird keine Tabelle',
+  !(await s.evaluate(()=>App.dok.bloecke.some(b=>b.typ==='tabelle'))),
+  JSON.stringify(await s.evaluate(()=>App.dok.bloecke.map(b=>b.typ))));
+
+// I) Bildschirmfoto einfügen
+await setze(()=>{App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'Text'}]})];Editor.zeichne();});
+await s.evaluate((b64) => {
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const datei = new File([bytes], 'bildschirmfoto.png', {type:'image/png'});
+  const dt = new DataTransfer();
+  dt.items.add(datei);
+  const feld = document.querySelector('.block .tx');
+  feld.focus();
+  feld.dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true}));
+}, PNG);
+await s.waitForTimeout(700);
+let abb = await s.evaluate(()=>App.dok.bloecke.find(b=>b.typ==='abbildung'));
+p('Bild aus der Zwischenablage wird zur Abbildung',
+  abb && abb.datenUrl.startsWith('data:image/png'), JSON.stringify(abb && abb.dateiname));
+
+// J) Bild in den Text ziehen
+await setze(()=>{App.dok.bloecke=[
+  Modell.neuerBlock('absatz',{runs:[{text:'Eins'}]}),
+  Modell.neuerBlock('absatz',{runs:[{text:'Zwei'}]})];Editor.zeichne();});
+await s.evaluate((b64) => {
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const dt = new DataTransfer();
+  dt.items.add(new File([bytes], 'gezogen.png', {type:'image/png'}));
+  const liste = document.getElementById('blockliste');
+  const zweiter = document.querySelectorAll('.block')[1].getBoundingClientRect();
+  const opt = {dataTransfer: dt, bubbles: true, cancelable: true,
+               clientX: zweiter.left + 10, clientY: zweiter.top + 2};
+  liste.dispatchEvent(new DragEvent('dragover', opt));
+  liste.dispatchEvent(new DragEvent('drop', opt));
+}, PNG);
+await s.waitForTimeout(700);
+const typen = await s.evaluate(()=>App.dok.bloecke.map(b=>b.typ));
+p('gezogenes Bild landet an der Ablagestelle',
+  typen.join(',')==='absatz,abbildung,absatz', typen.join(','));
+
+// K) Tabellenwerkzeuge
+await setze(()=>{App.dok.bloecke=[Modell.neuerBlock('tabelle',
+  {kopf:['A','B'],zeilen:[['1','2']],spaltenAusrichtung:['l','c']})];Editor.zeichne();});
+await s.locator('.tabellenknoepfe .knopf', {hasText:'+ Zeile'}).click();
+await s.waitForTimeout(350);
+await s.locator('.tabellenknoepfe .knopf', {hasText:'+ Spalte'}).click();
+await s.waitForTimeout(350);
+const t2 = await s.evaluate(()=>App.dok.bloecke[0]);
+p('Zeile und Spalte lassen sich anfügen',
+  t2.zeilen.length===2 && t2.kopf.length===3 && t2.zeilen[0].length===3,
+  JSON.stringify({z:t2.zeilen.length,s:t2.kopf.length}));
+
+await s.locator('.block .zeileweg').first().click();
+await s.waitForTimeout(350);
+p('Zeile lässt sich löschen',
+  (await s.evaluate(()=>App.dok.bloecke[0].zeilen.length))===1);
+
+console.log(`\n  ${ok} bestanden, ${fehl} durchgefallen`);
+await b.close(); d.kill();
+process.exit(fehl?1:0);

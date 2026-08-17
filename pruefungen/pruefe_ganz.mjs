@@ -187,6 +187,43 @@ await schritt('Sichern und wieder öffnen', async () => {
   if (titel !== 'Prüfarbeit Interessen') throw new Error('Titel nach Öffnen: ' + titel);
 });
 
+await schritt('Diagramm einfügen und ins PDF bringen', async () => {
+  await seite.evaluate(() => {
+    const t = Modell.neuerBlock('tabelle', {
+      titel: 'Kennwerte', kopf: ['Gruppe', 'M', 'SD'],
+      zeilen: [['A', '3,4', '0,8'], ['B', '4,1', '0,9'], ['C', '2,9', '0,6']],
+      spaltenAusrichtung: ['l', 'c', 'c'] });
+    const d = Modell.neuerBlock('diagramm', {
+      art: 'balken', titel: 'Mittelwerte je Gruppe',
+      quelle: 'tabelle', tabelleId: t.id,
+      xSpalte: 0, wertSpalten: [1], fehlerSpalte: 2, fehlerArt: 'sd',
+      achseY: 'Wert' });
+    App.dok.bloecke.push(t, d);
+    window.__diagramm = d.id;
+    Editor.zeichne(); App.baue();
+  });
+  await seite.waitForFunction(
+    () => document.querySelector('#bauzustand')?.className.includes('ok'),
+    { timeout: 120000 });
+  if (!(await seite.locator('.diagrammkarte').count()))
+    throw new Error('keine Diagrammkarte im Editor');
+  const tex = await seite.evaluate(() => Latex.erzeuge(App.dok).dateien['arbeit.tex']);
+  if (!tex.includes('\\usepackage{pgfplots}')) throw new Error('pgfplots fehlt in der Präambel');
+  if (!tex.includes('error bars')) throw new Error('Fehlerbalken fehlen');
+  if (!tex.includes('Standardabweichung')) throw new Error('Pflichtanmerkung fehlt');
+});
+
+await schritt('Diagramm folgt der Tabelle, wenn diese sich ändert', async () => {
+  await seite.evaluate(() => {
+    const t = App.dok.bloecke.find(b => b.typ === 'tabelle');
+    t.zeilen[0][1] = '9,9';
+    App.baue();
+  });
+  await seite.waitForTimeout(600);
+  const tex = await seite.evaluate(() => Latex.erzeuge(App.dok).dateien['arbeit.tex']);
+  if (!tex.includes('9.9')) throw new Error('geänderter Wert kam nicht im Diagramm an');
+});
+
 await schritt('erzeugtes LaTeX enthält, was es soll', async () => {
   await seite.click('#knopf-tex');
   await seite.waitForSelector('.texblick', { timeout: 5000 });

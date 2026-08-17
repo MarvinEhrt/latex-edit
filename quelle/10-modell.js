@@ -141,6 +141,7 @@ const Modell = (() => {
     blockzitat:    { name: 'Blockzitat',     icon: '❝' },
     tabelle:       { name: 'Tabelle',        icon: '▦' },
     abbildung:     { name: 'Abbildung',      icon: '🖼' },
+    diagramm:      { name: 'Diagramm',       icon: '📊' },
     formel:        { name: 'Formel',         icon: '∑' },
     seitenumbruch: { name: 'Seitenumbruch',  icon: '⤓' },
     anhangstart:   { name: 'Anhang beginnt', icon: '§' }
@@ -159,6 +160,15 @@ const Modell = (() => {
                                      spaltenAusrichtung: ['l', 'c', 'c'], ...daten };
       case 'abbildung':     return { ...grund, titel: '', anmerkung: '', datenUrl: '',
                                      dateiname: '', breite: 80, ...daten };
+      case 'diagramm':      return { ...grund, art: 'balken', titel: '', anmerkung: '',
+                                     quelle: 'eigen', tabelleId: '',
+                                     daten: { kopf: ['Gruppe', 'Mittelwert', 'SD'],
+                                              zeilen: [['A', '3,4', '0,8'],
+                                                       ['B', '4,1', '0,9']] },
+                                     xSpalte: 0, wertSpalten: [1], fehlerSpalte: null,
+                                     fehlerArt: 'sd', achseX: '', achseY: '',
+                                     graustufen: false, regression: true,
+                                     breite: 85, hoehe: 6.4, ...daten };
       case 'formel':        return { ...grund, tex: '', ...daten };
       default:              return { ...grund, ...daten };
     }
@@ -419,7 +429,8 @@ const Modell = (() => {
         continue;
       }
       if (b.typ === 'tabelle')   karte.set(b.id, { nummer: String(++tab), imAnhang });
-      if (b.typ === 'abbildung') karte.set(b.id, { nummer: String(++abb), imAnhang });
+      if (b.typ === 'abbildung' || b.typ === 'diagramm')
+        karte.set(b.id, { nummer: String(++abb), imAnhang });
     }
     return karte;
   }

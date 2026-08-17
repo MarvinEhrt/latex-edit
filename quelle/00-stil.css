@@ -521,3 +521,83 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .raum > .spalte.sichtbar { display: flex; }
   .kopf-titel { display: none; }
 }
+
+/* ---------------- Ablegen von Dateien ---------------- */
+
+.einfuegemarke {
+  height: 3px; margin: 3px 0 3px 44px; border-radius: 2px;
+  background-color: var(--akzent);
+}
+
+/* ---------------- Tabellenwerkzeuge ---------------- */
+
+/* Ruhig halten: erst beim Überfahren der Karte sichtbar. */
+.spaltenleiste th, .randspalte { border: 0 !important; padding: 0 !important; }
+.spaltenwerkzeug, .zeileweg { opacity: 0; transition: opacity .12s; }
+.tab-karte:hover .spaltenwerkzeug,
+.tab-karte:hover .zeileweg { opacity: .75; }
+.spaltenwerkzeug:hover, .zeileweg:hover { opacity: 1 !important; }
+
+.spaltenwerkzeug { display: flex; gap: 1px; justify-content: center; padding: 1px 0 3px; }
+.spaltenwerkzeug button, .zeileweg {
+  border: 0; background: transparent; cursor: pointer;
+  color: var(--tinte-3); font-size: 11px; line-height: 1;
+  padding: 2px 3px; border-radius: 3px;
+}
+.spaltenwerkzeug button:hover, .zeileweg:hover {
+  background-color: var(--akzent-hell); color: var(--akzent);
+}
+.spaltenwerkzeug button.aktiv { color: var(--akzent); background-color: var(--akzent-hell); }
+.spaltenwerkzeug button.gefahr:hover, .zeileweg:hover { background-color: var(--warn-bg); color: var(--warn); }
+.randspalte { width: 22px; text-align: center; }
+.zeileweg { font-size: 10px; }
+
+.tabellenknoepfe { display: flex; gap: 5px; margin-top: 7px; }
+.tabellenknoepfe .knopf { color: var(--tinte-2); }
+
+/* ---------------- Diagramme ---------------- */
+
+.artwahl { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.artknopf {
+  flex: 1 1 110px; display: flex; flex-direction: column; align-items: center;
+  gap: 4px; padding: 10px 8px; cursor: pointer;
+  border: 1px solid var(--linie-stark); border-radius: var(--r);
+  background-color: var(--flaeche-2); color: var(--tinte-2); font-size: 12.5px;
+}
+.artknopf:hover { border-color: var(--akzent); background-color: var(--akzent-hell); }
+.artknopf.aktiv {
+  border-color: var(--akzent); background-color: var(--akzent-hell);
+  color: var(--akzent); font-weight: 550;
+}
+.artzeichen { font-size: 19px; line-height: 1; }
+
+.rasterablage {
+  border: 1.5px dashed var(--linie-stark); border-radius: var(--r);
+  padding: 7px; margin: 8px 0; overflow-x: auto;
+}
+.rasterablage.hover { border-color: var(--akzent); background-color: var(--akzent-hell); }
+.datengitter { border-collapse: collapse; font-size: 13px; width: 100%; }
+.datengitter th, .datengitter td {
+  border: 1px solid var(--linie); padding: 3px 6px; min-width: 70px;
+}
+.datengitter th { background-color: var(--flaeche); font-weight: 600; }
+.datengitter td { font-variant-numeric: tabular-nums; }
+.datengitter td.keinezahl { background-color: var(--warn-bg); color: var(--warn); }
+.datengitter th:focus, .datengitter td:focus {
+  outline: 2px solid var(--akzent); outline-offset: -2px;
+}
+
+.spaltenwahl { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 6px 0; }
+.spaltenmarke {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 13px; color: var(--tinte-2); cursor: pointer;
+}
+.spaltenmarke input { accent-color: var(--akzent); }
+
+.diagrammkarte {
+  display: flex; gap: 11px; align-items: flex-start;
+  padding: 11px 13px; border-radius: var(--r);
+  background-color: var(--flaeche); border: 1px solid var(--linie);
+}
+.diagrammzeichen { font-size: 22px; line-height: 1.1; color: var(--akzent); }
+.diagrammkarte b { font-size: 13.5px; }

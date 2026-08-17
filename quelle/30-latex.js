@@ -140,7 +140,8 @@ const Latex = (() => {
         const b = dok.bloecke.find(x => x.id === ziel);
         if (!b) return '\\textbf{??}';
         return b.typ === 'tabelle' ? `Tabelle~\\ref{tab:${ziel}}`
-             : b.typ === 'abbildung' ? `Abbildung~\\ref{abb:${ziel}}`
+             : (b.typ === 'abbildung' || b.typ === 'diagramm')
+               ? `Abbildung~\\ref{abb:${ziel}}`
              : `Abschnitt~\\ref{sec:${ziel}}`;
       }
     };
@@ -154,6 +155,13 @@ const Latex = (() => {
     K.push('');
     K.push(`\\documentclass[${e.schriftgroesse || 12}pt,a4paper]{article}`);
     K.push(`\\usepackage[${e.schrift === 'arial' ? 'arial' : 'times'}]{arbeit-stil}`);
+    // pgfplots kostet Ladezeit und muss unter MiKTeX erst geholt werden --
+    // also nur mitnehmen, wenn das Dokument wirklich ein Diagramm hat.
+    if (dok.bloecke.some(b => b.typ === 'diagramm')) {
+      K.push('');
+      K.push(Diagramm.PRAEAMBEL);
+      K.push('');
+    }
     K.push('\\addbibresource{literatur.bib}');
     K.push('');
     K.push('% ---- Angaben fürs Deckblatt ----');
@@ -260,6 +268,20 @@ const Latex = (() => {
             K.push('', abbildungZuLatex(b, datei));
           }
           break;
+        case 'diagramm': {
+          const gebaut = Diagramm.zuLatex(b, dok);
+          if (!gebaut.tex) break;
+          const pflicht = Diagramm.pflichtanmerkung(b, dok);
+          const anm = [b.anmerkung, pflicht].filter(x => x && x.trim()).join(' ');
+          K.push('', ['\\begin{figure}[htbp]',
+            `\\caption{${textMitTokens(b.titel || 'Ohne Titel', 'latex')}}`,
+            `\\label{abb:${b.id}}`,
+            '\\centering',
+            gebaut.tex,
+            anm ? `\\anmerkung{${textMitTokens(anm, 'latex')}}` : '',
+            '\\end{figure}'].filter(Boolean).join('\n'));
+          break;
+        }
         case 'formel':
           if (b.tex && b.tex.trim()) K.push('', '\\[', '  ' + b.tex.trim(), '\\]');
           break;

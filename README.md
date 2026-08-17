@@ -50,11 +50,50 @@ echte, nicht ein Nachbau. Zwei Sekunden nach der letzten Eingabe wird neu
 gebaut; eiliger geht es mit **Strg+Enter**.
 
 Jeder Abschnitt ist ein **Baustein**: Absatz, Überschrift, Tabelle, Abbildung,
-Blockzitat, Liste, Formel. Maus darüber — links ein Griff zum Verschieben,
-oben rechts die Werkzeuge.
+Diagramm, Blockzitat, Liste, Formel. Maus darüber — links ein Griff zum
+Verschieben, oben rechts die Werkzeuge.
+
+**Schreiben wie gewohnt:** Enter teilt den Absatz an der Schreibmarke,
+Rücktaste am Anfang führt ihn mit dem darüber zusammen, Umschalt+Enter setzt
+einen Zeilenumbruch innerhalb des Absatzes. Zitate und Querverweise werden
+dabei nie zerrissen.
+
+**Einfügen statt Umweg:** Ein Bildschirmfoto in der Zwischenablage wird mit
+Strg+V zur Abbildung. Ein aus Excel kopierter Bereich wird zur APA-7-Tabelle.
+Eine Bilddatei lässt sich mitten in den Text ziehen — sie landet dort, wo man
+loslässt.
 
 **Drei Farben, drei Bedeutungen** im Fließtext:
 Quellenangaben türkis, Querverweise blau, statistische Kennwerte ocker.
+
+### Diagramme
+
+Vier Arten, direkt in LaTeX gesetzt (pgfplots) — Vektorgrafik in der Schrift
+des Dokuments:
+
+| Art | Spalten |
+|---|---|
+| **Balken** mit Fehlerbalken | Kategorie · Wert · Fehler (optional); mehrere Wertspalten ergeben Gruppen |
+| **Linie / Profil** | x-Wert · je weitere Spalte eine Linie |
+| **Streudiagramm** | x · y, mit Ausgleichsgerade; r und n kommen in die Anmerkung |
+| **Boxplot** | je Spalte eine Gruppe, darunter die Rohwerte |
+
+Die Zahlen tippt man ins Raster, fügt sie aus Excel oder SPSS ein (Strg+V),
+zieht eine CSV-Datei darauf — oder verweist auf **eine Tabelle im Dokument**.
+Beim Verweis wird nichts kopiert: ändert sich die Tabelle, ändert sich das
+Diagramm mit.
+
+Was APA 7 zwingend in der Anmerkung verlangt — welche Streuung die
+Fehlerbalken zeigen, was die Kästen eines Boxplots bedeuten — ergänzt der
+Schreibtisch selbst.
+
+**Zu den Farben.** Die vier Reihenfarben sind mit einem Prüfskript auf
+Farbfehlsichtigkeit gerechnet, nicht nach Gefühl gewählt (schlechtestes
+Nachbarpaar ΔE 17,0 bei Deuteranopie, Kontrast überall über 3:1). Im
+**Graustufendruck fallen sie trotzdem zusammen** — Ocker und Grün landen bei
+fast derselben Helligkeit. Deshalb unterscheiden sich Reihen immer
+zusätzlich in Symbol und Strichart, und der Schalter *Graustufen* stuft die
+Helligkeit und legt Füllmuster darüber.
 
 ### Wenn etwas schiefgeht
 
@@ -107,7 +146,7 @@ Schreibtisch/
 │   ├── uebersetzen.py   pdflatex/biber-Läufe, Logauswertung
 │   ├── zotero.py        Web-API von Zotero
 │   └── ablage.py        Projekte und Einstellungen
-├── quelle/              Oberfläche (11 Module)
+├── quelle/              Oberfläche (14 Module)
 ├── bauen.py             quelle/* → oberflaeche.html
 ├── pruefungen/
 └── Arbeiten/            deine Arbeiten
@@ -143,9 +182,12 @@ selben Browser mitreden kann.
 ```
 python3 pruefungen/pruefe_begleiter.py   # 29 Prüfungen: LaTeX-Läufe, Logauswertung,
                                          #   Zeilenkarte, Zotero-Abbildung, Ablage
-python3 pruefungen/pruefe_abbruch.py     # 4 Prüfungen: Dienst übersteht Verbindungsabbrüche
+python3 pruefungen/pruefe_abbruch.py     #  4 Prüfungen: Dienst übersteht Abbrüche
+node     pruefungen/pruefe_diagramme.mjs # 16 Prüfungen: alle vier Diagrammarten,
+                                         #   erzeugt und wirklich übersetzt
 npm install                              # einmalig, holt playwright-core
-node pruefungen/pruefe_ganz.mjs          # 12 Schritte: Browser bis fertiges PDF
+node     pruefungen/pruefe_bausteine.mjs # 16 Prüfungen: Absätze, Einfügen, Tabellen
+node     pruefungen/pruefe_ganz.mjs      # 14 Schritte: Browser bis fertiges PDF
 ```
 
 Die Browserprüfung nimmt den von playwright mitgelieferten Chromium. Wer einen
@@ -174,5 +216,9 @@ Browser. Stand: beide vollständig grün, keine Konsolenfehler.
   behandelt, mit eigener Prüfung abgesichert).
   Weitere Meldungen sind willkommen — `--diagnose` liefert das Nötige.
 - Citavi-Projektdateien (`.ctv6`) werden nicht direkt gelesen, nur Exporte.
+- Diagramme brauchen `pgfplots`; unter MiKTeX wird es beim ersten Diagramm
+  nachgeladen, das dauert einmalig länger.
+- Boxplots speichern die Rohwerte im Projekt — bei sehr großen Datensätzen
+  wächst die Datei entsprechend.
 - Kein gleichzeitiges Bearbeiten zu zweit, keine Änderungsverfolgung.
 - Bilder liegen in der Projektdatei; sehr große Scans lassen sie wachsen.

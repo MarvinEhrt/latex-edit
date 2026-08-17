@@ -32,7 +32,7 @@ const Editor = (() => {
         if (!b) return '?? gelöscht';
         const n = (nummern.get(ziel) || {}).nummer || '?';
         return b.typ === 'tabelle' ? `Tabelle ${n}`
-             : b.typ === 'abbildung' ? `Abbildung ${n}`
+             : (b.typ === 'abbildung' || b.typ === 'diagramm') ? `Abbildung ${n}`
              : `Abschnitt ${n}`;
       }
     };
@@ -101,9 +101,28 @@ const Editor = (() => {
     });
 
     feld.addEventListener('paste', (ev) => {
-      /* Nur Text übernehmen -- so kann Word keine Formatierung einschleppen. */
+      const ablage = ev.clipboardData || window.clipboardData;
+
+      /* Bildschirmfoto in der Zwischenablage -- etwa aus SPSS oder JASP */
+      const bild = [...(ablage.items || [])].find(e => e.type.startsWith('image/'));
+      if (bild) {
+        ev.preventDefault();
+        legeBildAn(bild.getAsFile(), indexVon(block.id) + 1);
+        return;
+      }
+
+      const rohtext = ablage.getData('text/plain');
+
+      /* Ein aus Excel kopierter Bereich wird eine Tabelle, kein Textbrei */
+      if (Daten.istTabellarisch(rohtext)) {
+        ev.preventDefault();
+        legeTabelleAn(rohtext, indexVon(block.id) + 1);
+        return;
+      }
+
+      /* Sonst nur reiner Text -- so kann Word keine Formatierung einschleppen. */
       ev.preventDefault();
-      const text = (ev.clipboardData || window.clipboardData).getData('text/plain');
+      const text = rohtext;
       const auswahl = window.getSelection();
       if (!auswahl.rangeCount) return;
       const bereich = auswahl.getRangeAt(0);
@@ -130,30 +149,218 @@ const Editor = (() => {
     if (strg && ev.key.toLowerCase() === 'i') { ev.preventDefault(); document.execCommand('italic');
       feld.dispatchEvent(new Event('input', { bubbles: true })); return; }
 
+    /* Enter teilt an der Schreibmarke -- wie in Word. Steht sie am Ende,
+       ist der abgeschnittene Teil leer und es entsteht schlicht ein
+       neuer, leerer Absatz.                                          */
     if (ev.key === 'Enter' && !ev.shiftKey) {
       ev.preventDefault();
       if (block.typ === 'liste') return;                 // Listen regeln das selbst
-      const neu = Modell.neuerBlock('absatz');
+
+      const schwanz = schneideAbCursor(feld);
+      if (feldname === 'text') block.text = feld.textContent;
+      else block.runs = Richtext.vonHtml(feld);
+
+      // Der Rumpf einer geteilten Überschrift wird zum Absatz -- eine
+      // halbe Überschrift will niemand.
+      const neu = Modell.neuerBlock('absatz', { runs: schwanz });
       dok().bloecke.splice(indexVon(block.id) + 1, 0, neu);
       App.aenderung();
-      zeichne();
-      fokussiere(neu.id);
+      zeichne(); zeichneGliederung();
+      fokussiereAn(neu.id, 0);
       return;
     }
+
     if (ev.key === 'Backspace') {
-      const leer = feldname === 'text' ? !(block.text || '').trim() : !feld.textContent.trim();
-      const auswahlLeer = window.getSelection().isCollapsed &&
-                          window.getSelection().anchorOffset === 0;
-      if (leer && auswahlLeer && dok().bloecke.length > 1) {
+      const auswahl = window.getSelection();
+      const amAnfang = auswahl.isCollapsed && auswahl.anchorOffset === 0 &&
+                       (feld.firstChild === auswahl.anchorNode ||
+                        feld === auswahl.anchorNode || !feld.textContent);
+      if (!amAnfang) return;
+
+      const i = indexVon(block.id);
+      if (i <= 0) return;
+      const vorher = dok().bloecke[i - 1];
+      const leer = feldname === 'text' ? !(block.text || '').trim()
+                                       : !feld.textContent.trim();
+
+      /* Voller Absatz am Anfang: mit dem darüber verschmelzen. Nur unter
+         Textbausteinen -- einen Absatz in eine Tabelle zu schieben ergibt
+         keinen Sinn.                                                   */
+      if (!leer && TEXTBLOECKE.includes(block.typ) && TEXTBLOECKE.includes(vorher.typ)) {
         ev.preventDefault();
-        const i = indexVon(block.id);
+        const kopf = vorher.runs || [];
+        const naht = Richtext.zuText(kopf, ctx()).length;
+        vorher.runs = [...kopf, ...(feldname === 'text'
+          ? [{ text: block.text || '' }] : Richtext.vonHtml(feld))];
         dok().bloecke.splice(i, 1);
         App.aenderung();
-        zeichne();
-        const vorher = dok().bloecke[Math.max(0, i - 1)];
-        if (vorher) fokussiere(vorher.id, true);
+        zeichne(); zeichneGliederung();
+        fokussiereAn(vorher.id, naht);
+        return;
+      }
+
+      if (leer && dok().bloecke.length > 1) {
+        ev.preventDefault();
+        dok().bloecke.splice(i, 1);
+        App.aenderung();
+        zeichne(); zeichneGliederung();
+        fokussiere(vorher.id, true);
       }
     }
+  }
+
+  /* ---------------- Bilder und Tabellen anlegen ---------------- */
+
+  const BILDARTEN = /^image\/(png|jpe?g|gif)$/;
+
+  function legeBildAn(datei, stelle) {
+    if (!datei) return;
+    if (!BILDARTEN.test(datei.type)) {
+      App.melde('LaTeX kann nur PNG, JPEG und GIF einbinden — dieses Format nicht.', true);
+      return;
+    }
+    if (datei.size > 12 * 1024 * 1024) {
+      App.melde('Das Bild ist größer als 12 MB. Bitte vorher verkleinern.', true);
+      return;
+    }
+    const leser = new FileReader();
+    leser.onload = () => {
+      const block = Modell.neuerBlock('abbildung', {
+        datenUrl: leser.result,
+        dateiname: datei.name || 'bildschirmfoto.png',
+        titel: '', breite: 80
+      });
+      dok().bloecke.splice(stelle, 0, block);
+      App.aenderung();
+      zeichne(); zeichneGliederung();
+      waehle(block.id);
+      App.melde('Abbildung eingefügt — Titel über das Zahnrad nachtragen.');
+    };
+    leser.onerror = () => App.melde('Das Bild ließ sich nicht lesen.', true);
+    leser.readAsDataURL(datei);
+  }
+
+  function legeTabelleAn(text, stelle) {
+    const gitter = Daten.lies(text);
+    if (!gitter) { App.melde('Daraus konnte ich keine Tabelle machen.', true); return; }
+    /* Erste Spalte ist fast immer die Beschriftung, der Rest Zahlen --
+       also links ausrichten und den Rest zentrieren. */
+    const ausrichtung = gitter.kopf.map((_, i) =>
+      i === 0 || !gitter.zeilen.every(z => Daten.istZahl(z[i])) ? 'l' : 'c');
+    const block = Modell.neuerBlock('tabelle', {
+      titel: '', anmerkung: '',
+      kopf: gitter.kopf, zeilen: gitter.zeilen, spaltenAusrichtung: ausrichtung
+    });
+    dok().bloecke.splice(stelle, 0, block);
+    App.aenderung();
+    zeichne(); zeichneGliederung();
+    waehle(block.id);
+    App.melde(`Tabelle mit ${gitter.zeilen.length} Zeilen eingefügt — ` +
+              'Titel über das Zahnrad nachtragen.');
+  }
+
+  /* Wo zwischen den Bausteinen zeigt der Mauszeiger gerade hin? */
+  function stelleAus(ev) {
+    const kaesten = [...document.querySelectorAll('.block')];
+    for (let i = 0; i < kaesten.length; i++) {
+      const r = kaesten[i].getBoundingClientRect();
+      if (ev.clientY < r.top + r.height / 2) return i;
+    }
+    return kaesten.length;
+  }
+
+  function verdrahteDateiablage() {
+    const flaeche = document.getElementById('blockliste');
+    if (!flaeche || flaeche.dataset.ablageBereit) return;
+    flaeche.dataset.ablageBereit = '1';
+
+    const marke = el('div', 'einfuegemarke');
+    const zeigeMarke = (stelle) => {
+      const kaesten = [...document.querySelectorAll('.block')];
+      marke.remove();
+      if (stelle >= kaesten.length) flaeche.append(marke);
+      else kaesten[stelle].before(marke);
+    };
+
+    flaeche.addEventListener('dragover', (ev) => {
+      if (ziehtId) return;                       // Baustein verschieben, kein Datei-Ablegen
+      if (![...(ev.dataTransfer.types || [])].includes('Files')) return;
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = 'copy';
+      zeigeMarke(stelleAus(ev));
+    });
+    flaeche.addEventListener('dragleave', (ev) => {
+      if (!flaeche.contains(ev.relatedTarget)) marke.remove();
+    });
+    flaeche.addEventListener('drop', (ev) => {
+      if (ziehtId || !ev.dataTransfer.files.length) return;
+      ev.preventDefault();
+      const stelle = stelleAus(ev);
+      marke.remove();
+      for (const datei of ev.dataTransfer.files) {
+        if (BILDARTEN.test(datei.type)) { legeBildAn(datei, stelle); break; }
+        if (/\.(csv|tsv|txt)$/i.test(datei.name)) {
+          datei.text().then(t => legeTabelleAn(t, stelle));
+          break;
+        }
+        App.melde(`Mit „${datei.name}“ kann ich hier nichts anfangen.`, true);
+        break;
+      }
+    });
+  }
+
+  /* ---------------- Teilen und Zusammenführen ----------------
+     Beides über den DOM statt über Zeichenpositionen: ein Zitat oder ein
+     Querverweis ist ein unteilbares Element, und der Cursor kann darin
+     gar nicht stehen. Rechnete man mit Indizes, müsste man das eigens
+     abfangen -- so ergibt es sich von selbst.                        */
+
+  function schneideAbCursor(feld) {
+    const auswahl = window.getSelection();
+    if (!auswahl || !auswahl.rangeCount) return [];
+    const marke = auswahl.getRangeAt(0);
+    if (!feld.contains(marke.startContainer)) return [];
+    const hinten = document.createRange();
+    hinten.selectNodeContents(feld);
+    hinten.setStart(marke.startContainer, marke.startOffset);
+    const schwanz = hinten.extractContents();      // schneidet aus dem Feld
+    return Richtext.vonHtml(schwanz);
+  }
+
+  /* Schreibmarke an eine Zeichenposition setzen. Chips zählen als ein
+     Stück -- die Marke darf niemals in ihnen landen. */
+  function setzeMarke(feld, position) {
+    const bereich = document.createRange();
+    let rest = position;
+    const gehe = (knoten) => {
+      for (const k of knoten.childNodes) {
+        if (k.nodeType === 3) {
+          if (rest <= k.nodeValue.length) { bereich.setStart(k, rest); return true; }
+          rest -= k.nodeValue.length;
+        } else if (k.nodeType === 1) {
+          if (k.classList && k.classList.contains('chip')) {
+            const l = (k.textContent || '').length;
+            if (rest <= l) { bereich.setStartAfter(k); return true; }
+            rest -= l;
+          } else if (gehe(k)) { return true; }
+        }
+      }
+      return false;
+    };
+    if (!gehe(feld)) { bereich.selectNodeContents(feld); bereich.collapse(false); }
+    else bereich.collapse(true);
+    const auswahl = window.getSelection();
+    auswahl.removeAllRanges();
+    auswahl.addRange(bereich);
+  }
+
+  const TEXTBLOECKE = ['absatz', 'blockzitat'];
+
+  function fokussiereAn(id, position) {
+    setTimeout(() => {
+      const feld = document.querySelector(`.tx[data-block-id="${id}"]`);
+      if (feld) { feld.focus(); setzeMarke(feld, position); }
+    }, 10);
   }
 
   function fokussiere(id, ansEnde) {
@@ -208,9 +415,11 @@ const Editor = (() => {
           App.aenderung(); zeichne();
         }));
     }
-    if (['tabelle', 'abbildung', 'formel'].includes(block.typ)) {
+    if (['tabelle', 'abbildung', 'formel', 'diagramm'].includes(block.typ)) {
       leiste.append(w('⚙', 'Einstellungen', async () => {
-        const f = { tabelle: Dialoge.tabelle, abbildung: Dialoge.abbildung, formel: Dialoge.formel }[block.typ];
+        const f = { tabelle: Dialoge.tabelle, abbildung: Dialoge.abbildung,
+                    formel: Dialoge.formel,
+                    diagramm: Diagrammdialog.einrichten }[block.typ];
         if (await f(block, dok())) { App.aenderung(); zeichne(); }
       }));
     }
@@ -295,8 +504,48 @@ const Editor = (() => {
           `<span class="karte-nr">TABELLE ${escHtml(info.nummer || '?')}</span>
            <span class="karte-titel">${escHtml(block.titel || 'Ohne Titel — auf ⚙ klicken')}</span>`));
 
+        const neuZeichnenTabelle = () => {
+          App.aenderung(); zeichne(); waehle(block.id, false);
+        };
+
         const huelle = el('div', 'tabgitter');
         const tabelle = el('table');
+
+        /* Spaltenleiste: Ausrichtung und Löschen. Erscheint erst beim
+           Überfahren, damit die Karte ruhig bleibt. */
+        const leiste = el('tr', 'spaltenleiste');
+        (block.kopf || []).forEach((_, s) => {
+          const zelle = el('th');
+          const gruppe = el('div', 'spaltenwerkzeug');
+          const aktuell = (block.spaltenAusrichtung || [])[s] || 'l';
+          for (const [wert, zeichen, titel] of
+               [['l', '⇤', 'linksbündig'], ['c', '↔', 'zentriert'], ['r', '⇥', 'rechtsbündig']]) {
+            const k = el('button', aktuell === wert ? 'aktiv' : null, zeichen);
+            k.title = 'Spalte ' + titel;
+            k.addEventListener('click', () => {
+              block.spaltenAusrichtung = block.kopf.map((_, i) =>
+                (block.spaltenAusrichtung || [])[i] || 'l');
+              block.spaltenAusrichtung[s] = wert;
+              neuZeichnenTabelle();
+            });
+            gruppe.append(k);
+          }
+          const weg = el('button', 'gefahr', '✕');
+          weg.title = 'Spalte löschen';
+          weg.addEventListener('click', () => {
+            if (block.kopf.length <= 1) { App.melde('Die letzte Spalte bleibt.', true); return; }
+            block.kopf.splice(s, 1);
+            block.zeilen.forEach(z => z.splice(s, 1));
+            (block.spaltenAusrichtung || []).splice(s, 1);
+            neuZeichnenTabelle();
+          });
+          gruppe.append(weg);
+          zelle.append(gruppe);
+          leiste.append(zelle);
+        });
+        leiste.append(el('th'));                 // Platz über der Zeilenspalte
+        tabelle.append(leiste);
+
         const kopfzeile = el('tr');
         (block.kopf || []).forEach((h, s) => {
           const th = el('th');
@@ -306,7 +555,9 @@ const Editor = (() => {
           th.addEventListener('blur', () => App.aenderung());
           kopfzeile.append(th);
         });
+        kopfzeile.append(el('th', 'randspalte'));
         tabelle.append(el('thead').appendChild(kopfzeile).parentElement);
+
         const koerper = el('tbody');
         (block.zeilen || []).forEach((zeile, z) => {
           const tr = el('tr');
@@ -317,13 +568,57 @@ const Editor = (() => {
             td.style.textAlign = { l: 'left', c: 'center', r: 'right' }[(block.spaltenAusrichtung || [])[s]] || 'left';
             td.addEventListener('input', () => { block.zeilen[z][s] = td.textContent; App.aenderung({ nurVorschau: true }); });
             td.addEventListener('blur', () => App.aenderung());
+            /* Tabulator am Ende der letzten Zelle hängt eine Zeile an --
+               so tippt man eine Tabelle durch, ohne zur Maus zu greifen. */
+            td.addEventListener('keydown', (ev) => {
+              if (ev.key !== 'Tab' || ev.shiftKey) return;
+              if (s !== zeile.length - 1 || z !== block.zeilen.length - 1) return;
+              ev.preventDefault();
+              block.zeilen.push(block.kopf.map(() => ''));
+              neuZeichnenTabelle();
+              setTimeout(() => {
+                const zellen = document.querySelectorAll(
+                  `.block[data-id="${block.id}"] tbody tr:last-child td`);
+                if (zellen[0]) zellen[0].focus();
+              }, 20);
+            });
             tr.append(td);
           });
+          const rand = el('td', 'randspalte');
+          const weg = el('button', 'zeileweg', '✕');
+          weg.title = 'Zeile löschen';
+          weg.addEventListener('click', () => {
+            if (block.zeilen.length <= 1) { App.melde('Die letzte Zeile bleibt.', true); return; }
+            block.zeilen.splice(z, 1);
+            neuZeichnenTabelle();
+          });
+          rand.append(weg);
+          tr.append(rand);
           koerper.append(tr);
         });
         tabelle.append(koerper);
         huelle.append(tabelle);
         karte.append(huelle);
+
+        const anbau = el('div', 'tabellenknoepfe');
+        const knopf = (text, titel, aktion) => {
+          const k = el('button', 'knopf knopf-klein', text);
+          k.title = titel;
+          k.addEventListener('click', aktion);
+          return k;
+        };
+        anbau.append(
+          knopf('+ Zeile', 'Zeile unten anfügen (oder Tabulator in der letzten Zelle)', () => {
+            block.zeilen.push(block.kopf.map(() => ''));
+            neuZeichnenTabelle();
+          }),
+          knopf('+ Spalte', 'Spalte rechts anfügen', () => {
+            block.kopf.push('');
+            block.zeilen.forEach(z => z.push(''));
+            (block.spaltenAusrichtung || []).push('c');
+            neuZeichnenTabelle();
+          }));
+        karte.append(anbau);
         if (block.anmerkung)
           karte.append(el('div', 'karte-anm', `<i>Anmerkung.</i> ${Latex.textMitTokens(block.anmerkung, 'html')}`));
         return karte;
@@ -350,6 +645,30 @@ const Editor = (() => {
         }
         if (block.anmerkung)
           karte.append(el('div', 'karte-anm', `<i>Anmerkung.</i> ${Latex.textMitTokens(block.anmerkung, 'html')}`));
+        return karte;
+      }
+
+      case 'diagramm': {
+        const karte = el('div', 'abb-karte');
+        const art = (Diagrammdialog.ARTEN[block.art] || {}).name || block.art;
+        karte.append(el('div', 'karte-kopf',
+          `<span class="karte-nr">ABBILDUNG ${escHtml(info.nummer || '?')}</span>
+           <span class="karte-titel">${escHtml(block.titel || 'Ohne Titel — auf ⚙ klicken')}</span>`));
+        const gitter = Diagramm.gitterVon(block, dok());
+        const reihen = gitter ? Diagramm.wertSpalten(block, gitter).length : 0;
+        const quelle = block.quelle === 'tabelle'
+          ? 'aus einer Tabelle im Dokument'
+          : `${gitter ? gitter.zeilen.length : 0} Zeilen eigene Zahlen`;
+        karte.append(el('div', 'diagrammkarte',
+          `<span class="diagrammzeichen">${escHtml((Diagrammdialog.ARTEN[block.art] || {}).zeichen || '📊')}</span>
+           <div><b>${escHtml(art)}</b>
+             <div class="quelle-warn">${escHtml(quelle)} · ${reihen}
+               ${reihen === 1 ? 'Reihe' : 'Reihen'}${block.graustufen ? ' · Graustufen' : ''}</div>
+             <div class="quelle-warn">Wie es aussieht, steht rechts im PDF.</div>
+           </div>`));
+        if (block.anmerkung)
+          karte.append(el('div', 'karte-anm',
+            `<i>Anmerkung.</i> ${Latex.textMitTokens(block.anmerkung, 'html')}`));
         return karte;
       }
 
@@ -465,6 +784,7 @@ const Editor = (() => {
       kasten.addEventListener('mousedown', () => { gewaehlteId = block.id; });
       behaelter.append(kasten);
     }
+    verdrahteDateiablage();
   }
 
   /* ---------------- Gliederung ---------------- */
@@ -507,7 +827,8 @@ const Editor = (() => {
     behaelter.innerHTML = '';
     const eintraege = [
       ['absatz', '¶ Absatz'], ['ueberschrift', 'H Überschrift'], ['liste', '• Liste'],
-      ['tabelle', '▦ Tabelle'], ['abbildung', '🖼 Abbildung'], ['blockzitat', '❝ Blockzitat'],
+      ['tabelle', '▦ Tabelle'], ['abbildung', '🖼 Abbildung'],
+      ['diagramm', '📊 Diagramm'], ['blockzitat', '❝ Blockzitat'],
       ['formel', '∑ Formel'], ['seitenumbruch', '⤓ Seitenumbruch'], ['anhangstart', '§ Anhang beginnt']
     ];
     for (const [typ, beschriftung] of eintraege) {
@@ -526,6 +847,7 @@ const Editor = (() => {
     if (typ === 'tabelle')   { if (!await Dialoge.tabelle(block, dok())) return; }
     if (typ === 'abbildung') { if (!await Dialoge.abbildung(block)) return; }
     if (typ === 'formel')    { if (!await Dialoge.formel(block)) return; }
+    if (typ === 'diagramm')  { if (!await Diagrammdialog.einrichten(block, dok())) return; }
 
     /* Der Anhangbeginn gehört ans Dokumentende. Würde er hinter dem
        gerade gewählten Block landen, würden alle folgenden Kapitel
@@ -541,6 +863,7 @@ const Editor = (() => {
   }
 
   return { zeichne, zeichneGliederung, baueEinfuegeleiste, waehle, fokussiere,
-           fuegeAmCursorEin, chipHtml, fuegeBlockEin,
+           fokussiereAn, fuegeAmCursorEin, chipHtml, fuegeBlockEin,
+           legeBildAn, legeTabelleAn,
            gewaehlteId: () => gewaehlteId };
 })();

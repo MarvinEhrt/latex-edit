@@ -20,13 +20,16 @@ JS_DATEIEN = [
     "10-modell.js",
     "20-richtext.js",
     "30-latex.js",
+    "32-diagramm.js",
     "40-pdfansicht.js",
     "50-dialoge.js",
     "60-editor.js",
     "70-zip.js",
     "72-import.js",
+    "73-daten.js",
     "74-begleiter.js",
     "76-dialoge-extra.js",
+    "78-diagrammdialog.js",
     "80-app.js",
 ]
 
