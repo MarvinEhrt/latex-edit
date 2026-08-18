@@ -367,7 +367,11 @@ const Modell = (() => {
     verfasser: '', matrikelnummer: '', studiengang: '', semester: '', email: '',
     hochschule: '', fachbereich: '', institut: '',
     modul: '', betreuung: '', zweitgutachten: '',
-    ort: '', abgabedatum: ''
+    ort: '', abgabedatum: '',
+    /* Inhalt der Vorspannseiten. Stand früher fest verdrahtet in der
+       Stildatei -- dort war er unerreichbar und obendrein falsch. */
+    abstract: '',
+    abkuerzungen: []          // [{kurz, lang}]
   };
 
   /* ---------------- Dokument erzeugen ---------------- */
@@ -389,7 +393,9 @@ const Modell = (() => {
     if (!dok || typeof dok !== 'object') return neu();
     return {
       version: 1,
-      meta:          { ...STANDARD_META, ...(dok.meta || {}) },
+      meta:          { ...STANDARD_META, ...(dok.meta || {}),
+                       abkuerzungen: Array.isArray((dok.meta || {}).abkuerzungen)
+                         ? dok.meta.abkuerzungen : [] },
       einstellungen: { ...STANDARD_EINSTELLUNGEN, ...(dok.einstellungen || {}) },
       bloecke:       Array.isArray(dok.bloecke) ? dok.bloecke.map(b => ({
                        id: b.id || neueId(), ...b })) : [],

@@ -63,6 +63,7 @@ const PdfAnsicht = (() => {
     leiste.innerHTML = {
       laeuft:  '<span class="dreher"></span>',
       ok:      '<span class="haken">✓</span>',
+      hinweis: '<span class="haken">✓</span>',
       fehler:  '<span class="kreuz">✕</span>',
       wartet:  '<span class="punkt">•</span>'
     }[art] + '<span>' + escHtml(text) + '</span>';
@@ -70,12 +71,35 @@ const PdfAnsicht = (() => {
 
   /* ---------------- Fehlerliste ---------------- */
 
-  function zeigeFehler(fehler, zeilenkarte, vorab) {
+  /* Warnungen lassen sich genauer zuordnen als Fehler: LaTeX nennt den
+     Schlüssel, nicht bloß eine Zeile. Damit finden wir den Baustein
+     unmittelbar -- auch dann, wenn die Stelle über mehrere Seiten
+     verteilt ist.                                                    */
+  function bausteinZuSchluessel(warnung, dok) {
+    if (warnung.sorte === 'verweis') {
+      const id = String(warnung.schluessel || '').split(':')[1];
+      return (dok.bloecke || []).some(b => b.id === id) ? id : null;
+    }
+    if (warnung.sorte !== 'zitat') return null;
+    const k = warnung.schluessel;
+    const inRuns = (runs) => (runs || []).some(r => r.zitat === k);
+    for (const b of dok.bloecke || []) {
+      if (inRuns(b.runs)) return b.id;
+      if (b.quelle === k) return b.id;
+      if ((b.punkte || []).some(inRuns)) return b.id;
+      if ([b.titel, b.anmerkung].some(t => String(t || '').includes(`{{zit:${k}}}`)
+                                         || String(t || '').includes(`{{zitn:${k}}}`)))
+        return b.id;
+    }
+    return null;
+  }
+
+  function zeigeFehler(fehler, zeilenkarte, vorab, warnungen, dok) {
     const kasten = el('fehlerliste');
     if (!kasten) return;
 
-    document.querySelectorAll('.block.hatfehler').forEach(
-      b => b.classList.remove('hatfehler'));
+    document.querySelectorAll('.block.hatfehler, .block.hathinweis').forEach(
+      b => b.classList.remove('hatfehler', 'hathinweis'));
 
     const alle = [];
     for (const v of vorab || [])
@@ -84,7 +108,11 @@ const PdfAnsicht = (() => {
       const treffer = f.zeile && (zeilenkarte || []).find(
         e => e.von <= f.zeile && f.zeile <= e.bis);
       alle.push({ id: treffer ? treffer.id : null, meldung: f.meldung,
-                  rat: f.rat, roh: f.roh });
+                  rat: f.rat, roh: f.roh, art: 'fehler' });
+    }
+    for (const w of warnungen || []) {
+      alle.push({ id: dok ? bausteinZuSchluessel(w, dok) : null,
+                  meldung: w.meldung, rat: w.rat, roh: w.roh, art: 'warnung' });
     }
 
     if (!alle.length) {
@@ -95,10 +123,11 @@ const PdfAnsicht = (() => {
 
     kasten.style.display = 'block';
     kasten.innerHTML = alle.map((f, i) => `
-      <div class="fehler${f.id ? ' anklickbar' : ''}" data-ziel="${f.id || ''}"
-           data-nr="${i}">
+      <div class="fehler ${f.art === 'warnung' ? 'hinweis' : ''}${f.id ? ' anklickbar' : ''}"
+           data-ziel="${f.id || ''}" data-nr="${i}">
         <div class="fehler-kopf">
-          <span class="fehler-marke">${f.vorab ? 'VORAB' : 'LATEX'}</span>
+          <span class="fehler-marke">${
+            f.vorab ? 'VORAB' : f.art === 'warnung' ? 'PRÜFEN' : 'LATEX'}</span>
           <span>${escHtml(f.meldung)}</span>
         </div>
         ${f.rat ? `<div class="fehler-rat">${escHtml(f.rat)}</div>` : ''}
@@ -110,7 +139,7 @@ const PdfAnsicht = (() => {
     for (const f of alle) {
       if (!f.id) continue;
       const block = document.querySelector(`.block[data-id="${f.id}"]`);
-      if (block) block.classList.add('hatfehler');
+      if (block) block.classList.add(f.art === 'warnung' ? 'hathinweis' : 'hatfehler');
     }
 
     kasten.querySelectorAll('.fehler.anklickbar').forEach(k =>

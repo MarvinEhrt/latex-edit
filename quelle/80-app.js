@@ -99,14 +99,16 @@ const App = (() => {
 
       if (ergebnis.status === 'abgebrochen') return;
 
-      PdfAnsicht.zeigeFehler(ergebnis.fehler, letzteZeilenkarte, vorab);
+      const warnungen = ergebnis.warnungen || [];
+      PdfAnsicht.zeigeFehler(ergebnis.fehler, letzteZeilenkarte, vorab, warnungen, dok);
 
       if (ergebnis.status === 'ok') {
         PdfAnsicht.merkeSeite();
         PdfAnsicht.zeige(ergebnis.pdfFassung);
-        PdfAnsicht.zustand('ok',
+        const hinweise = warnungen.length + vorab.length;
+        PdfAnsicht.zustand(hinweise ? 'hinweis' : 'ok',
           `Fertig in ${(ergebnis.dauerMs / 1000).toFixed(1)} s` +
-          (vorab.length ? ` · ${vorab.length} Hinweis${vorab.length > 1 ? 'e' : ''}` : ''));
+          (hinweise ? ` · ${hinweise} zu prüfen` : ''));
       } else if (ergebnis.status === 'kein_latex') {
         PdfAnsicht.zustand('fehler', 'pdflatex fehlt');
       } else {

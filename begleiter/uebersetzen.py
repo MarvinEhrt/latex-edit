@@ -176,10 +176,63 @@ def werte_log_aus(log: str) -> list[dict]:
         kennung = (zeilennummer, meldung)
         if kennung not in gesehen:
             gesehen.add(kennung)
-            fehler.append({"zeile": zeilennummer, "meldung": meldung,
+            fehler.append({"art": "fehler", "sorte": "", "schluessel": "",
+                           "zeile": zeilennummer, "meldung": meldung,
                            "rat": rat, "roh": roh[:1200]})
         i = max(j, i + 1)
     return fehler
+
+
+# Warnungen, die im fertigen Dokument sichtbar werden. LaTeX bricht
+# deswegen nicht ab -- das PDF entsteht, und im Text steht dann der rohe
+# Schlüssel oder ein "??". Genau die Sorte Fehler, die man bei der Abgabe
+# übersieht. Deshalb werden sie eigens gemeldet.
+_WARNUNGEN: list[tuple[str, str, str, str]] = [
+    (r"Citation '([^']+)' on page \d+ undefined",
+     "zitat",
+     "Die Quelle „{0}“ steht nicht im Literaturverzeichnis.",
+     "Im Text ist sie zitiert, aber es gibt keinen passenden Eintrag. "
+     "Im PDF erscheint an dieser Stelle der rohe Schlüssel."),
+    (r"Reference '([^']+)' on page \d+ undefined",
+     "verweis",
+     "Ein Querverweis geht ins Leere.",
+     "Das Ziel wurde vermutlich gelöscht. Im PDF steht dort „??“."),
+    # "Please (re)run Biber" ist ein Zwischenstand, kein Problem --
+    # nach dem nächsten Durchlauf ist er weg.
+    (r"Package biblatex Warning: "
+     r"(?!Please \(re\)run|The following entry could not|Empty bibliography)(.+)",
+     "", "Das Literaturverzeichnis meldet: {0}", ""),
+    # Bewusst NICHT gemeldet: "Empty bibliography". Das trifft auf jedes
+    # frische Dokument zu und wäre damit Dauerrauschen -- Warnungen, die
+    # immer leuchten, werden nicht mehr gelesen. Dass eine angelegte
+    # Quelle nicht zitiert ist, steht ohnehin in der Quellenliste.
+]
+
+
+def werte_warnungen_aus(log: str) -> list[dict]:
+    """Warnungen einsammeln, die im fertigen PDF sichtbar werden."""
+    raus: list[dict] = []
+    gesehen: set[tuple] = set()
+    for zeile in log.splitlines():
+        for muster, sorte, vorlage, rat in _WARNUNGEN:
+            t = re.search(muster, zeile)
+            if not t:
+                continue
+            gruppen = [g if g is not None else "" for g in t.groups()]
+            try:
+                meldung = vorlage.format(*gruppen)
+            except (IndexError, KeyError):
+                meldung = vorlage
+            schluessel = gruppen[0] if (sorte and gruppen) else ""
+            kennung = (sorte, schluessel, meldung)
+            if kennung in gesehen:
+                break
+            gesehen.add(kennung)
+            raus.append({"art": "warnung", "sorte": sorte, "schluessel": schluessel,
+                         "zeile": None, "meldung": meldung, "rat": rat,
+                         "roh": zeile.strip()[:400]})
+            break
+    return raus
 
 
 def _braucht_neuen_lauf(log: str) -> bool:
@@ -267,8 +320,8 @@ class Uebersetzer:
             pdflatex = finde("pdflatex")
             biber = finde("biber")
             if not pdflatex:
-                return {"status": "kein_latex", "fehler": [{
-                    "zeile": None,
+                return {"status": "kein_latex", "warnungen": [], "fehler": [{
+                    "art": "fehler", "sorte": "", "schluessel": "", "zeile": None,
                     "meldung": "pdflatex wurde nicht gefunden.",
                     "rat": "Installiere TeX Live (Linux) oder MiKTeX (Windows) "
                            "und starte den Schreibtisch neu.", "roh": ""}],
@@ -299,7 +352,8 @@ class Uebersetzer:
             protokoll.append(ausgabe)
 
             if self._abbruch:
-                return {"status": "abgebrochen", "fehler": [], "log": "", "dauerMs": 0}
+                return {"status": "abgebrochen", "fehler": [], "warnungen": [],
+                        "log": "", "dauerMs": 0}
 
             if biber_noetig and biber and rc == 0:
                 rcb, ausgabeb = self._lauf([biber, HAUPTDATEI], grenze)
@@ -327,6 +381,7 @@ class Uebersetzer:
                     pass
 
             fehler = werte_log_aus(log)
+            warnungen = werte_warnungen_aus(log)
             pdf = os.path.join(self.ordner, HAUPTDATEI + ".pdf")
             pdf_da = os.path.exists(pdf) and os.path.getsize(pdf) > 0
 
@@ -337,6 +392,7 @@ class Uebersetzer:
             elif rc == -3:
                 status = "zeitablauf"
                 fehler.insert(0, {
+                    "art": "fehler", "sorte": "", "schluessel": "",
                     "zeile": None, "meldung": ausgabe,
                     "rat": "In MiKTeX unter Einstellungen die Option "
                            "„Pakete immer installieren“ wählen.", "roh": ""})
@@ -344,13 +400,14 @@ class Uebersetzer:
                 status = "fehler"
                 if not fehler:
                     fehler.append({
-                        "zeile": None,
+                        "art": "fehler", "sorte": "", "schluessel": "", "zeile": None,
                         "meldung": "LaTeX ist ohne verwertbare Meldung abgebrochen.",
                         "rat": "Das vollständige Protokoll steht unten.", "roh": ""})
 
             return {
                 "status": status,
                 "fehler": fehler,
+                "warnungen": warnungen,
                 "pdfFassung": self.pdf_fassung,
                 "pdfVorhanden": pdf_da,
                 "log": log[-40000:],

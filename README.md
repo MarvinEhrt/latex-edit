@@ -104,8 +104,31 @@ dem Baustein, der sie ausgelöst hat.** Möglich, weil der Schreibtisch die
 
 Das **zuletzt gelungene PDF bleibt stehen** — die Ansicht wird nie leer.
 
+**Auch das Stille wird gemeldet.** Manche Mängel lassen LaTeX anstandslos
+durchlaufen und stehen trotzdem im abgegebenen Dokument:
+
+| | |
+|---|---|
+| zitierte Quelle fehlt im Verzeichnis | im PDF steht der rohe Schlüssel |
+| Querverweis geht ins Leere | im PDF steht `??` |
+| Zusammenfassung eingeschaltet, aber leer | die Seite entfällt |
+
+Diese erscheinen als **PRÜFEN** in Ocker (statt rot) und werden über den
+Schlüssel unmittelbar dem richtigen Baustein zugeordnet — genauer als über
+eine Zeilennummer. Routinemeldungen bleiben absichtlich stumm: eine Warnung,
+die bei jedem Dokument leuchtet, wird nicht mehr gelesen.
+
 Offene Klammern in Formeln werden schon vor dem Bau bemerkt, ohne auf LaTeX
 zu warten.
+
+### Lange Tabellen
+
+Eine schwebende Tabelle, die nicht auf eine Seite passt, wird von LaTeX
+**stillschweigend abgeschnitten** — ohne Fehlermeldung. Der Schreibtisch
+schätzt deshalb die Höhe jeder Tabelle und setzt sie ab etwa einer Seite als
+`longtable`: sie bricht über Seiten um, die Kopfzeile wiederholt sich, und ein
+Hinweis „Fortsetzung auf der nächsten Seite" steht am Fuß. Kurze Tabellen
+schweben weiterhin.
 
 ---
 
@@ -180,14 +203,16 @@ selben Browser mitreden kann.
 ## Prüfungen
 
 ```
-python3 pruefungen/pruefe_begleiter.py   # 29 Prüfungen: LaTeX-Läufe, Logauswertung,
+python3 pruefungen/pruefe_begleiter.py   # 36 Prüfungen: LaTeX-Läufe, Logauswertung,
                                          #   Zeilenkarte, Zotero-Abbildung, Ablage
 python3 pruefungen/pruefe_abbruch.py     #  4 Prüfungen: Dienst übersteht Abbrüche
+node     pruefungen/pruefe_dokument.mjs  # 16 Prüfungen: lange Tabellen verlieren
+                                         #   keine Zeilen, Vorspann ohne Platzhalter
 node     pruefungen/pruefe_diagramme.mjs # 16 Prüfungen: alle vier Diagrammarten,
                                          #   erzeugt und wirklich übersetzt
 npm install                              # einmalig, holt playwright-core
 node     pruefungen/pruefe_bausteine.mjs # 16 Prüfungen: Absätze, Einfügen, Tabellen
-node     pruefungen/pruefe_ganz.mjs      # 14 Schritte: Browser bis fertiges PDF
+node     pruefungen/pruefe_ganz.mjs      # 16 Schritte: Browser bis fertiges PDF
 ```
 
 Die Browserprüfung nimmt den von playwright mitgelieferten Chromium. Wer einen

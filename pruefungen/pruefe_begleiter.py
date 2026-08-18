@@ -158,6 +158,40 @@ console.log(JSON.stringify(Latex.pruefe(d)));
     pruefe("Logauswertung erkennt fehlende Datei",
            len(f2) == 1 and "fehlt.sty" in f2[0]["meldung"], str(f2))
 
+    # ------------------------------------------------ Warnungen
+    # Warnungen brechen den Lauf nicht ab -- das PDF entsteht, und darin
+    # steht dann der rohe Schlüssel. Genau die Sorte Fehler, die man bei
+    # der Abgabe übersieht.
+    w = uebersetzen_modul.werte_warnungen_aus(
+        "LaTeX Warning: Citation 'holland1997' on page 3 undefined on input line 42.\n"
+        "LaTeX Warning: Reference 'tab:abc123' on page 5 undefined on input line 88.\n"
+        "LaTeX Warning: There were undefined references.\n")
+    pruefe("Warnung: fehlende Quelle wird erkannt",
+           any(x["sorte"] == "zitat" and x["schluessel"] == "holland1997" for x in w), str(w))
+    pruefe("Warnung: ins Leere gehender Querverweis wird erkannt",
+           any(x["sorte"] == "verweis" and x["schluessel"] == "tab:abc123" for x in w), str(w))
+    pruefe("Warnung nennt den Schlüssel für die Zuordnung",
+           all(x["art"] == "warnung" for x in w), str(w))
+
+    # Warnungen, die bei jedem Dokument auftreten, dürfen nicht gemeldet
+    # werden -- Dauerrauschen erzieht dazu, Warnungen zu übersehen.
+    for text, was in [("Package biblatex Warning: Please (re)run Biber on the file:",
+                       "Zwischenstand von Biber"),
+                      ("Package biblatex Warning: Empty bibliography on input line 5.",
+                       "leere Bibliografie eines frischen Dokuments")]:
+        pruefe(f"{was} gilt nicht als Warnung",
+               not uebersetzen_modul.werte_warnungen_aus(text + "\n"),
+               str(uebersetzen_modul.werte_warnungen_aus(text + "\n")))
+
+    doppelt = uebersetzen_modul.werte_warnungen_aus(
+        "LaTeX Warning: Citation 'x' on page 1 undefined on input line 1.\n"
+        "LaTeX Warning: Citation 'x' on page 9 undefined on input line 9.\n")
+    pruefe("dieselbe Quelle wird nur einmal gemeldet", len(doppelt) == 1, str(doppelt))
+
+    pruefe("Fehler sind als solche gekennzeichnet",
+           all(x["art"] == "fehler" for x in
+               uebersetzen_modul.werte_log_aus("! Undefined control sequence.\nl.5 \\x\n")))
+
     # ------------------------------------------------ Zotero-Abbildung
     from begleiter import zotero as zotero_modul
     roh = [

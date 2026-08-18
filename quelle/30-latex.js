@@ -76,32 +76,79 @@ const Latex = (() => {
 
   /* ---------- Tabellen ---------- */
 
+  /* Schätzt, wie viele Textzeilen die Tabelle im Satz belegt. Reine
+     Zeilenzählung genügt nicht: eine Tabelle mit zehn Zeilen langen
+     Fließtexts wird höher als eine mit dreißig Zahlen.              */
+  function geschaetzteHoehe(b) {
+    const spalten = Math.max(1, (b.kopf || []).length);
+    const zeichenProZeile = Math.max(12, Math.round(88 / spalten));
+    let zeilen = 1;                                     // Kopfzeile
+    for (const r of (b.zeilen || [])) {
+      let hoch = 1;
+      for (const zelle of r)
+        hoch = Math.max(hoch, Math.ceil(String(zelle || '').length / zeichenProZeile));
+      zeilen += hoch;
+    }
+    return zeilen;
+  }
+
+  /* Ab hier passt die Tabelle nicht mehr sicher auf eine Seite. Eine
+     schwebende Tabelle würde dann stillschweigend abgeschnitten --
+     LaTeX meldet das nicht einmal. Deshalb ab dieser Grenze longtable,
+     das über Seiten umbricht und die Kopfzeile wiederholt.          */
+  const HOEHENGRENZE = 26;
+
+  function braucht_umbruch(b) {
+    return (b.zeilen || []).length > 15 || geschaetzteHoehe(b) > HOEHENGRENZE;
+  }
+
   function tabelleZuLatex(b, nummer) {
     const spalten = b.spaltenAusrichtung || b.kopf.map(() => 'l');
     const hatText = spalten.includes('l');
     const spec = spalten.map(a => (a === 'l' ? 'Z' : a)).join(' ');
-    const umgebung = hatText ? 'tabularx' : 'tabular';
+    const zelle = (t) => textMitTokens(t, 'latex');
+    const kopfzeile = b.kopf.map(h => `\\textbf{${zelle(h)}}`).join(' & ') + ' \\\\';
+    const datenzeilen = b.zeilen.map(r => r.map(zelle).join(' & ') + ' \\\\');
+    const titel = textMitTokens(b.titel || 'Ohne Titel', 'latex');
+    const anmerkung = b.anmerkung && b.anmerkung.trim()
+      ? `\\anmerkung{${textMitTokens(b.anmerkung, 'latex')}}` : '';
+
+    if (braucht_umbruch(b)) {
+      const n = b.kopf.length;
+      return [
+        `\\begin{xltabular}{\\textwidth}{@{}${spec}@{}}`,
+        `\\caption{${titel}}\\label{tab:${b.id}}\\\\`,
+        '\\toprule', kopfzeile, '\\midrule',
+        '\\endfirsthead',
+        `\\caption[]{${titel}\\ (Fortsetzung)}\\\\`,
+        '\\toprule', kopfzeile, '\\midrule',
+        '\\endhead',
+        '\\midrule',
+        `\\multicolumn{${n}}{r@{}}{\\footnotesize\\textit{Fortsetzung auf der nächsten Seite}}\\\\`,
+        '\\endfoot',
+        '\\bottomrule',
+        '\\endlastfoot',
+        ...datenzeilen,
+        '\\end{xltabular}',
+        anmerkung
+      ].filter(Boolean).join('\n');
+    }
+
     const oeffnen = hatText ? `\\begin{tabularx}{\\textwidth}{@{}${spec}@{}}`
                             : `\\begin{tabular}{@{}${spalten.join(' ')}@{}}`;
-    const zelle = (t) => textMitTokens(t, 'latex');
-
-    const zeilen = [
+    return [
       '\\begin{table}[htbp]',
-      `\\caption{${textMitTokens(b.titel || 'Ohne Titel', 'latex')}}`,
+      `\\caption{${titel}}`,
       `\\label{tab:${b.id}}`,
       '\\small', '\\setstretch{1.05}',
       oeffnen,
-      '\\toprule',
-      b.kopf.map(h => `\\textbf{${zelle(h)}}`).join(' & ') + ' \\\\',
-      '\\midrule',
-      ...b.zeilen.map(r => r.map(zelle).join(' & ') + ' \\\\'),
+      '\\toprule', kopfzeile, '\\midrule',
+      ...datenzeilen,
       '\\bottomrule',
-      hatText ? '\\end{tabularx}' : '\\end{tabular}'
-    ];
-    if (b.anmerkung && b.anmerkung.trim())
-      zeilen.push(`\\anmerkung{${textMitTokens(b.anmerkung, 'latex')}}`);
-    zeilen.push('\\end{table}');
-    return zeilen.join('\n');
+      hatText ? '\\end{tabularx}' : '\\end{tabular}',
+      anmerkung,
+      '\\end{table}'
+    ].filter(Boolean).join('\n');
   }
 
   /* ---------- Abbildungen ---------- */
@@ -189,11 +236,18 @@ const Latex = (() => {
     const vorspann = [];
     if (e.seitenzahlStil === 'roemisch-arabisch')
       vorspann.push(`\\vorspannbeginn{${e.deckblatt ? 2 : 1}}`);
-    if (e.abstract)                vorspann.push(`\\abstractseite{${esc(m.abstract || 'Hier steht die Zusammenfassung deiner Arbeit (150–250 Wörter).')}}`);
+    // Eine leere Zusammenfassung wird gar nicht erst gesetzt -- lieber
+    // keine Seite als eine mit Platzhaltertext im abgegebenen Dokument.
+    if (e.abstract && (m.abstract || '').trim())
+      vorspann.push(`\\abstractseite{${esc(m.abstract.trim())}}`);
     if (e.inhaltsverzeichnis)      vorspann.push('\\inhaltsverzeichnis');
     if (e.abbildungsverzeichnis)   vorspann.push('\\abbildungsverzeichnis');
     if (e.tabellenverzeichnis)     vorspann.push('\\tabellenverzeichnis');
-    if (e.abkuerzungsverzeichnis)  vorspann.push('\\abkuerzungsverzeichnis');
+    const abk = (m.abkuerzungen || []).filter(a => (a.kurz || '').trim());
+    if (e.abkuerzungsverzeichnis && abk.length)
+      vorspann.push('\\abkuerzungsverzeichnis{' + abk
+        .map(a => `\\item[${esc(a.kurz.trim())}] ${esc((a.lang || '').trim())}`)
+        .join('\n  ') + '}');
     K.push(...vorspann);
     K.push(e.seitenzahlStil === 'roemisch-arabisch' ? '\\textbeginn' : '\\textbeginndurchgehend');
     K.push('');
@@ -319,6 +373,21 @@ const Latex = (() => {
      mit "File ended while scanning" abbrechen zu lassen.              */
   function pruefe(dok) {
     const anmerkungen = [];
+    const e = dok.einstellungen || {}, m = dok.meta || {};
+
+    /* Ein eingeschalteter Vorspannteil ohne Inhalt wird nicht gesetzt.
+       Das stillschweigend zu tun wäre genauso schlecht wie der frühere
+       Platzhaltertext -- also sagen wir es. */
+    if (e.abstract && !(m.abstract || '').trim())
+      anmerkungen.push({ id: null, meldung:
+        'Die Zusammenfassung ist eingeschaltet, aber leer — die Seite entfällt. '
+        + 'Text unter Layout eintragen oder den Schalter ausschalten.' });
+    if (e.abkuerzungsverzeichnis &&
+        !(m.abkuerzungen || []).some(a => (a.kurz || '').trim()))
+      anmerkungen.push({ id: null, meldung:
+        'Das Abkürzungsverzeichnis ist eingeschaltet, aber leer — die Seite entfällt. '
+        + 'Einträge unter Layout ergänzen oder den Schalter ausschalten.' });
+
     for (const b of dok.bloecke) {
       if (b.typ !== 'formel' || !b.tex) continue;
       let tiefe = 0, dollar = 0;
@@ -474,6 +543,7 @@ $clean_ext  = 'bbl run.xml synctex.gz fdb_latexmk fls';
 \RequirePackage{xcolor}
 \RequirePackage{booktabs}
 \RequirePackage{tabularx}
+\RequirePackage{xltabular}   % lange Tabellen brechen über Seiten um
 \RequirePackage{array}
 \RequirePackage{enumitem}
 \RequirePackage{float}
@@ -481,6 +551,7 @@ $clean_ext  = 'bbl run.xml synctex.gz fdb_latexmk fls';
 \RequirePackage{titlesec}
 \RequirePackage{tocloft}
 \RequirePackage{fancyhdr}
+\RequirePackage{etoolbox}
 \RequirePackage{csquotes}
 
 \RequirePackage[style=apa,backend=biber,language=ngerman]{biblatex}
@@ -572,6 +643,8 @@ $clean_ext  = 'bbl run.xml synctex.gz fdb_latexmk fls';
 \newcolumntype{L}[1]{>{\RaggedRight\arraybackslash}p{#1}}
 \newcolumntype{Z}{>{\RaggedRight\arraybackslash}X}
 \renewcommand{\arraystretch}{1.25}
+% Lange Tabellen erhalten dieselbe Anmutung wie kurze
+\AtBeginEnvironment{xltabular}{\small\setstretch{1.05}}
 
 %% ---------------- Textbausteine ----------------
 \newenvironment{zitat}%
@@ -634,12 +707,11 @@ $clean_ext  = 'bbl run.xml synctex.gz fdb_latexmk fls';
 \newcommand{\tabellenverzeichnis}{%
   \pagestyle{plain}\addcontentsline{toc}{section}{Tabellenverzeichnis}%
   \begingroup\setstretch{1.0}\listoftables\endgroup\clearpage}
-\newcommand{\abkuerzungsverzeichnis}{%
+\newcommand{\abkuerzungsverzeichnis}[1]{%
   \pagestyle{plain}\section*{Abkürzungsverzeichnis}%
   \addcontentsline{toc}{section}{Abkürzungsverzeichnis}%
   \begin{description}[leftmargin=3cm, style=nextline, font=\normalfont\bfseries]
-    \item[AIST-R] Allgemeiner Interessen-Struktur-Test, Revision
-    \item[APA] American Psychological Association
+  #1
   \end{description}\clearpage}
 
 \newcommand{\as@kopffuss}{%
@@ -698,5 +770,6 @@ $clean_ext  = 'bbl run.xml synctex.gz fdb_latexmk fls';
 \endinput
 `;
 
-  return { erzeuge, erzeugeTex, erzeugeBib, textMitTokens, pruefe, STILDATEI };
+  return { erzeuge, erzeugeTex, erzeugeBib, textMitTokens, pruefe,
+           braucht_umbruch, geschaetzteHoehe, STILDATEI };
 })();

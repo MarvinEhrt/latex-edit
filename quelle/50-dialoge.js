@@ -216,6 +216,11 @@ const Dialoge = (() => {
         breit: true
       });
       const e = { ...dok.einstellungen };
+      /* Inhalt der Vorspannseiten wird hier mitbearbeitet -- der Schalter
+         allein nützt nichts, wenn man den Text nirgends eintragen kann.
+         Auf Kopien, damit Abbrechen wirklich abbricht. */
+      const abstract = { text: dok.meta.abstract || '' };
+      const abk = (dok.meta.abkuerzungen || []).map(a => ({ ...a }));
 
       const auswahl = (name, beschriftung, optionen, hilfe) => {
         const { wrap, eingabe } = feldElement(
@@ -223,14 +228,75 @@ const Dialoge = (() => {
         eingabe.addEventListener('change', () => { e[name] = eingabe.value; });
         return wrap;
       };
-      const schalter = (name, beschriftung, erklaerung) => {
+      /* zusatz: Element, das nur sichtbar ist, solange der Schalter an ist. */
+      const schalter = (name, beschriftung, erklaerung, zusatz) => {
+        const huelle = el('div');
         const zeile = el('div', 'schalterzeile');
         const kasten = el('input'); kasten.type = 'checkbox'; kasten.checked = !!e[name];
-        kasten.addEventListener('change', () => { e[name] = kasten.checked; });
+        const zeigen = () => { if (zusatz) zusatz.style.display = kasten.checked ? '' : 'none'; };
+        kasten.addEventListener('change', () => { e[name] = kasten.checked; zeigen(); });
         const txt = el('div', 'txt', `<b>${escHtml(beschriftung)}</b><span>${escHtml(erklaerung)}</span>`);
         zeile.append(kasten, txt);
-        return zeile;
+        huelle.append(zeile);
+        if (zusatz) { huelle.append(zusatz); zeigen(); }
+        return huelle;
       };
+
+      /* --- Zusammenfassung --- */
+      const abstractfeld = el('div', 'schalterzusatz');
+      const ta = el('textarea');
+      ta.rows = 5;
+      ta.placeholder = 'Fragestellung, Methode, zentrale Befunde, Schlussfolgerung — '
+                     + 'meist 150 bis 250 Wörter.';
+      ta.value = abstract.text;
+      ta.addEventListener('input', () => { abstract.text = ta.value; zaehleWoerter(); });
+      const zaehler = el('div', 'hilfe');
+      const zaehleWoerter = () => {
+        const n = ta.value.trim().split(/\s+/).filter(Boolean).length;
+        zaehler.textContent = n
+          ? `${n} Wörter` + (n > 300 ? ' — für einen Abstract meist zu lang.' : '')
+          : 'Ohne Text wird die Seite nicht gesetzt.';
+        zaehler.style.color = n ? '' : 'var(--kennwert)';
+      };
+      zaehleWoerter();
+      abstractfeld.append(ta, zaehler);
+
+      /* --- Abkürzungsverzeichnis --- */
+      const abkfeld = el('div', 'schalterzusatz');
+      const zeichneAbk = () => {
+        abkfeld.innerHTML = '';
+        const gitter = el('table', 'abkgitter');
+        const kopf = el('tr', null,
+          '<th>Abkürzung</th><th>Bedeutung</th><th></th>');
+        gitter.append(kopf);
+        abk.forEach((a, i) => {
+          const tr = el('tr');
+          for (const feld of ['kurz', 'lang']) {
+            const td = el('td');
+            const ein = el('input');
+            ein.value = a[feld] || '';
+            ein.placeholder = feld === 'kurz' ? 'z. B. AIST-R' : 'Allgemeiner Interessen-Struktur-Test';
+            ein.addEventListener('input', () => { a[feld] = ein.value; });
+            td.append(ein);
+            tr.append(td);
+          }
+          const weg = el('td');
+          const k = el('button', 'zeileweg', '✕');
+          k.title = 'Zeile löschen';
+          k.addEventListener('click', () => { abk.splice(i, 1); zeichneAbk(); });
+          weg.append(k);
+          tr.append(weg);
+          gitter.append(tr);
+        });
+        abkfeld.append(gitter);
+        const hinzu = el('button', 'knopf knopf-klein', '+ Abkürzung');
+        hinzu.addEventListener('click', () => { abk.push({ kurz: '', lang: '' }); zeichneAbk(); });
+        abkfeld.append(hinzu);
+        if (!abk.length)
+          abkfeld.append(el('div', 'hilfe',
+            'Ohne Einträge wird die Seite nicht gesetzt.'));
+      };
+      zeichneAbk();
 
       const g1 = el('div', 'gruppe'); g1.append(el('h3', null, 'Schrift und Satz'));
       const gitter1 = el('div', 'feldgitter');
@@ -267,11 +333,13 @@ const Dialoge = (() => {
       const g3 = el('div', 'gruppe'); g3.append(el('h3', null, 'Was das Dokument enthält'));
       g3.append(
         schalter('deckblatt', 'Deckblatt', 'Titelseite mit allen Angaben aus dem Deckblatt-Dialog.'),
-        schalter('abstract', 'Zusammenfassung (Abstract)', 'Eigene Seite vor dem Inhaltsverzeichnis.'),
+        schalter('abstract', 'Zusammenfassung (Abstract)',
+                 'Eigene Seite vor dem Inhaltsverzeichnis.', abstractfeld),
         schalter('inhaltsverzeichnis', 'Inhaltsverzeichnis', 'Baut sich automatisch aus deinen Überschriften.'),
         schalter('abbildungsverzeichnis', 'Abbildungsverzeichnis', 'Nur sinnvoll ab etwa drei Abbildungen.'),
         schalter('tabellenverzeichnis', 'Tabellenverzeichnis', 'Nur sinnvoll ab etwa drei Tabellen.'),
-        schalter('abkuerzungsverzeichnis', 'Abkürzungsverzeichnis', 'Wird als bearbeitbare Liste angelegt.'),
+        schalter('abkuerzungsverzeichnis', 'Abkürzungsverzeichnis',
+                 'Alphabetisch sortiert; du trägst die Einträge selbst ein.', abkfeld),
         schalter('eidesstattlich', 'Eidesstattliche Erklärung',
                  'Standardformulierung am Ende. Prüfe den Wortlaut deiner Hochschule.')
       );
@@ -282,6 +350,10 @@ const Dialoge = (() => {
         knopf('Übernehmen', 'knopf-haupt', () => {
           e.schriftgroesse = +e.schriftgroesse;
           e.zeilenabstand = String(e.zeilenabstand);
+          dok.meta.abstract = abstract.text.trim();
+          dok.meta.abkuerzungen = abk
+            .filter(a => (a.kurz || '').trim())
+            .sort((x, y) => x.kurz.localeCompare(y.kurz, 'de'));
           schliessen(); fertig(e);
         })
       );
