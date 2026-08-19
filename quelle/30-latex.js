@@ -26,8 +26,10 @@ const Latex = (() => {
   /* ---------- Literaturdatenbank ---------- */
 
   function bibAutoren(roh) {
+    /* Erst maskieren, dann Institutionen in {…} setzen -- die Klammern
+       hier sind bibtex-Gruppierung und dürfen nicht mitmaskiert werden. */
     return String(roh || '').split(';').map(s => s.trim()).filter(Boolean)
-      .map(p => (p.includes(',') ? p : `{${p}}`))   // ohne Komma = Institution
+      .map(p => (p.includes(',') ? esc(p) : `{${esc(p)}}`))  // ohne Komma = Institution
       .join(' and ');
   }
 
@@ -45,12 +47,20 @@ const Latex = (() => {
       const art = (Modell.QUELLTYPEN[q.typ] || {}).bibtex || 'misc';
       const f = q.felder || {};
       const feld = [];
-      const setze = (name, wert) => {
+      const roh = (name, wert) => {
         if (wert != null && String(wert).trim() !== '')
           feld.push(`  ${name.padEnd(12)} = {${String(wert).trim()}}`);
       };
-      setze('author', bibAutoren(f.autoren));
-      setze('year', f.jahr);
+      /* Textfelder werden wie der Fließtext maskiert: ein & im
+         Zeitschriftennamen oder ein % im Titel zerstört sonst den Bau
+         mit einer Meldung, die auf eine Tabelle zeigt. escLatex maskiert
+         auch geschweifte Klammern -- das nimmt Power-Usern die
+         Groß-/Kleinschreibungs-Schützung ({AIST-R}), ist aber die
+         bewusste Entscheidung zugunsten der Zielgruppe, die eher ein
+         &-Zeichen tippt als eine bibtex-Klammer. */
+      const setze = (name, wert) => roh(name, wert == null ? wert : esc(wert));
+      roh('author', bibAutoren(f.autoren));        // maskiert schon je Person
+      roh('year', f.jahr);
       setze('title', f.titel);
       setze('edition', f.auflage);
       setze('publisher', f.verlag);
@@ -59,12 +69,14 @@ const Latex = (() => {
       setze('number', f.heft || f.nummer);
       setze('pages', (f.seiten || '').replace(/\s*[–—-]\s*/, '--'));
       setze('booktitle', f.buchtitel);
-      if (f.herausgeber) setze('editor', bibAutoren(f.herausgeber));
+      if (f.herausgeber) roh('editor', bibAutoren(f.herausgeber));
       setze('institution', f.institution);
       setze('organization', f.webseite);
-      setze('doi', f.doi);
-      setze('url', f.url);
-      setze('urldate', f.abgerufen);
+      /* doi, url, urldate setzt biblatex verbatim (\url-Kontext) --
+         ein \% in einer URL würde den Link zerstören. */
+      roh('doi', f.doi);
+      roh('url', f.url);
+      roh('urldate', f.abgerufen);
       zeilen.push(`@${art}{${q.key},`, feld.join(',\n'), '}', '');
     }
     if (!dok.quellen.some(q => genutzt.has(q.key))) {

@@ -121,6 +121,41 @@ pruefe('das Protokoll enthält die Warnung',
   /Citation 'gibtesnicht2020'.*undefined/.test(k.log));
 
 
+/* ---------------- Sonderzeichen in Quellenfeldern ----------------
+   Reale Eingaben: & im Zeitschriftennamen, % im Titel, _ im DOI.
+   Unmaskiert zerstören sie den Bau mit irreführenden Meldungen.     */
+
+const sonder = Modell.neu('hausarbeit');
+sonder.meta.titel = 'Sonderzeichenprobe';
+sonder.quellen = [
+  { key: 'krause2019', typ: 'artikel', felder: { autoren: 'Krause, Dora', jahr: '2019',
+    titel: 'Zu 100% geklärt? Eine Meta-Analyse', zeitschrift: 'Zeitschrift für A&O',
+    jahrgang: '63', seiten: '4-19', doi: '10.1026/0932-4089/a000_291' } },
+  { key: 'lang2022', typ: 'buch', felder: { autoren: 'Lang, Emil', jahr: '2022',
+    titel: 'Cronbachs α richtig deuten', verlag: 'Beltz' } }
+];
+sonder.bloecke = [
+  B('ueberschrift', { ebene: 1, text: 'Theorie' }),
+  B('absatz', { runs: [{ text: 'Belegt ' }, { zitat: 'krause2019', form: 'klammer' },
+    { text: ' und ' }, { zitat: 'lang2022', form: 'klammer' }, { text: '.' }] })
+];
+
+const bibSonder = Latex.erzeuge(sonder).dateien['literatur.bib'];
+pruefe('& und % stehen maskiert in der bib-Datei',
+  bibSonder.includes('Zeitschrift für A\\&O') && bibSonder.includes('100\\% geklärt'),
+  bibSonder);
+pruefe('der DOI bleibt unmaskiert',
+  bibSonder.includes('{10.1026/0932-4089/a000_291}'),
+  (bibSonder.match(/doi.*$/m) || []).join(''));
+
+const sz = uebersetze(sonder, 'schreibtisch-sonderzeichen');
+pruefe('Quelle mit &, % und α übersetzt fehlerfrei', !/^!/m.test(sz.log),
+  (sz.log.match(/^!.*/gm) || []).slice(0, 3).join(' | '));
+pruefe('& und % erscheinen im PDF-Text',
+  sz.fliess.includes('Zeitschrift für A&O') && sz.fliess.includes('100% geklärt'),
+  sz.fliess.slice(sz.fliess.indexOf('Krause'), sz.fliess.indexOf('Krause') + 160));
+
+
 /* ---------------- Mehrere Quellen in einer Klammer ---------------- */
 
 const mehr = Modell.neu('hausarbeit');
