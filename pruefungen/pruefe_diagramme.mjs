@@ -58,6 +58,29 @@ const profil = B('diagramm', {
   xSpalte: 0, wertSpalten: [1, 2]
 });
 
+/* --- Lange Namen auf der x-Achse: umbrechbar --- */
+const langUmbruch = B('diagramm', {
+  art: 'balken', titel: 'Namen, die sich umbrechen lassen',
+  daten: { kopf: ['Bedingung', 'M'],
+           zeilen: [['Kontrollgruppe ohne Training', '2,8'],
+                    ['Wartegruppe mit Nachtest', '3,1'],
+                    ['Trainingsgruppe & Co', '4,2']] },
+  xSpalte: 0, wertSpalten: [1]
+});
+
+/* --- Lange Namen, die kein Leerzeichen enthalten --- */
+const langGedreht = B('diagramm', {
+  art: 'balken', titel: 'Namen, die nur gedreht passen',
+  daten: { kopf: ['Skala', 'M'],
+           zeilen: [['Praktisch-technisch (R)', '2,8'],
+                    ['Intellektuell-forschend (I)', '3,6'],
+                    ['Künstlerisch-sprachlich (A)', '3,1'],
+                    ['Sozial (S)', '3,9'],
+                    ['Unternehmerisch (E)', '3,3'],
+                    ['Konventionell (C)', '2,6']] },
+  xSpalte: 0, wertSpalten: [1]
+});
+
 /* --- Streudiagramm mit Ausgleichsgerade --- */
 const streu = B('diagramm', {
   art: 'streu', titel: 'Zusammenhang von Interesse und Zufriedenheit',
@@ -92,9 +115,20 @@ const ausTabelle = B('diagramm', {
   xSpalte: 0, wertSpalten: [1], fehlerSpalte: 2, fehlerArt: 'sd'
 });
 
+/* --- Boxplot mit langen Spaltennamen --- */
+const boxLang = B('diagramm', {
+  art: 'box', titel: 'Verteilung je Bedingung', achseY: 'Punktwert',
+  daten: { kopf: ['Kontrollgruppe ohne Training', 'Interventionsgruppe mit Nachtest',
+                  'Wartegruppe ohne Rückmeldung'],
+           zeilen: [['2', '5', '4'], ['4', '6', '5'], ['4', '7', '5'],
+                    ['5', '8', '6'], ['7', '9', '8']] },
+  xSpalte: -1, wertSpalten: [0, 1, 2]
+});
+
 dok.bloecke.push(
   B('absatz', { runs: [{ text: 'Siehe ' }, { verweis: balken.id }, { text: '.' }] }),
-  balken, gruppen, profil, streu, boxplot, tabelle, ausTabelle);
+  balken, gruppen, profil, langUmbruch, langGedreht, streu, boxplot, boxLang,
+  tabelle, ausTabelle);
 
 /* ---------------- Einzelprüfungen ---------------- */
 
@@ -117,10 +151,32 @@ pruefe('Reihen unterscheiden sich auch in Symbol und Strichart',
 pruefe('Sonderzeichen in Reihennamen maskiert',
   codeProfil.includes('Normgruppe \\& Co'), codeProfil.slice(0, 400));
 
+/* Lange Namen auf der x-Achse schoben sich früher übereinander:
+   pgfplots setzt sie waagerecht und kürzt nichts. */
+const codeUmbruch = Diagramm.zuLatex(langUmbruch, dok).tex;
+pruefe('lange Namen werden umbrochen statt übereinandergelegt',
+  codeUmbruch.includes('Kontrollgruppe ohne\\\\Training') &&
+  codeUmbruch.includes('align=center'), codeUmbruch.slice(0, 400));
+pruefe('kurze Namen bleiben unangetastet',
+  !codeBalken.includes('xticklabels') && !codeBalken.includes('rotate='),
+  codeBalken.slice(0, 300));
+
+const codeGedreht = Diagramm.zuLatex(langGedreht, dok).tex;
+pruefe('unumbrechbare Namen werden gedreht',
+  codeGedreht.includes('rotate=45') && !codeGedreht.includes('xticklabels'),
+  codeGedreht.slice(0, 400));
+
 const codeBox = Diagramm.zuLatex(boxplot, dok).tex;
 pruefe('Boxplot: Quartile vorberechnet', codeBox.includes('boxplot prepared'), codeBox.slice(0, 200));
 pruefe('Boxplot in Graustufen nutzt Muster statt Farbe',
   codeBox.includes('pattern=') && !codeBox.includes('reihe0'), codeBox.slice(0, 300));
+
+const codeBoxLang = Diagramm.zuLatex(boxLang, dok).tex;
+pruefe('Boxplot: lange Spaltennamen legen sich nicht übereinander',
+  codeBoxLang.includes('rotate=45') || codeBoxLang.includes('align=center'),
+  codeBoxLang.slice(0, 500));
+pruefe('Boxplot: Beschriftung bleibt bei den richtigen Kästen',
+  /xtick=\{1, 2, 3\}/.test(codeBoxLang), codeBoxLang.slice(0, 500));
 
 const codeTab = Diagramm.zuLatex(ausTabelle, dok).tex;
 pruefe('Diagramm aus einer Tabelle liest deren Zahlen',

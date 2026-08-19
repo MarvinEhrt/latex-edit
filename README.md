@@ -104,6 +104,10 @@ Was APA 7 zwingend in der Anmerkung verlangt — welche Streuung die
 Fehlerbalken zeigen, was die Kästen eines Boxplots bedeuten — ergänzt der
 Schreibtisch selbst.
 
+**Lange Namen auf der x-Achse** legen sich nicht mehr übereinander: passt ein
+Name nicht in sein Fach, wird er umbrochen; reichen zwei Zeilen nicht, stehen
+alle Namen um 45 Grad gedreht. Kurze Namen bleiben waagerecht.
+
 **Zu den Farben.** Die vier Reihenfarben sind mit einem Prüfskript auf
 Farbfehlsichtigkeit gerechnet, nicht nach Gefühl gewählt (schlechtestes
 Nachbarpaar ΔE 17,0 bei Deuteranopie, Kontrast überall über 3:1). Im

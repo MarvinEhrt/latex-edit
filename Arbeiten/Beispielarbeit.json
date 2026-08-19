@@ -347,7 +347,7 @@
    "typ": "diagramm",
    "art": "balken",
    "titel": "Mittlere Ausprägung der Interessendimensionen",
-   "anmerkung": "Fehlerbalken zeigen ± 1 Standardabweichung.",
+   "anmerkung": "N = 120. Antwortskala von 1 (gar nicht) bis 5 (sehr).",
    "quelle": "tabelle",
    "tabelleId": "beisp-t01",
    "daten": {
