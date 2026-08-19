@@ -320,6 +320,60 @@ console.log(JSON.stringify(Latex.pruefe(d)));
            len(k["bloecke"]) == 3 and k["bloecke"][1]["datenUrl"] == ""
            and k["bloecke"][1]["titel"] == "Screenshot", str(k["bloecke"][1])[:120])
 
+    # ------------------------------------------------ Frühere Fassungen
+    import time as _zeit
+    f_lager = tempfile.mkdtemp(prefix="schreibtisch-fassungen-")
+    fa = ablage_modul.Ablage(os.path.join(f_lager, "Arbeiten"))
+    fa.sichere("Fassung", {"meta": {"titel": "Alt"}, "bloecke": [
+        {"id": "b1", "typ": "abbildung", "titel": "Bild",
+         "datenUrl": "data:image/png;base64," + PNG}]})
+    _zeit.sleep(0.01)
+    fa.sichere("Fassung", {"meta": {"titel": "Neu"}, "bloecke": []})
+    fassungen = fa.sicherungen("Fassung")
+    pruefe("Sicherungsliste enthält die angelegte Fassung",
+           len(fassungen) == 1 and fassungen[0]["titel"] == "Alt"
+           and fassungen[0]["zeit"] > 0 and fassungen[0]["bytes"] > 0,
+           str(fassungen))
+    alt = fa.lade_sicherung("Fassung", fassungen[0]["datei"])
+    pruefe("Wiederherstellung liefert den alten Inhalt samt Bild",
+           alt["meta"]["titel"] == "Alt"
+           and alt["bloecke"][0]["datenUrl"].startswith("data:image/png;base64,"),
+           str(alt)[:120])
+    ausbruch = False
+    try:
+        fa.lade_sicherung("Fassung", "../Fassung.json")
+    except (FileNotFoundError, ValueError):
+        ausbruch = True
+    pruefe("Pfadausbruch bei Sicherungen wird abgewiesen", ausbruch)
+
+    # Zwei Sicherungen in derselben Sekunde überschreiben sich nicht
+    fa.sichere("Fassung", {"meta": {"titel": "Drei"}, "bloecke": []})
+    fa.sichere("Fassung", {"meta": {"titel": "Vier"}, "bloecke": []})
+    pruefe("schnelle Folge-Sicherungen bleiben alle erhalten",
+           len(fa.sicherungen("Fassung")) == 3,
+           str([e["datei"] for e in fa.sicherungen("Fassung")]))
+
+    # ------------------------------------------------ Zwei Fenster
+    e1 = fa.sichere("Zwei", {"meta": {"titel": "eins"}, "bloecke": []})
+    pruefe("Sichern gibt den Änderungsstand zurück", e1.get("stand", 0) > 0, str(e1))
+    _zeit.sleep(0.01)
+    e2 = fa.sichere("Zwei", {"meta": {"titel": "zwei"}, "bloecke": []},
+                    stand=e1["stand"])
+    pruefe("Sichern mit aktuellem Stand geht durch",
+           e2["stand"] >= e1["stand"], str(e2))
+    _zeit.sleep(0.01)
+    veraltet = False
+    try:
+        fa.sichere("Zwei", {"meta": {"titel": "drei"}, "bloecke": []},
+                   stand=e1["stand"])
+    except ablage_modul.VeralteterStand:
+        veraltet = True
+    pruefe("Sichern mit veraltetem Stand wird abgewiesen (409)", veraltet)
+    pruefe("der abgewiesene Stand hat nichts überschrieben",
+           fa.lade("Zwei")["meta"]["titel"] == "zwei",
+           fa.lade("Zwei")["meta"]["titel"])
+    shutil.rmtree(f_lager, ignore_errors=True)
+
     # Kein Ausbruch aus dem Bildordner
     geheim = os.path.join(lager, "geheim.txt")
     open(geheim, "w").write("streng geheim")

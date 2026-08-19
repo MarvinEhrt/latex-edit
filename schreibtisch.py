@@ -115,7 +115,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
             if weg == "/projekt":
                 name = teile.get("name", [""])[0]
-                return _json_antwort(self, {"dokument": ABLAGE.lade(name)})
+                return _json_antwort(self, {"dokument": ABLAGE.lade(name),
+                                            "stand": ABLAGE.stand(name)})
+
+            if weg == "/sicherungen":
+                name = teile.get("name", [""])[0]
+                return _json_antwort(self, {"sicherungen": ABLAGE.sicherungen(name)})
+
+            if weg == "/sicherung":
+                name = teile.get("name", [""])[0]
+                datei = teile.get("datei", [""])[0]
+                return _json_antwort(self, {"dokument":
+                                            ABLAGE.lade_sicherung(name, datei)})
 
             if weg == "/einstellungen":
                 e = dict(ABLAGE.einstellungen())
@@ -179,8 +190,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self._uebersetze(daten)
 
             if weg == "/projekt":
-                return _json_antwort(self, ABLAGE.sichere(
-                    daten.get("name") or "Arbeit", daten.get("dokument") or {}))
+                try:
+                    return _json_antwort(self, ABLAGE.sichere(
+                        daten.get("name") or "Arbeit",
+                        daten.get("dokument") or {},
+                        daten.get("stand")))
+                except ablage_modul.VeralteterStand as f:
+                    return _json_antwort(self, {"fehler": str(f)}, 409)
 
             if weg == "/projekt/loeschen":
                 ABLAGE.loesche(daten.get("name", ""))

@@ -16,7 +16,10 @@ const Dialoge = (() => {
 
   /* ---------------- Grundgerüst ---------------- */
 
-  function basis({ titel, unter, breit }) {
+  /* `beimSchliessen` wird bei JEDEM Schließweg gerufen (Knopf, Escape,
+     Klick auf den Schleier) -- damit ein wartendes Promise auch dann
+     auflöst, wenn der Dialog weggeklickt wird. */
+  function basis({ titel, unter, breit, beimSchliessen }) {
     const schleier = el('div', 'schleier');
     const dialog = el('div', 'dialog' + (breit ? ' dialog-breit' : ''));
     const kopf = el('div', 'dialog-kopf',
@@ -27,7 +30,11 @@ const Dialoge = (() => {
     schleier.append(dialog);
     document.body.append(schleier);
 
-    const schliessen = () => { schleier.remove(); document.removeEventListener('keydown', taste); };
+    const schliessen = () => {
+      schleier.remove();
+      document.removeEventListener('keydown', taste);
+      if (beimSchliessen) beimSchliessen();
+    };
     const taste = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); schliessen(); } };
     document.addEventListener('keydown', taste);
     schleier.addEventListener('mousedown', (ev) => { if (ev.target === schleier) schliessen(); });
@@ -914,7 +921,9 @@ const Dialoge = (() => {
       <div class="gruppe"><h3>Wo liegt meine Arbeit?</h3>
         <p style="margin:0;font-size:13.5px;line-height:1.6">
         Als eine Datei im Ordner <b>Arbeiten</b> neben dem Programm. Beim
-        Überschreiben wird die Vorfassung nach <b>.sicherungen</b> kopiert.
+        Überschreiben wird die Vorfassung nach <b>.sicherungen</b> kopiert —
+        unter <b>Öffnen &rarr; Frühere Fassungen</b> lässt sich jede davon
+        mit einem Klick wiederherstellen.
         <b>ZIP</b> packt zusätzlich das reine LaTeX-Projekt — zum Weitergeben
         oder für Overleaf.</p>
       </div>`;

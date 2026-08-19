@@ -6,6 +6,8 @@ const App = (() => {
 
   let dok = Modell.neu('hausarbeit');
   let projektname = '';
+  let letzterStand = null;        // mtime der Projektdatei beim letzten Laden/Sichern
+  let konfliktOffen = false;      // Zwei-Fenster-Dialog nur einmal zeigen
   let letzteAuswahl = null;
   let bauTimer = null, sicherTimer = null;
   let baeuftGerade = false, nochmalBauen = false;
@@ -179,8 +181,13 @@ const App = (() => {
     if (!Begleiter.verbunden) return;
     const name = projektname || dok.meta.titel || 'Unbenannte Arbeit';
     try {
-      const e = await Begleiter.sichereProjekt(name, dok);
+      /* Der Änderungsstand wandert mit: liegt auf der Platte inzwischen
+         ein neuerer (zweites Fenster!), antwortet der Begleiter mit 409
+         statt wortlos zu überschreiben. */
+      const e = await Begleiter.sichereProjekt(name, dok,
+        projektname ? letzterStand : null);
       projektname = e.name;
+      letzterStand = e.stand;
       const marke = document.getElementById('speicherstand');
       if (marke) {
         const jetzt = new Date();
@@ -190,22 +197,94 @@ const App = (() => {
       }
       if (!still) melde('Gesichert als „' + e.name + '“.');
     } catch (f) {
+      if (f.status === 409) { behandleKonflikt(name); return; }
       melde('Sichern fehlgeschlagen: ' + f.message, true);
     }
   }
 
+  /* ---------------- Zwei Fenster ---------------- */
+
+  function konfliktDialog() {
+    return new Promise((fertig) => {
+      let wahl = null;
+      const { koerper, fuss, schliessen } = Dialoge.basis({
+        titel: 'In einem anderen Fenster geändert',
+        beimSchliessen: () => fertig(wahl)
+      });
+      koerper.innerHTML = `<div style="font-size:13.5px;line-height:1.55">
+        Diese Arbeit wurde in einem anderen Fenster geändert.<br><br>
+        <b>Neu laden</b> holt den neueren Stand — was hier seither getippt
+        wurde, geht verloren. <b>Trotzdem überschreiben</b> legt wie immer
+        erst eine Sicherung des anderen Standes an.</div>`;
+      fuss.append(
+        Dialoge.knopf('Trotzdem überschreiben', 'knopf-gefahr links',
+          () => { wahl = 'ueberschreiben'; schliessen(); }),
+        Dialoge.knopf('Neu laden (empfohlen)', 'knopf-haupt',
+          () => { wahl = 'laden'; schliessen(); })
+      );
+    });
+  }
+
+  async function behandleKonflikt(name) {
+    if (konfliktOffen) return;
+    konfliktOffen = true;
+    try {
+      const wahl = await konfliktDialog();
+      if (wahl === 'laden') {
+        const e = await Begleiter.ladeProjekt(name);
+        dok = Modell.normalisiere(e.dokument);
+        projektname = name;
+        letzterStand = e.stand;
+        Verlauf.leeren();
+        neuZeichnen();
+        melde('Neu geladen — der Stand aus dem anderen Fenster.');
+      } else if (wahl === 'ueberschreiben') {
+        letzterStand = null;
+        await sichere(false);
+      }
+    } catch (f) {
+      melde('Das hat nicht geklappt: ' + f.message, true);
+    } finally {
+      konfliktOffen = false;
+    }
+  }
+
   async function oeffne() {
-    const name = await DialogeExtra.projektOeffnen();
-    if (!name) return;
+    const wahl = await DialogeExtra.projektOeffnen();
+    if (!wahl) return;
+    if (wahl.fassung) return stelleFassungHer(wahl.fassung);
+    const name = wahl;
     try {
       const e = await Begleiter.ladeProjekt(name);
       dok = Modell.normalisiere(e.dokument);
       projektname = name;
+      letzterStand = e.stand;
       Verlauf.leeren();
       neuZeichnen();
       melde('Geöffnet: ' + (dok.meta.titel || name));
     } catch (f) {
       melde('Konnte nicht geöffnet werden: ' + f.message, true);
+    }
+  }
+
+  /* ---------------- Frühere Fassung wiederherstellen ---------------- */
+
+  async function stelleFassungHer(f) {
+    try {
+      /* ERST den aktuellen Stand normal sichern (legt selbst eine
+         Sicherung an -- nichts geht verloren), DANN die Fassung laden. */
+      await sichere(true);
+      const e = await Begleiter.ladeSicherung(f.name, f.datei);
+      dok = Modell.normalisiere(e.dokument);
+      projektname = f.name;
+      /* Die Wiederherstellung ist eine bewusste Entscheidung -- das
+         nächste Sichern überschreibt ohne Stand-Prüfung. */
+      letzterStand = null;
+      Verlauf.leeren();
+      neuZeichnen();
+      melde('Fassung vom ' + f.zeitText + ' wiederhergestellt.');
+    } catch (fehler) {
+      melde('Wiederherstellen fehlgeschlagen: ' + fehler.message, true);
     }
   }
 
@@ -273,6 +352,7 @@ const App = (() => {
       if (!typ) return;
       dok = Modell.neu(typ);
       projektname = '';
+      letzterStand = null;
       Verlauf.leeren();
       neuZeichnen();
       mitVerlauf(() => Dialoge.deckblatt(dok));
@@ -387,6 +467,7 @@ const App = (() => {
         const e = await Begleiter.ladeProjekt(liste[0].name);
         dok = Modell.normalisiere(e.dokument);
         projektname = liste[0].name;
+        letzterStand = e.stand;
         Verlauf.leeren();
         melde('Fortgesetzt: ' + (dok.meta.titel || liste[0].name));
       } else {
