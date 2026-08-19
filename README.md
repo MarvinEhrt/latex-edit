@@ -68,6 +68,11 @@ Strg+V zur Abbildung. Ein aus Excel kopierter Bereich wird zur APA-7-Tabelle.
 Eine Bilddatei lässt sich mitten in den Text ziehen — sie landet dort, wo man
 loslässt.
 
+**Mehrere Belege in einer Klammer:** Im Zitat-Fenster klickt man so viele
+Quellen an, wie der Satz braucht — im Text steht dann
+*(Müller & Weber, 2020; Schmidt, 2021)*, alphabetisch geordnet, wie APA 7 es
+verlangt. Im Satz statt in Klammern bleiben sie getrennt.
+
 **Drei Farben, drei Bedeutungen** im Fließtext:
 Quellenangaben türkis, Querverweise blau, statistische Kennwerte ocker.
 

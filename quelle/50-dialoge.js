@@ -486,28 +486,41 @@ const Dialoge = (() => {
 
   /* ---------------- Zitat einfügen ---------------- */
 
-  function zitatEinfuegen(dok) {
+  /* `einzeln` schaltet die Mehrfachauswahl ab -- ein Blockzitat gehört
+     immer zu genau einer Quelle und braucht deren Seitenzahl.        */
+  function zitatEinfuegen(dok, optionen = {}) {
     return new Promise(async (fertig) => {
       if (!dok.quellen.length) {
         const neu = await quelleBearbeiten(dok);
         if (!neu) { fertig(null); return; }
         App.aenderung();
       }
+      const einzeln = !!optionen.einzeln;
       const { koerper, fuss, schliessen } = basis({
         titel: 'Quelle zitieren',
-        unter: 'Klick auf eine Quelle, dann die Form wählen.',
+        unter: einzeln ? 'Klick auf eine Quelle, dann die Form wählen.'
+                       : 'Klick auf eine Quelle. Mehrere gehen auch — sie landen in einer Klammer.',
         breit: true
       });
-      let gewaehlt = null;
+      const gewaehlt = [];                       // Quellen in Anklickreihenfolge
 
       const liste = el('div', 'quellenliste');
-      for (const q of Zitate.sortiert(dok.quellen)) {
+      const geordnet = Zitate.sortiert(dok.quellen);
+      for (const q of geordnet) {
         const zeile = el('div', 'quelle-zeile');
         zeile.innerHTML = `<div class="quelle-txt">${Zitate.verzeichniseintrag(q)}</div>`;
         zeile.addEventListener('click', () => {
-          gewaehlt = q;
-          liste.querySelectorAll('.quelle-zeile').forEach(z => z.classList.remove('gewaehlt'));
-          zeile.classList.add('gewaehlt');
+          const drin = gewaehlt.indexOf(q);
+          if (einzeln) {
+            gewaehlt.length = 0;
+            gewaehlt.push(q);
+          } else if (drin >= 0) {
+            gewaehlt.splice(drin, 1);            // nochmal klicken nimmt sie wieder raus
+          } else {
+            gewaehlt.push(q);
+          }
+          liste.querySelectorAll('.quelle-zeile').forEach((z, i) =>
+            z.classList.toggle('gewaehlt', gewaehlt.includes(geordnet[i])));
           zeigeVorschau();
         });
         liste.append(zeile);
@@ -522,10 +535,22 @@ const Dialoge = (() => {
       const { wrap: seiteWrap, eingabe: seiteEingabe } = feldElement(
         { n: 'seite', l: 'Seitenzahl', kurz: true, h: 'Bei wörtlichen Zitaten Pflicht. Sonst leer lassen.' }, '');
       einstellung.append(formWrap, seiteWrap);
+      const seiteHilfe = seiteWrap.querySelector('.hilfe');
 
       const vorschau = el('div', 'notiz');
       const zeigeVorschau = () => {
-        vorschau.innerHTML = gewaehlt
+        /* Eine Seitenzahl kann sich nicht auf mehrere Quellen zugleich
+           beziehen. Statt sie stillschweigend fallen zu lassen, wird
+           das Feld sichtbar gesperrt. */
+        const mehrere = gewaehlt.length > 1;
+        seiteEingabe.disabled = mehrere;
+        if (mehrere) seiteEingabe.value = '';
+        seiteWrap.style.opacity = mehrere ? '.5' : '';
+        if (seiteHilfe) seiteHilfe.textContent = mehrere
+          ? 'Bei mehreren Quellen gibt es keine gemeinsame Seitenzahl.'
+          : 'Bei wörtlichen Zitaten Pflicht. Sonst leer lassen.';
+
+        vorschau.innerHTML = gewaehlt.length
           ? `<span>&#9432;</span><span>Im Text erscheint: <b style="font-family:var(--schrift-doc)">${
               escHtml(Zitate.imText(gewaehlt, formEingabe.value, seiteEingabe.value.trim()))}</b></span>`
           : '<span>&#9432;</span><span>Wähle oben eine Quelle aus.</span>';
@@ -538,13 +563,15 @@ const Dialoge = (() => {
       fuss.append(
         knopf('Neue Quelle', 'knopf-still links', async () => {
           const neu = await quelleBearbeiten(dok);
-          if (neu) { App.aenderung(); schliessen(); fertig(await zitatEinfuegen(dok)); }
+          if (neu) { App.aenderung(); schliessen(); fertig(await zitatEinfuegen(dok, optionen)); }
         }),
         knopf('Abbrechen', 'knopf-still', () => { schliessen(); fertig(null); }),
         knopf('Einfügen', 'knopf-haupt', () => {
-          if (!gewaehlt) { App.melde('Bitte zuerst eine Quelle auswählen.', true); return; }
+          if (!gewaehlt.length) { App.melde('Bitte zuerst eine Quelle auswählen.', true); return; }
           schliessen();
-          fertig({ zitat: gewaehlt.key, form: formEingabe.value, seite: seiteEingabe.value.trim() });
+          fertig({ zitat: gewaehlt.map(q => q.key).join(','),
+                   form: formEingabe.value,
+                   seite: gewaehlt.length > 1 ? '' : seiteEingabe.value.trim() });
         })
       );
     });
@@ -812,7 +839,8 @@ const Dialoge = (() => {
       <div class="gruppe"><h3>Was farbig hinterlegt ist</h3>
         <div style="font-size:13.5px;line-height:2">
         <span class="chip chip-zitat">(Holland, 1997)</span> &nbsp;eine Quellenangabe — ändert sich mit,
-        wenn du die Quelle bearbeitest<br>
+        wenn du die Quelle bearbeitest. Im Zitat-Fenster lassen sich mehrere Quellen
+        anklicken, dann stehen sie zusammen in einer Klammer<br>
         <span class="chip chip-verweis">Tabelle 3</span> &nbsp;ein Querverweis — die Nummer stimmt immer,
         auch nach dem Umsortieren<br>
         <span class="chip chip-kennwert"><i>SW</i>&nbsp;=&nbsp;104</span> &nbsp;ein statistischer Kennwert —

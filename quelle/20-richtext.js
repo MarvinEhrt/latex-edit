@@ -37,13 +37,38 @@ const Zitate = (() => {
     return (quelle && quelle.felder && quelle.felder.jahr) || 'o. J.';
   }
 
-  /* Vollständige Angabe, so wie sie im Text erscheint */
+  /* Vollständige Angabe, so wie sie im Text erscheint.
+     `quelle` darf eine Quelle sein oder mehrere: APA 7 fasst mehrere
+     Belege in EINER Klammer zusammen, alphabetisch geordnet und mit
+     Semikolon getrennt -- (Müller, 2020; Schmidt, 2021).             */
   function imText(quelle, form, seite) {
-    if (!quelle) return '(Quelle fehlt)';
+    const liste = Array.isArray(quelle) ? quelle : [quelle];
+    if (!liste.length || (liste.length === 1 && !liste[0])) return '(Quelle fehlt)';
     const s = seite ? `, S. ${seite}` : '';
-    return form === 'narrativ'
-      ? `${autorKurz(quelle, 'narrativ')} (${jahr(quelle)}${s})`
-      : `(${autorKurz(quelle, 'klammer')}, ${jahr(quelle)}${s})`;
+
+    if (liste.length === 1) {
+      return form === 'narrativ'
+        ? `${autorKurz(liste[0], 'narrativ')} (${jahr(liste[0])}${s})`
+        : `(${autorKurz(liste[0], 'klammer')}, ${jahr(liste[0])}${s})`;
+    }
+
+    const geordnet = sortiert(liste);
+    if (form === 'narrativ') {
+      /* Im Satz bleiben mehrere Belege getrennt: "Müller (2020) und
+         Schmidt (2021) zeigten ..." -- keine gemeinsame Klammer. */
+      const teile = geordnet.map(q => `${autorKurz(q, 'narrativ')} (${jahr(q)})`);
+      return teile.slice(0, -1).join(', ') + ' und ' + teile[teile.length - 1];
+    }
+    return '(' + geordnet.map(q => `${autorKurz(q, 'klammer')}, ${jahr(q)}`).join('; ') + ')';
+  }
+
+  /* "a, b" -> die zugehörigen Quellen; Unbekanntes bleibt null und
+     erscheint als "???" statt lautlos zu verschwinden.               */
+  function schluesselliste(roh) {
+    return String(roh || '').split(',').map(s => s.trim()).filter(Boolean);
+  }
+  function quellenZu(roh, quellen) {
+    return schluesselliste(roh).map(k => (quellen || []).find(q => q.key === k) || null);
   }
 
   /* Autor:innen im Literaturverzeichnis: "Westhoff, K., & Kluck, M.-L." */
@@ -134,7 +159,8 @@ const Zitate = (() => {
     });
   }
 
-  return { nachnamen, autorKurz, autorLang, herausgeberLang, jahr, imText, verzeichniseintrag, sortiert };
+  return { nachnamen, autorKurz, autorLang, herausgeberLang, jahr, imText,
+           verzeichniseintrag, sortiert, schluesselliste, quellenZu };
 })();
 
 
@@ -208,8 +234,7 @@ const Richtext = (() => {
     return (runs || []).map(r => {
       if (r.text != null) return r.text;
       if (r.zitat) {
-        const q = (ctx.quellen || []).find(x => x.key === r.zitat);
-        return Zitate.imText(q, r.form, r.seite);
+        return Zitate.imText(Zitate.quellenZu(r.zitat, ctx.quellen), r.form, r.seite);
       }
       if (r.kennwert) return `${r.kennwert} = ${r.wert}`;
       if (r.verweis) return ctx.verweisText ? ctx.verweisText(r.verweis) : '[Verweis]';
@@ -235,8 +260,7 @@ const Richtext = (() => {
                ` data-typ="${typ}"${attrs}>${beschriftung}</span>`;
       };
       if (r.zitat) {
-        const q = (ctx.quellen || []).find(x => x.key === r.zitat);
-        const txt = escHtml(Zitate.imText(q, r.form, r.seite));
+        const txt = escHtml(Zitate.imText(Zitate.quellenZu(r.zitat, ctx.quellen), r.form, r.seite));
         return chip('zitat', txt, { key: r.zitat, form: r.form || 'klammer', seite: r.seite || '' });
       }
       if (r.kennwert) {
@@ -324,8 +348,13 @@ const Richtext = (() => {
         return t;
       }
       if (r.zitat) {
-        const key = r.zitat;
-        if (r.seite) {
+        /* Mehrere Schlüssel gibt man biblatex am Stück -- es ordnet und
+           trennt sie selbst. Eine Seitenzahl gehört dann zu keiner der
+           Quellen eindeutig, also bleibt sie weg. */
+        const schluessel = Zitate.schluesselliste(r.zitat);
+        if (!schluessel.length) return '';
+        const key = schluessel.join(',');
+        if (r.seite && schluessel.length === 1) {
           return r.form === 'narrativ'
             ? `\\autorzitS{${key}}{${escLatex(r.seite)}}`
             : `\\zitS{${key}}{${escLatex(r.seite)}}`;

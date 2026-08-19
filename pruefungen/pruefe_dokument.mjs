@@ -120,5 +120,60 @@ pruefe('LaTeX bricht wegen einer fehlenden Quelle nicht ab', !/^!/m.test(k.log))
 pruefe('das Protokoll enthält die Warnung',
   /Citation 'gibtesnicht2020'.*undefined/.test(k.log));
 
+
+/* ---------------- Mehrere Quellen in einer Klammer ---------------- */
+
+const mehr = Modell.neu('hausarbeit');
+mehr.meta.titel = 'Mehrfachbeleg';
+mehr.quellen = [
+  { key: 'schmidt2021', typ: 'artikel', felder: { autoren: 'Schmidt, Anna', jahr: '2021',
+    titel: 'Interessen und Zufriedenheit', zeitschrift: 'Zeitschrift für Arbeitspsychologie',
+    jahrgang: '65', seiten: '12-30' } },
+  { key: 'mueller2020', typ: 'buch', felder: { autoren: 'Müller, Bernd; Weber, Clara',
+    jahr: '2020', titel: 'Berufliche Interessen', verlag: 'Hogrefe' } },
+  { key: 'holland1997', typ: 'buch', felder: { autoren: 'Holland, John L.', jahr: '1997',
+    titel: 'Making vocational choices', verlag: 'PAR' } }
+];
+mehr.bloecke = [
+  B('ueberschrift', { ebene: 1, text: 'Theorie' }),
+  B('absatz', { runs: [{ text: 'Mehrfach belegt ' },
+    { zitat: 'schmidt2021,mueller2020', form: 'klammer' }, { text: '.' }] }),
+  B('absatz', { runs: [{ zitat: 'mueller2020,holland1997', form: 'narrativ' },
+    { text: ' berichten dasselbe.' }] })
+];
+
+const texMehr = Latex.erzeuge(mehr).dateien['arbeit.tex'];
+pruefe('mehrere Schlüssel gehen als einer an biblatex',
+  texMehr.includes('\\zit{schmidt2021,mueller2020}'), texMehr.slice(0, 0) ||
+  (texMehr.match(/\\zit\{[^}]*\}/g) || []).join(' '));
+pruefe('alle beteiligten Quellen landen in der bib-Datei',
+  ['schmidt2021', 'mueller2020', 'holland1997']
+    .every(k => Latex.erzeuge(mehr).dateien['literatur.bib'].includes('{' + k + ',')));
+
+const m = uebersetze(mehr, 'schreibtisch-mehrfach');
+pruefe('LaTeX übersetzt den Mehrfachbeleg fehlerfrei', !/^!/m.test(m.log),
+  (m.log.match(/^!.*/m) || []).join(' '));
+pruefe('keine offene Quelle', !/Citation '.*' on page \d+ undefined/.test(m.log),
+  (m.log.match(/Citation '[^']*' on page \d+ undefined/g) || []).join(' '));
+pruefe('beide Quellen stehen in EINER Klammer, alphabetisch geordnet',
+  /\(Müller & Weber, 2020; Schmidt, 2021\)/.test(m.fliess),
+  m.fliess.slice(m.fliess.indexOf('Mehrfach belegt'), m.fliess.indexOf('Mehrfach belegt') + 120));
+pruefe('im Satz bleiben sie getrennt, nicht in einer Klammer',
+  m.fliess.includes('Holland (1997) und Müller und Weber (2020) berichten'),
+  m.fliess.slice(m.fliess.indexOf('berichten') - 90, m.fliess.indexOf('berichten') + 30));
+
+/* Die Vorschau im Editor muss zeigen, was hinterher im PDF steht --
+   sonst schreibt man gegen ein Bild an, das nicht stimmt. */
+const alsText = (runs) => new Function(
+  ['10-modell.js', '20-richtext.js'].map(q).join('\n') +
+  `\nreturn Richtext.zuText(${JSON.stringify(runs)},` +
+  ` {quellen: ${JSON.stringify(mehr.quellen)}});`)();
+pruefe('die Vorschau zeigt dieselbe Klammer wie das PDF',
+  alsText(mehr.bloecke[1].runs).includes('(Müller & Weber, 2020; Schmidt, 2021)'),
+  alsText(mehr.bloecke[1].runs));
+pruefe('die Vorschau zeigt auch den Satzfall wie das PDF',
+  alsText(mehr.bloecke[2].runs).startsWith('Holland (1997) und Müller und Weber (2020)'),
+  alsText(mehr.bloecke[2].runs));
+
 console.log(`\n  ${ok} bestanden, ${fehl} durchgefallen`);
 process.exit(fehl ? 1 : 0);

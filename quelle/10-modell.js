@@ -445,7 +445,9 @@ const Modell = (() => {
      Nur die kommen ins Literaturverzeichnis (APA 7).                */
   function zitierteSchluessel(dok) {
     const menge = new Set();
-    const ausRuns = runs => (runs || []).forEach(r => { if (r.zitat) menge.add(r.zitat); });
+    /* Ein Zitat kann mehrere Quellen zugleich belegen: "a,b" */
+    const ausRuns = runs => (runs || []).forEach(
+      r => { if (r.zitat) Zitate.schluesselliste(r.zitat).forEach(k => menge.add(k)); });
     for (const b of dok.bloecke) {
       if (b.runs) ausRuns(b.runs);
       if (b.quelle) menge.add(b.quelle);

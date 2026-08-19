@@ -446,7 +446,7 @@ const Editor = (() => {
     }
     if (block.typ === 'blockzitat') {
       leiste.append(w('§', 'Quelle des Zitats festlegen', async () => {
-        const z = await Dialoge.zitatEinfuegen(dok());
+        const z = await Dialoge.zitatEinfuegen(dok(), { einzeln: true });
         if (z) {
           Verlauf.merke(dok());
           block.quelle = z.zitat; block.seite = z.seite;

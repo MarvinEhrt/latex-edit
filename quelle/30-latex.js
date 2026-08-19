@@ -554,7 +554,9 @@ $clean_ext  = 'bbl run.xml synctex.gz fdb_latexmk fls';
 \RequirePackage{etoolbox}
 \RequirePackage{csquotes}
 
-\RequirePackage[style=apa,backend=biber,language=ngerman]{biblatex}
+% sortcites: mehrere Quellen in einer Klammer ordnet biblatex selbst
+% alphabetisch -- so, wie APA 7 es verlangt.
+\RequirePackage[style=apa,backend=biber,language=ngerman,sortcites=true]{biblatex}
 \DeclareLanguageMapping{ngerman}{ngerman-apa}
 
 \RequirePackage[hidelinks,bookmarks=true]{hyperref}

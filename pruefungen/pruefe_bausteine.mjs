@@ -299,6 +299,43 @@ const speicher = await s.evaluate(() => {
 });
 p('40 Schnappschüsse mit 2-MB-Bild kosten keine 80 MB', speicher===40, String(speicher));
 
+// ---------------------------------------------- Mehrere Quellen zitieren
+
+await frisch(()=>{
+  App.dok.quellen=[
+    {key:'schmidt2021',typ:'buch',felder:{autoren:'Schmidt, Anna',jahr:'2021',titel:'A',verlag:'V'}},
+    {key:'mueller2020',typ:'buch',felder:{autoren:'Müller, Bernd; Weber, Clara',jahr:'2020',titel:'B',verlag:'V'}}];
+  App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'Belegt '}]})];
+  Editor.zeichne();});
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('End');
+await s.locator('.blockleiste button[title^="Quelle zitieren"]').first().click();
+await s.waitForSelector('.dialog', {timeout:5000});
+await s.locator('.dialog .quelle-zeile').nth(0).click();
+await s.waitForTimeout(150);
+p('eine Quelle: Seitenfeld bleibt benutzbar',
+  !(await s.evaluate(()=>document.getElementById('f_seite').disabled)));
+await s.locator('.dialog .quelle-zeile').nth(1).click();
+await s.waitForTimeout(150);
+p('zwei Quellen: Seitenfeld wird gesperrt',
+  await s.evaluate(()=>document.getElementById('f_seite').disabled));
+const schau = await s.locator('.dialog .notiz').innerText();
+p('die Vorschau zeigt eine Klammer mit Semikolon',
+  /\(Müller & Weber, 2020; Schmidt, 2021\)/.test(schau), schau);
+await s.locator('.dialog .knopf-haupt', {hasText:'Einfügen'}).click();
+await s.waitForTimeout(500);
+const zit = await s.evaluate(()=>App.dok.bloecke[0].runs.find(r=>r.zitat));
+p('beide Schlüssel stehen in EINEM Zitat',
+  zit && zit.zitat.split(',').sort().join(',')==='mueller2020,schmidt2021', JSON.stringify(zit));
+p('keine Seitenzahl bei mehreren Quellen', zit && !zit.seite, JSON.stringify(zit));
+p('der Chip im Text zeigt beide Quellen',
+  /Müller & Weber, 2020; Schmidt, 2021/.test(await s.locator('.block .chip-zitat').innerText()),
+  await s.locator('.block .chip-zitat').innerText());
+await zurueck();
+p('Strg+Z nimmt auch das Mehrfachzitat zurück',
+  !(await s.evaluate(()=>App.dok.bloecke[0].runs.some(r=>r.zitat))),
+  JSON.stringify(await s.evaluate(()=>App.dok.bloecke[0].runs)));
+
 console.log(`\n  ${ok} bestanden, ${fehl} durchgefallen`);
 await b.close(); d.kill();
 rmSync(ABLAGE,{recursive:true,force:true});

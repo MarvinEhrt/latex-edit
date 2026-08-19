@@ -82,7 +82,8 @@ const PdfAnsicht = (() => {
     }
     if (warnung.sorte !== 'zitat') return null;
     const k = warnung.schluessel;
-    const inRuns = (runs) => (runs || []).some(r => r.zitat === k);
+    const inRuns = (runs) => (runs || []).some(
+      r => r.zitat && Zitate.schluesselliste(r.zitat).includes(k));
     for (const b of dok.bloecke || []) {
       if (inRuns(b.runs)) return b.id;
       if (b.quelle === k) return b.id;
