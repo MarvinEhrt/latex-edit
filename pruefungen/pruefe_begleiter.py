@@ -252,6 +252,83 @@ console.log(JSON.stringify(Latex.pruefe(d)));
     pruefe("Windows-Gerätename entschärft",
            ablage_modul.sauberer_name("CON").startswith("_"))
 
+    # ------------------------------------------------ Bilder daneben
+    import base64 as _b64
+    PNG = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
+           "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+    gross = _b64.b64encode(b"\x89PNG" + b"x" * 300_000).decode()
+    mit_bild = {"meta": {"titel": "Mit Bild"}, "bloecke": [
+        {"id": "b1", "typ": "absatz", "runs": [{"text": "Text"}]},
+        {"id": "b2", "typ": "abbildung", "titel": "Screenshot",
+         "datenUrl": "data:image/png;base64," + PNG},
+        {"id": "b3", "typ": "abbildung", "titel": "Groß",
+         "datenUrl": "data:image/png;base64," + gross},
+    ]}
+    a.sichere("Bildarbeit", mit_bild)
+    json_pfad = os.path.join(lager, "Arbeiten", "Bildarbeit.json")
+    bildordner = os.path.join(lager, "Arbeiten", "Bildarbeit.bilder")
+    roh = open(json_pfad, encoding="utf-8").read()
+    pruefe("Bilddaten stehen nicht mehr in der Projektdatei",
+           "base64," not in roh and '"bild:' in roh, roh[:200])
+    pruefe("die Projektdatei bleibt klein",
+           os.path.getsize(json_pfad) < 2000, str(os.path.getsize(json_pfad)))
+    pruefe("die Bilder liegen daneben",
+           os.path.isdir(bildordner) and len(os.listdir(bildordner)) == 2,
+           str(os.listdir(bildordner) if os.path.isdir(bildordner) else None))
+    pruefe("das übergebene Dokument bleibt unverändert",
+           mit_bild["bloecke"][1]["datenUrl"].startswith("data:image/png;base64,"),
+           mit_bild["bloecke"][1]["datenUrl"][:40])
+
+    zurueck = a.lade("Bildarbeit")
+    pruefe("Laden stellt die Bilder wieder her",
+           zurueck["bloecke"][1]["datenUrl"] == mit_bild["bloecke"][1]["datenUrl"] and
+           zurueck["bloecke"][2]["datenUrl"] == mit_bild["bloecke"][2]["datenUrl"],
+           zurueck["bloecke"][1]["datenUrl"][:60])
+
+    # Dasselbe Bild zweimal -> eine Datei
+    doppelt = json.loads(json.dumps(mit_bild))
+    doppelt["bloecke"].append({"id": "b4", "typ": "abbildung", "titel": "Nochmal",
+                               "datenUrl": "data:image/png;base64," + PNG})
+    a.sichere("Bildarbeit", doppelt)
+    pruefe("dasselbe Bild wird nur einmal abgelegt",
+           len(os.listdir(bildordner)) == 2, str(os.listdir(bildordner)))
+
+    # Zwanzig Sicherungen kosten das Bild nicht zwanzigmal
+    for i in range(20):
+        doppelt["meta"]["titel"] = f"Lauf {i}"
+        a.sichere("Bildarbeit", doppelt)
+    gesamt = sum(os.path.getsize(os.path.join(w, d))
+                 for w, _, ds in os.walk(os.path.join(lager, "Arbeiten")) for d in ds)
+    pruefe("21 Sicherungen wiegen nicht 21 Bilder",
+           gesamt < 1_500_000, f"{gesamt} Bytes")
+
+    # Ein ausgetauschtes Bild lässt keinen Müll zurück
+    ohne = json.loads(json.dumps(mit_bild))
+    ohne["bloecke"] = [ohne["bloecke"][0]]
+    for i in range(21):                       # alle Sicherungen durchreichen
+        a.sichere("Bildarbeit", ohne)
+    pruefe("nicht mehr benutzte Bilder werden aufgeräumt",
+           not os.path.isdir(bildordner) or not os.listdir(bildordner),
+           str(os.listdir(bildordner) if os.path.isdir(bildordner) else None))
+
+    # Fehlt die Bilddatei, bleibt der Baustein trotzdem lesbar
+    a.sichere("Kaputt", mit_bild)
+    for d in os.listdir(os.path.join(lager, "Arbeiten", "Kaputt.bilder")):
+        os.remove(os.path.join(lager, "Arbeiten", "Kaputt.bilder", d))
+    k = a.lade("Kaputt")
+    pruefe("fehlende Bilddatei löscht nicht den Baustein",
+           len(k["bloecke"]) == 3 and k["bloecke"][1]["datenUrl"] == ""
+           and k["bloecke"][1]["titel"] == "Screenshot", str(k["bloecke"][1])[:120])
+
+    # Kein Ausbruch aus dem Bildordner
+    geheim = os.path.join(lager, "geheim.txt")
+    open(geheim, "w").write("streng geheim")
+    a.sichere("Boes", {"meta": {"titel": "B"}, "bloecke": [
+        {"id": "x", "typ": "abbildung", "datenUrl": "bild:../../geheim.txt"}]})
+    b = a.lade("Boes")
+    pruefe("ein Pfad aus dem Ordner heraus wird abgewiesen",
+           b["bloecke"][0]["datenUrl"] == "", b["bloecke"][0]["datenUrl"][:60])
+
     for o in (ordner, ordner2, lager):
         shutil.rmtree(o, ignore_errors=True)
 

@@ -388,6 +388,17 @@ const Latex = (() => {
         'Das Abkürzungsverzeichnis ist eingeschaltet, aber leer — die Seite entfällt. '
         + 'Einträge unter Layout ergänzen oder den Schalter ausschalten.' });
 
+    /* Eine Abbildung ohne Bild wird nicht gesetzt. Wer sie angelegt und
+       das Bild noch nicht ausgewählt hat -- oder wessen Bilddatei
+       abhandengekommen ist -- soll das erfahren und nicht erst beim
+       Durchblättern des fertigen PDF merken, dass da nichts ist. */
+    for (const b of dok.bloecke) {
+      if (b.typ === 'abbildung' && !b.datenUrl)
+        anmerkungen.push({ id: b.id, meldung:
+          `Die Abbildung „${(b.titel || '').trim() || 'ohne Titel'}“ hat kein Bild `
+          + '— sie erscheint nicht im PDF. Über ⚙ ein Bild auswählen.' });
+    }
+
     for (const b of dok.bloecke) {
       if (b.typ !== 'formel' || !b.tex) continue;
       let tiefe = 0, dollar = 0;

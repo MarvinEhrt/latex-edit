@@ -159,13 +159,21 @@ Zotero-Exporte (BibTeX, RIS, CSL-JSON).
 
 ## Wo die Arbeit liegt
 
-Eine JSON-Datei je Arbeit im Ordner **Arbeiten** — leicht zu sichern, zu
-kopieren, zu verschicken. Beim Überschreiben wandert die Vorfassung nach
-`Arbeiten/.sicherungen` (die letzten 20 bleiben).
+Eine JSON-Datei je Arbeit im Ordner **Arbeiten**. Beim Überschreiben
+wandert die Vorfassung nach `Arbeiten/.sicherungen` (die letzten 20
+bleiben).
 
-**ZIP** packt zusätzlich das reine LaTeX-Projekt (`arbeit.tex`,
-`literatur.bib`, Stildatei, Bilder, Bauskript) — zum Weitergeben oder für
-Overleaf.
+Bilder liegen daneben in `Arbeiten/<Name>.bilder`, benannt nach ihrer
+Prüfsumme; in der JSON steht nur der Verweis. Ein Bildschirmfoto wiegt
+als Text im Dokument rund ein Drittel mehr als als Datei — bei einer
+Sicherung alle vier Sekunden und zwanzig aufbewahrten Vorfassungen wären
+das schnell Hunderte Megabytes. Über die Prüfsumme teilen sich alle
+Sicherungen dieselbe Bilddatei. Wer eine Arbeit weitergibt, nimmt den
+Bilderordner mit — oder gleich das ZIP.
+
+**ZIP** packt das reine LaTeX-Projekt (`arbeit.tex`, `literatur.bib`,
+Stildatei, Bilder, Bauskript) **und** die Arbeit als JSON in einem Stück
+— zum Weitergeben oder für Overleaf.
 
 ---
 
@@ -182,7 +190,7 @@ Schreibtisch/
 ├── quelle/              Oberfläche (14 Module)
 ├── bauen.py             quelle/* → oberflaeche.html
 ├── pruefungen/
-└── Arbeiten/            deine Arbeiten
+└── Arbeiten/            deine Arbeiten (+ <Name>.bilder daneben)
 ```
 
 Nach Änderungen in `quelle/`: `python3 bauen.py`.

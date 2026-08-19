@@ -1,12 +1,24 @@
 """Projekte und Einstellungen auf der Festplatte.
 
-Ein Projekt ist eine einzige JSON-Datei — leicht zu sichern, zu kopieren
-und zu verschicken. Bilder stecken als Datenverweis darin, damit ein
-Projekt in einem Stück bleibt.
+Ein Projekt ist eine JSON-Datei. Bilder liegen daneben, in einem Ordner
+"<Projekt>.bilder", und in der JSON steht nur "bild:<pruefsumme>.png".
+
+Der Grund ist die Größe: ein Bildschirmfoto wiegt als Base64-Text rund
+ein Drittel mehr als als Datei auf der Platte, eine Arbeit mit zwei Dutzend Abbildungen
+kommt so auf zweistellige Megabytes. Da alle vier Sekunden gesichert und
+vor jedem Überschreiben eine Sicherung angelegt wird, wären das schnell
+Hunderte Megabytes für ein Dokument, dessen Text ein paar hundert
+Kilobyte hat. Über die Prüfsumme teilen sich außerdem alle Sicherungen
+dieselbe Bilddatei -- zwanzig Sicherungen kosten das Bild einmal.
+
+Nach außen bleibt alles beim Alten: `lade` gibt dieselben Datenverweise
+zurück, die `sichere` bekommen hat.
 """
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import os
 import re
@@ -14,6 +26,14 @@ import shutil
 import time
 
 _UNERLAUBT = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+# "data:image/png;base64,iVBOR..."
+_DATENVERWEIS = re.compile(r"^data:image/([a-zA-Z0-9.+-]+);base64,(.*)$", re.S)
+# So heißt eine ausgelagerte Bilddatei -- streng, damit "bild:../../etc"
+# nicht aus dem Ordner herausführen kann.
+_BILDNAME = re.compile(r"^[0-9a-f]{20}\.[a-z0-9]{1,5}$")
+
+_ENDUNGEN = {"jpeg": "jpg", "svg+xml": "svg"}
 
 
 def sauberer_name(roh: str, ersatz: str = "Arbeit") -> str:
@@ -40,6 +60,108 @@ class Ablage:
     def _pfad(self, name: str) -> str:
         return os.path.join(self.wurzel, sauberer_name(name) + ".json")
 
+    def _bildordner(self, name: str) -> str:
+        return os.path.join(self.wurzel, sauberer_name(name) + ".bilder")
+
+    # ------------------------------------------------------------- Bilder
+
+    @staticmethod
+    def _bloecke(dokument: dict) -> list:
+        return [b for b in (dokument.get("bloecke") or []) if isinstance(b, dict)]
+
+    def _lagere_bilder_aus(self, name: str, dokument: dict) -> dict:
+        """Datenverweise raus, Dateien daneben. Gibt eine flache Kopie
+        zurück; das übergebene Dokument bleibt unangetastet, denn es
+        gehört der Oberfläche und wird dort weiterbenutzt."""
+        bloecke = self._bloecke(dokument)
+        if not any(_DATENVERWEIS.match(str(b.get("datenUrl") or "")) for b in bloecke):
+            return dokument
+
+        ordner = self._bildordner(name)
+        os.makedirs(ordner, exist_ok=True)
+        neue = []
+        for b in dokument.get("bloecke") or []:
+            treffer = _DATENVERWEIS.match(str(b.get("datenUrl") or "")) \
+                if isinstance(b, dict) else None
+            if not treffer:
+                neue.append(b)
+                continue
+            art, roh = treffer.group(1).lower(), treffer.group(2)
+            try:
+                bytes_ = base64.b64decode(roh, validate=False)
+            except Exception:
+                neue.append(b)            # unlesbar -> lieber so lassen
+                continue
+            endung = _ENDUNGEN.get(art, art)
+            if not re.fullmatch(r"[a-z0-9]{1,5}", endung):
+                endung = "png"
+            dateiname = hashlib.sha256(bytes_).hexdigest()[:20] + "." + endung
+            ziel = os.path.join(ordner, dateiname)
+            if not os.path.exists(ziel):
+                vorlaeufig = ziel + ".neu"
+                with open(vorlaeufig, "wb") as f:
+                    f.write(bytes_)
+                os.replace(vorlaeufig, ziel)
+            kopie = dict(b)
+            kopie["datenUrl"] = "bild:" + dateiname
+            neue.append(kopie)
+
+        schlank = dict(dokument)
+        schlank["bloecke"] = neue
+        return schlank
+
+    def _hole_bilder_zurueck(self, name: str, dokument: dict) -> dict:
+        ordner = self._bildordner(name)
+        for b in self._bloecke(dokument):
+            wert = str(b.get("datenUrl") or "")
+            if not wert.startswith("bild:"):
+                continue
+            dateiname = wert[5:]
+            if not _BILDNAME.match(dateiname):
+                b["datenUrl"] = ""
+                continue
+            try:
+                with open(os.path.join(ordner, dateiname), "rb") as f:
+                    roh = f.read()
+            except OSError:
+                # Bilddatei weg -- der Baustein bleibt, damit die Bild-
+                # unterschrift nicht verlorengeht, und die Oberfläche
+                # meldet die leere Abbildung.
+                b["datenUrl"] = ""
+                continue
+            endung = dateiname.rsplit(".", 1)[-1]
+            art = "jpeg" if endung == "jpg" else endung
+            b["datenUrl"] = ("data:image/" + art + ";base64,"
+                             + base64.b64encode(roh).decode("ascii"))
+        return dokument
+
+    def _raeume_bilder(self, name: str):
+        """Bilddateien wegwerfen, auf die weder das Projekt noch eine
+        seiner Sicherungen zeigt. Sonst wächst der Ordner mit jedem
+        ausgetauschten Bildschirmfoto weiter."""
+        ordner = self._bildordner(name)
+        if not os.path.isdir(ordner):
+            return
+        rein = sauberer_name(name)
+        texte = [self._pfad(name)]
+        sicherung = os.path.join(self.wurzel, ".sicherungen")
+        if os.path.isdir(sicherung):
+            texte += [os.path.join(sicherung, d) for d in os.listdir(sicherung)
+                      if d.startswith(rein) and d.endswith(".json")]
+        genutzt = set()
+        for pfad in texte:
+            try:
+                with open(pfad, encoding="utf-8") as f:
+                    genutzt.update(re.findall(r'"bild:([^"]+)"', f.read()))
+            except OSError:
+                pass
+        for datei in os.listdir(ordner):
+            if datei not in genutzt:
+                try:
+                    os.remove(os.path.join(ordner, datei))
+                except OSError:
+                    pass
+
     def liste(self) -> list[dict]:
         raus = []
         for eintrag in sorted(os.listdir(self.wurzel)):
@@ -56,14 +178,22 @@ class Ablage:
                 "name": eintrag[:-5],
                 "titel": titel,
                 "geaendert": os.path.getmtime(voll),
-                "bytes": os.path.getsize(voll),
+                # Die Bilder daneben gehören zum Gewicht des Projekts dazu.
+                "bytes": os.path.getsize(voll) + self._bildergroesse(eintrag[:-5]),
             })
         raus.sort(key=lambda x: -x["geaendert"])
         return raus
 
+    def _bildergroesse(self, name: str) -> int:
+        ordner = self._bildordner(name)
+        if not os.path.isdir(ordner):
+            return 0
+        return sum(os.path.getsize(os.path.join(ordner, d))
+                   for d in os.listdir(ordner))
+
     def lade(self, name: str) -> dict:
         with open(self._pfad(name), encoding="utf-8") as f:
-            return json.load(f)
+            return self._hole_bilder_zurueck(name, json.load(f))
 
     def sichere(self, name: str, dokument: dict) -> dict:
         pfad = self._pfad(name)
@@ -76,10 +206,12 @@ class Ablage:
             shutil.copy2(pfad, os.path.join(
                 sicherung, f"{sauberer_name(name)}-{marke}.json"))
             self._raeume_sicherungen(sicherung, sauberer_name(name))
+        schlank = self._lagere_bilder_aus(name, dokument)
         vorlaeufig = pfad + ".neu"
         with open(vorlaeufig, "w", encoding="utf-8") as f:
-            json.dump(dokument, f, ensure_ascii=False, indent=1)
+            json.dump(schlank, f, ensure_ascii=False, indent=1)
         os.replace(vorlaeufig, pfad)     # atomar, kein halb geschriebenes Projekt
+        self._raeume_bilder(name)
         return {"name": sauberer_name(name), "bytes": os.path.getsize(pfad)}
 
     @staticmethod
@@ -95,6 +227,11 @@ class Ablage:
         pfad = self._pfad(name)
         if os.path.exists(pfad):
             os.remove(pfad)
+        # Die Bilder bleiben, solange eine Sicherung sie noch braucht.
+        self._raeume_bilder(name)
+        ordner = self._bildordner(name)
+        if os.path.isdir(ordner) and not os.listdir(ordner):
+            os.rmdir(ordner)
 
     # -------------------------------------------------------- Einstellungen
 

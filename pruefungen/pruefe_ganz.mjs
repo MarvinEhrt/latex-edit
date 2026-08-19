@@ -177,7 +177,17 @@ await schritt('nach Reparatur wird wieder gebaut', async () => {
 });
 
 await schritt('Sichern und wieder öffnen', async () => {
-  await seite.evaluate(() => { App.dok.meta.titel = 'Prüfarbeit Interessen'; });
+  await seite.evaluate(() => {
+    App.dok.meta.titel = 'Prüfarbeit Interessen';
+    /* Ein Bild dazu: es wird beim Sichern ausgelagert und muss beim
+       Öffnen unverändert zurückkommen. */
+    const b = Modell.neuerBlock('abbildung', {
+      titel: 'Bildschirmfoto', datenUrl: 'data:image/png;base64,' +
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' });
+    App.dok.bloecke.push(b);
+    window.__bild = b.datenUrl;
+    Editor.zeichne();
+  });
   await seite.click('#knopf-sichern');
   await seite.waitForTimeout(900);
   const liste = await seite.evaluate(() => Begleiter.projekte());
@@ -190,6 +200,10 @@ await schritt('Sichern und wieder öffnen', async () => {
   await seite.waitForTimeout(900);
   const titel = await seite.evaluate(() => App.dok.meta.titel);
   if (titel !== 'Prüfarbeit Interessen') throw new Error('Titel nach Öffnen: ' + titel);
+  const bild = await seite.evaluate(
+    () => (App.dok.bloecke.find(b => b.typ === 'abbildung') || {}).datenUrl);
+  if (bild !== await seite.evaluate(() => window.__bild))
+    throw new Error('Bild kam nicht unverändert zurück: ' + String(bild).slice(0, 60));
 });
 
 await schritt('Diagramm einfügen und ins PDF bringen', async () => {
