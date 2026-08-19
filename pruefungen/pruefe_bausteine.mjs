@@ -336,6 +336,42 @@ p('Strg+Z nimmt auch das Mehrfachzitat zurück',
   !(await s.evaluate(()=>App.dok.bloecke[0].runs.some(r=>r.zitat))),
   JSON.stringify(await s.evaluate(()=>App.dok.bloecke[0].runs)));
 
+// ---------------------------------------------- Sprache der Arbeit
+
+await frisch(()=>{
+  App.dok.quellen=[{key:'mueller2020',typ:'buch',
+    felder:{autoren:'Müller, Bernd; Weber, Clara',jahr:'2020',titel:'B',verlag:'V'}}];
+  const tab=Modell.neuerBlock('tabelle',{titel:'T',kopf:['A'],zeilen:[['1']],spaltenAusrichtung:['l']});
+  App.dok.bloecke=[tab, Modell.neuerBlock('absatz',{runs:[
+    {zitat:'mueller2020',form:'narrativ'},{text:' — '},{verweis:tab.id}]})];
+  App.dok.einstellungen.sprache='de';
+  Editor.zeichne();});
+let chips = await s.evaluate(()=>[...document.querySelectorAll('.block .chip')].map(c=>c.textContent));
+p('auf Deutsch: „und“ und „Tabelle“',
+  chips.join(' ').includes('und Weber (2020)') && chips.join(' ').includes('Tabelle 1'),
+  chips.join(' | '));
+p('das Textfeld ist als deutsch ausgezeichnet',
+  await s.evaluate(()=>document.querySelector('.block .tx').lang)==='de');
+
+/* Über den Layout-Dialog umstellen, nicht am Modell vorbei */
+await s.click('#knopf-layout');
+await s.waitForSelector('.dialog', {timeout:5000});
+await s.selectOption('#f_sprache','en');
+await s.locator('.dialog .knopf-haupt', {hasText:'Übernehmen'}).click();
+await s.waitForTimeout(500);
+chips = await s.evaluate(()=>[...document.querySelectorAll('.block .chip')].map(c=>c.textContent));
+p('auf Englisch: „and“ und „Table“',
+  chips.join(' ').includes('and Weber (2020)') && chips.join(' ').includes('Table 1'),
+  chips.join(' | '));
+p('das Textfeld ist jetzt als englisch ausgezeichnet',
+  await s.evaluate(()=>document.querySelector('.block .tx').lang)==='en');
+p('das erzeugte LaTeX bekommt die Sprachoption',
+  await s.evaluate(()=>Latex.erzeuge(App.dok).dateien['arbeit.tex'].includes(',englisch]{arbeit-stil}')));
+await zurueck();
+p('Strg+Z nimmt auch den Sprachwechsel zurück',
+  await s.evaluate(()=>App.dok.einstellungen.sprache)==='de',
+  await s.evaluate(()=>App.dok.einstellungen.sprache));
+
 console.log(`\n  ${ok} bestanden, ${fehl} durchgefallen`);
 await b.close(); d.kill();
 rmSync(ABLAGE,{recursive:true,force:true});

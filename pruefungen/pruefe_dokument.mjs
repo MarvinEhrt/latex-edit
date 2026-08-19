@@ -175,5 +175,97 @@ pruefe('die Vorschau zeigt auch den Satzfall wie das PDF',
   alsText(mehr.bloecke[2].runs).startsWith('Holland (1997) und Müller und Weber (2020)'),
   alsText(mehr.bloecke[2].runs));
 
+
+/* ---------------- Dieselbe Arbeit auf Englisch ---------------- */
+
+function probearbeit(sprache) {
+  const d = Modell.neu('bachelorarbeit');
+  d.einstellungen.sprache = sprache;
+  d.einstellungen.abstract = true;
+  d.einstellungen.abbildungsverzeichnis = true;
+  d.einstellungen.tabellenverzeichnis = true;
+  d.einstellungen.abkuerzungsverzeichnis = true;
+  d.einstellungen.eidesstattlich = true;
+  d.einstellungen.anhang = true;
+  d.meta.titel = 'Interests and satisfaction';
+  d.meta.verfasser = 'A. Beispiel';
+  d.meta.matrikelnummer = '1234567';
+  d.meta.abstract = 'This thesis examines the relation between interests and satisfaction.';
+  d.meta.abkuerzungen = [{ kurz: 'SD', lang: 'standard deviation' }];
+  d.quellen = [
+    { key: 'schmidt2021', typ: 'buch', felder: { autoren: 'Schmidt, Anna', jahr: '2021',
+      titel: 'Interests', verlag: 'Hogrefe' } },
+    { key: 'mueller2020', typ: 'buch', felder: { autoren: 'Müller, Bernd; Weber, Clara',
+      jahr: '2020', titel: 'Occupational interests', verlag: 'Hogrefe' } }
+  ];
+  const tab = B('tabelle', { titel: 'Descriptives', anmerkung: 'N = 124.',
+    kopf: ['Scale', 'M', 'SD'], zeilen: [['A', '3.4', '0.8'], ['B', '4.1', '0.9']],
+    spaltenAusrichtung: ['l', 'c', 'c'] });
+  d.bloecke = [
+    B('ueberschrift', { ebene: 1, text: 'Introduction' }),
+    B('absatz', { runs: [
+      { text: 'As shown ' }, { zitat: 'mueller2020', form: 'klammer', seite: '17' },
+      { text: ', and also ' }, { zitat: 'mueller2020,schmidt2021', form: 'narrativ' },
+      { text: '. See ' }, { verweis: tab.id }, { text: '.' }] }),
+    tab,
+    B('anhangstart', {}),
+    B('ueberschrift', { ebene: 1, text: 'Materials' })
+  ];
+  return d;
+}
+
+const en = probearbeit('en');
+const texEn = Latex.erzeuge(en).dateien['arbeit.tex'];
+pruefe('die Stildatei bekommt die Sprachoption',
+  texEn.includes(',englisch]{arbeit-stil}'),
+  (texEn.match(/\\usepackage\[[^\]]*\]\{arbeit-stil\}/) || [])[0]);
+pruefe('Querverweise nehmen den Namen von babel',
+  texEn.includes('\\tablename~\\ref{tab:'), (texEn.match(/.{0,20}\\ref\{tab:.{0,10}/) || [])[0]);
+
+const e = uebersetze(en, 'schreibtisch-englisch');
+pruefe('die englische Arbeit übersetzt fehlerfrei', !/^!/m.test(e.log),
+  (e.log.match(/^!.*/m) || []).join(' '));
+pruefe('feste Wörter stehen auf Englisch im PDF',
+  ['Abstract', 'Contents', 'List of Figures', 'List of Tables',
+   'List of Abbreviations', 'References', 'Appendix',
+   'Declaration of Authorship'].every(w => e.fliess.includes(w)),
+  ['Abstract', 'Contents', 'List of Figures', 'List of Tables',
+   'List of Abbreviations', 'References', 'Appendix', 'Declaration of Authorship']
+    .filter(w => !e.fliess.includes(w)).join(' | '));
+pruefe('kein deutsches Wort ist stehengeblieben',
+  !/Literaturverzeichnis|Inhaltsverzeichnis|Abbildungsverzeichnis|Tabellenverzeichnis|Anmerkung\.|Eidesstattliche|Vorgelegt von|Matrikelnummer/
+    .test(e.fliess),
+  (e.fliess.match(/Literaturverzeichnis|Inhaltsverzeichnis|Abbildungsverzeichnis|Tabellenverzeichnis|Anmerkung\.|Eidesstattliche|Vorgelegt von|Matrikelnummer/g) || []).join(' '));
+pruefe('die Tabellenanmerkung heißt Note.', e.fliess.includes('Note. N = 124.'),
+  e.fliess.slice(e.fliess.indexOf('Descriptives'), e.fliess.indexOf('Descriptives') + 140));
+pruefe('die Seitenangabe im Zitat heißt p.',
+  /\(Müller & Weber, 2020, p\. 17\)/.test(e.fliess),
+  e.fliess.slice(e.fliess.indexOf('As shown'), e.fliess.indexOf('As shown') + 150));
+pruefe('im Satz verbindet "and", nicht "und"',
+  /Müller and Weber \(2020\)/.test(e.fliess),
+  e.fliess.slice(e.fliess.indexOf('and also') - 10, e.fliess.indexOf('and also') + 120));
+pruefe('der Querverweis heißt Table',
+  /See Table 1\./.test(e.fliess), e.fliess.slice(e.fliess.indexOf('See '), e.fliess.indexOf('See ') + 40));
+
+/* Und dieselbe Arbeit auf Deutsch, damit nichts abgewandert ist */
+const de = probearbeit('de');
+const dt = uebersetze(de, 'schreibtisch-deutsch');
+pruefe('die deutsche Arbeit übersetzt weiterhin fehlerfrei', !/^!/m.test(dt.log),
+  (dt.log.match(/^!.*/m) || []).join(' '));
+pruefe('feste Wörter stehen auf Deutsch im PDF',
+  ['Zusammenfassung', 'Inhaltsverzeichnis', 'Abbildungsverzeichnis',
+   'Tabellenverzeichnis', 'Abkürzungsverzeichnis', 'Literaturverzeichnis',
+   'Anhang', 'Eidesstattliche Erklärung', 'Anmerkung.'].every(w => dt.fliess.includes(w)),
+  ['Zusammenfassung', 'Inhaltsverzeichnis', 'Abbildungsverzeichnis',
+   'Tabellenverzeichnis', 'Abkürzungsverzeichnis', 'Literaturverzeichnis',
+   'Anhang', 'Eidesstattliche Erklärung', 'Anmerkung.']
+    .filter(w => !dt.fliess.includes(w)).join(' | '));
+pruefe('deutsch bleibt bei "S." und "und"',
+  /\(Müller & Weber, 2020, S\. 17\)/.test(dt.fliess) &&
+  /Müller und Weber \(2020\)/.test(dt.fliess),
+  dt.fliess.slice(dt.fliess.indexOf('As shown'), dt.fliess.indexOf('As shown') + 150));
+pruefe('der Querverweis heißt Tabelle', /See Tabelle 1\./.test(dt.fliess),
+  dt.fliess.slice(dt.fliess.indexOf('See '), dt.fliess.indexOf('See ') + 40));
+
 console.log(`\n  ${ok} bestanden, ${fehl} durchgefallen`);
 process.exit(fehl ? 1 : 0);

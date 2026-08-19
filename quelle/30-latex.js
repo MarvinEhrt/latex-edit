@@ -120,11 +120,11 @@ const Latex = (() => {
         `\\caption{${titel}}\\label{tab:${b.id}}\\\\`,
         '\\toprule', kopfzeile, '\\midrule',
         '\\endfirsthead',
-        `\\caption[]{${titel}\\ (Fortsetzung)}\\\\`,
+        `\\caption[]{${titel}\\ (\\tabellefortsetzung)}\\\\`,
         '\\toprule', kopfzeile, '\\midrule',
         '\\endhead',
         '\\midrule',
-        `\\multicolumn{${n}}{r@{}}{\\footnotesize\\textit{Fortsetzung auf der nächsten Seite}}\\\\`,
+        `\\multicolumn{${n}}{r@{}}{\\footnotesize\\textit{\\tabelleweiter}}\\\\`,
         '\\endfoot',
         '\\bottomrule',
         '\\endlastfoot',
@@ -183,13 +183,14 @@ const Latex = (() => {
     const nummern = Modell.nummeriere(dok);
     const ctx = {
       quellen: dok.quellen,
+      sprache: e.sprache,
       verweisLatex: (ziel) => {
         const b = dok.bloecke.find(x => x.id === ziel);
         if (!b) return '\\textbf{??}';
-        return b.typ === 'tabelle' ? `Tabelle~\\ref{tab:${ziel}}`
+        return b.typ === 'tabelle' ? `\\tablename~\\ref{tab:${ziel}}`
              : (b.typ === 'abbildung' || b.typ === 'diagramm')
-               ? `Abbildung~\\ref{abb:${ziel}}`
-             : `Abschnitt~\\ref{sec:${ziel}}`;
+               ? `\\figurename~\\ref{abb:${ziel}}`
+             : `${Zitate.wort(e.sprache).abschnitt}~\\ref{sec:${ziel}}`;
       }
     };
 
@@ -201,7 +202,8 @@ const Latex = (() => {
     K.push('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%');
     K.push('');
     K.push(`\\documentclass[${e.schriftgroesse || 12}pt,a4paper]{article}`);
-    K.push(`\\usepackage[${e.schrift === 'arial' ? 'arial' : 'times'}]{arbeit-stil}`);
+    K.push(`\\usepackage[${e.schrift === 'arial' ? 'arial' : 'times'}`
+           + `${e.sprache === 'en' ? ',englisch' : ''}]{arbeit-stil}`);
     // pgfplots kostet Ladezeit und muss unter MiKTeX erst geholt werden --
     // also nur mitnehmen, wenn das Dokument wirklich ein Diagramm hat.
     if (dok.bloecke.some(b => b.typ === 'diagramm')) {
@@ -475,8 +477,8 @@ Braucht eine TeX-Installation (TeX Live oder MiKTeX) mit \`pdflatex\` und \`bibe
 \`arbeit.tex\` und \`literatur.bib\` überschrieben. Handschriftliche Änderungen
 gehen dann verloren.
 
-Literatur: \`biblatex\` + \`biber\`, Stil \`apa\`, Sprache \`ngerman\` —
-echtes deutsches APA 7.
+Literatur: \`biblatex\` + \`biber\`, Stil \`apa\`, Sprache
+\`${(dok.einstellungen || {}).sprache === 'en' ? 'american' : 'ngerman'}\` — echtes APA 7.
 `;
   }
 
@@ -523,18 +525,29 @@ $clean_ext  = 'bbl run.xml synctex.gz fdb_latexmk fls';
 %%  Vom LaTeX-Editor erzeugt. Du musst hier nichts ändern.
 %% ==================================================================
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{arbeit-stil}[2026/08/16 v1.0 Wissenschaftliche Arbeit, APA 7 (deutsch)]
+\ProvidesPackage{arbeit-stil}[2026/08/19 v1.1 Wissenschaftliche Arbeit, APA 7 (de/en)]
 
 \newif\ifas@arial \as@arialfalse
 \DeclareOption{times}{\as@arialfalse}
 \DeclareOption{arial}{\as@arialtrue}
+\newif\ifas@en \as@enfalse
+\DeclareOption{deutsch}{\as@enfalse}
+\DeclareOption{englisch}{\as@entrue}
 \DeclareOption*{\PackageWarning{arbeit-stil}{Unbekannte Option '\CurrentOption'.}}
-\ExecuteOptions{times}
+\ExecuteOptions{times,deutsch}
 \ProcessOptions\relax
+
+%% Ein Wort in beiden Sprachen: \asW{deutsch}{englisch}. Die beiden
+%% Fassungen stehen nebeneinander, damit man sie zusammen pflegt.
+\newcommand{\asW}[2]{\ifas@en#2\else#1\fi}
 
 \RequirePackage[T1]{fontenc}
 \RequirePackage[utf8]{inputenc}
-\RequirePackage[ngerman]{babel}
+\ifas@en
+  \RequirePackage[american]{babel}
+\else
+  \RequirePackage[ngerman]{babel}
+\fi
 \RequirePackage{textcomp}
 \RequirePackage{microtype}
 
@@ -567,8 +580,13 @@ $clean_ext  = 'bbl run.xml synctex.gz fdb_latexmk fls';
 
 % sortcites: mehrere Quellen in einer Klammer ordnet biblatex selbst
 % alphabetisch -- so, wie APA 7 es verlangt.
-\RequirePackage[style=apa,backend=biber,language=ngerman,sortcites=true]{biblatex}
-\DeclareLanguageMapping{ngerman}{ngerman-apa}
+\ifas@en
+  \RequirePackage[style=apa,backend=biber,language=american,sortcites=true]{biblatex}
+  \DeclareLanguageMapping{american}{american-apa}
+\else
+  \RequirePackage[style=apa,backend=biber,language=ngerman,sortcites=true]{biblatex}
+  \DeclareLanguageMapping{ngerman}{ngerman-apa}
+\fi
 
 \RequirePackage[hidelinks,bookmarks=true]{hyperref}
 \RequirePackage{bookmark}
@@ -620,11 +638,22 @@ $clean_ext  = 'bbl run.xml synctex.gz fdb_latexmk fls';
 \newcommand{\as@pos}{unten}
 \newcommand{\Seitenzahl}[1]{\renewcommand{\as@pos}{#1}}
 
+%% ---------------- Sprachabhängige Wörter ----------------
+%% Was babel schon kennt (\contentsname, \listfigurename, \listtablename,
+%% \abstractname, \appendixname, \figurename, \tablename), wird nicht
+%% doppelt gepflegt. Hier steht nur, was fehlt.
+\newcommand{\as@abkverz}{\asW{Abkürzungsverzeichnis}{List of Abbreviations}}
+\newcommand{\as@literatur}{\asW{Literaturverzeichnis}{References}}
+\newcommand{\as@erklaerung}{\asW{Eidesstattliche Erklärung}{Declaration of Authorship}}
+% Diese beiden stehen im Dokument selbst, also ohne @ im Namen.
+\newcommand{\tabellefortsetzung}{\asW{Fortsetzung}{continued}}
+\newcommand{\tabelleweiter}{\asW{Fortsetzung auf der nächsten Seite}{continued on next page}}
+
 %% ---------------- Zitierbefehle ----------------
 \newcommand{\zit}[1]{\parencite{#1}}
 \newcommand{\autorzit}[1]{\textcite{#1}}
-\newcommand{\zitS}[2]{\parencite[S.~#2]{#1}}
-\newcommand{\autorzitS}[2]{\textcite[S.~#2]{#1}}
+\newcommand{\zitS}[2]{\parencite[\asW{S.}{p.}~#2]{#1}}
+\newcommand{\autorzitS}[2]{\textcite[\asW{S.}{p.}~#2]{#1}}
 \newcommand{\kennwert}[2]{\textit{#1}~=~#2}
 
 %% ---------------- Überschriften (APA 7, nummeriert) ----------------
@@ -651,7 +680,7 @@ $clean_ext  = 'bbl run.xml synctex.gz fdb_latexmk fls';
 \newcommand{\anmerkung}[1]{%
   \par\vspace{0.45em}%
   \begingroup\footnotesize\setstretch{1.0}\RaggedRight
-  \noindent\textit{Anmerkung.} #1\par\endgroup}
+  \noindent\textit{\asW{Anmerkung.}{Note.}} #1\par\endgroup}
 
 \newcolumntype{L}[1]{>{\RaggedRight\arraybackslash}p{#1}}
 \newcolumntype{Z}{>{\RaggedRight\arraybackslash}X}
@@ -684,19 +713,19 @@ $clean_ext  = 'bbl run.xml synctex.gz fdb_latexmk fls';
   \vspace{2.0cm}
   \begin{minipage}{0.85\textwidth}\centering
     \ifx\as@modul\empty\else{\as@modul\par}\fi
-    \ifx\as@betreuung\empty\else{Betreuung: \as@betreuung\par}\fi
-    \ifx\as@zweit\empty\else{Zweitgutachten: \as@zweit\par}\fi
+    \ifx\as@betreuung\empty\else{\asW{Betreuung}{Supervisor}: \as@betreuung\par}\fi
+    \ifx\as@zweit\empty\else{\asW{Zweitgutachten}{Second examiner}: \as@zweit\par}\fi
   \end{minipage}
   \vfill
   \begin{minipage}{0.85\textwidth}
     \setstretch{1.2}\RaggedRight
-    \as@zeile{Vorgelegt von:}{\as@verf}
-    \as@zeile{Matrikelnummer:}{\as@matrikel}
-    \as@zeile{Studiengang:}{\as@studiengang}
-    \as@zeile{Fachsemester:}{\as@semester}
-    \as@zeile{E-Mail:}{\as@email}
-    \as@zeile{Ort:}{\as@ort}
-    \as@zeile{Abgabedatum:}{\as@datum}
+    \as@zeile{\asW{Vorgelegt von:}{Submitted by:}}{\as@verf}
+    \as@zeile{\asW{Matrikelnummer:}{Student ID:}}{\as@matrikel}
+    \as@zeile{\asW{Studiengang:}{Programme:}}{\as@studiengang}
+    \as@zeile{\asW{Fachsemester:}{Semester:}}{\as@semester}
+    \as@zeile{\asW{E-Mail:}{E-mail:}}{\as@email}
+    \as@zeile{\asW{Ort:}{Place:}}{\as@ort}
+    \as@zeile{\asW{Abgabedatum:}{Date of submission:}}{\as@datum}
   \end{minipage}
   \vspace{1.2cm}
   \end{titlepage}%
@@ -708,21 +737,21 @@ $clean_ext  = 'bbl run.xml synctex.gz fdb_latexmk fls';
 
 \newcommand{\abstractseite}[1]{%
   \clearpage\pagestyle{plain}%
-  \section*{Zusammenfassung}\addcontentsline{toc}{section}{Zusammenfassung}%
+  \section*{\abstractname}\addcontentsline{toc}{section}{\protect\abstractname}%
   \begingroup\setstretch{1.15}#1\par\endgroup\clearpage}
 
 \newcommand{\inhaltsverzeichnis}{%
   \clearpage\pagestyle{plain}%
   \begingroup\setstretch{1.0}\tableofcontents\endgroup\clearpage}
 \newcommand{\abbildungsverzeichnis}{%
-  \pagestyle{plain}\addcontentsline{toc}{section}{Abbildungsverzeichnis}%
+  \pagestyle{plain}\addcontentsline{toc}{section}{\protect\listfigurename}%
   \begingroup\setstretch{1.0}\listoffigures\endgroup\clearpage}
 \newcommand{\tabellenverzeichnis}{%
-  \pagestyle{plain}\addcontentsline{toc}{section}{Tabellenverzeichnis}%
+  \pagestyle{plain}\addcontentsline{toc}{section}{\protect\listtablename}%
   \begingroup\setstretch{1.0}\listoftables\endgroup\clearpage}
 \newcommand{\abkuerzungsverzeichnis}[1]{%
-  \pagestyle{plain}\section*{Abkürzungsverzeichnis}%
-  \addcontentsline{toc}{section}{Abkürzungsverzeichnis}%
+  \pagestyle{plain}\section*{\as@abkverz}%
+  \addcontentsline{toc}{section}{\protect\as@abkverz}%
   \begin{description}[leftmargin=3cm, style=nextline, font=\normalfont\bfseries]
   #1
   \end{description}\clearpage}
@@ -745,32 +774,37 @@ $clean_ext  = 'bbl run.xml synctex.gz fdb_latexmk fls';
 %% ---------------- Literatur und Anhang ----------------
 \setlength{\bibitemsep}{0.6\baselineskip}
 \setlength{\bibhang}{1.27cm}
-\defbibheading{arbeit}[Literaturverzeichnis]{\clearpage\section{#1}}
+\defbibheading{arbeit}[\protect\as@literatur]{\clearpage\section{#1}}
 \newcommand{\literaturverzeichnis}{\printbibliography[heading=arbeit]}
 
 \newcommand{\anhang}{%
   \clearpage
   \setcounter{section}{0}%
   \renewcommand{\thesection}{\Alph{section}}%
-  \renewcommand{\as@secprefix}{Anhang~}%
+  \renewcommand{\as@secprefix}{\appendixname~}%
   \renewcommand{\thesubsection}{\Alph{section}.\arabic{subsection}}%
   \renewcommand{\theHsection}{anhang.\Alph{section}}%
   \renewcommand{\theHsubsection}{anhang.\Alph{section}.\arabic{subsection}}%
   \addtocontents{toc}{\protect\vspace{0.8em}}%
-  \addtocontents{toc}{\protect\noindent\textbf{Anhang}\protect\par}%
+  \addtocontents{toc}{\protect\noindent\textbf{\protect\appendixname}\protect\par}%
   \addtocontents{toc}{\protect\vspace{0.2em}}}
 
 %% ---------------- Eidesstattliche Erklärung ----------------
 \newcommand{\eidesstattlich}[3]{%
   \clearpage
-  \section*{Eidesstattliche Erklärung}
-  \addcontentsline{toc}{section}{Eidesstattliche Erklärung}
-  Hiermit versichere ich an Eides statt, dass ich die vorliegende Arbeit
+  \section*{\as@erklaerung}
+  \addcontentsline{toc}{section}{\protect\as@erklaerung}
+  \asW{Hiermit versichere ich an Eides statt, dass ich die vorliegende Arbeit
   selbstständig und ohne fremde Hilfe verfasst und keine anderen als die
   angegebenen Quellen und Hilfsmittel benutzt habe. Alle Stellen, die
   wörtlich oder sinngemäß aus Veröffentlichungen entnommen wurden, sind als
   solche kenntlich gemacht. Die Arbeit hat in gleicher oder ähnlicher Form
-  noch keiner Prüfungsbehörde vorgelegen.
+  noch keiner Prüfungsbehörde vorgelegen.}%
+  {I hereby declare that I have written this thesis independently and
+  without the use of sources or aids other than those indicated. All
+  passages taken verbatim or in substance from published works are marked
+  as such. This thesis has not previously been submitted, in the same or a
+  similar form, to any examination authority.}
   \par\vspace{2.5cm}
   \noindent
   \begin{minipage}{0.45\textwidth}\centering

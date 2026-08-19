@@ -23,13 +23,27 @@ const Zitate = (() => {
       .map(s => (s.includes(',') ? s.split(',')[0] : s).trim());
   }
 
-  /* Autor:innen im Fließtext nach APA 7 (deutsch) */
-  function autorKurz(quelle, form) {
+  /* Wörter, die sich mit der Sprache der Arbeit ändern. Die Oberfläche
+     bleibt deutsch -- was hier steht, landet im PDF und muss deshalb der
+     Sprache des Dokuments folgen.                                     */
+  const WORT = {
+    de: { und: 'und', hrsg: 'Hrsg.', seiten: 'S.', auflage: 'Aufl.',
+          tabelle: 'Tabelle', abbildung: 'Abbildung', abschnitt: 'Abschnitt',
+          gelöscht: '?? gelöscht' },
+    en: { und: 'and', hrsg: 'Eds.', seiten: 'pp.', auflage: 'ed.',
+          tabelle: 'Table', abbildung: 'Figure', abschnitt: 'Section',
+          gelöscht: '?? deleted' }
+  };
+  const wort = (sprache) => WORT[sprache === 'en' ? 'en' : 'de'];
+
+  /* Autor:innen im Fließtext nach APA 7 */
+  function autorKurz(quelle, form, sprache) {
     const n = nachnamen(quelle);
     if (!n.length) return '???';
     if (n.length === 1) return n[0];
-    if (n.length === 2) return form === 'narrativ' ? `${n[0]} und ${n[1]}`
-                                                   : `${n[0]} & ${n[1]}`;
+    if (n.length === 2) return form === 'narrativ'
+      ? `${n[0]} ${wort(sprache).und} ${n[1]}`
+      : `${n[0]} & ${n[1]}`;
     return `${n[0]} et al.`;
   }
 
@@ -41,25 +55,27 @@ const Zitate = (() => {
      `quelle` darf eine Quelle sein oder mehrere: APA 7 fasst mehrere
      Belege in EINER Klammer zusammen, alphabetisch geordnet und mit
      Semikolon getrennt -- (Müller, 2020; Schmidt, 2021).             */
-  function imText(quelle, form, seite) {
+  function imText(quelle, form, seite, sprache) {
     const liste = Array.isArray(quelle) ? quelle : [quelle];
     if (!liste.length || (liste.length === 1 && !liste[0])) return '(Quelle fehlt)';
-    const s = seite ? `, S. ${seite}` : '';
+    const w = wort(sprache);
+    const s = seite ? `, ${w.seiten} ${seite}` : '';
 
     if (liste.length === 1) {
       return form === 'narrativ'
-        ? `${autorKurz(liste[0], 'narrativ')} (${jahr(liste[0])}${s})`
-        : `(${autorKurz(liste[0], 'klammer')}, ${jahr(liste[0])}${s})`;
+        ? `${autorKurz(liste[0], 'narrativ', sprache)} (${jahr(liste[0])}${s})`
+        : `(${autorKurz(liste[0], 'klammer', sprache)}, ${jahr(liste[0])}${s})`;
     }
 
     const geordnet = sortiert(liste);
     if (form === 'narrativ') {
       /* Im Satz bleiben mehrere Belege getrennt: "Müller (2020) und
          Schmidt (2021) zeigten ..." -- keine gemeinsame Klammer. */
-      const teile = geordnet.map(q => `${autorKurz(q, 'narrativ')} (${jahr(q)})`);
-      return teile.slice(0, -1).join(', ') + ' und ' + teile[teile.length - 1];
+      const teile = geordnet.map(q => `${autorKurz(q, 'narrativ', sprache)} (${jahr(q)})`);
+      return teile.slice(0, -1).join(', ') + ` ${w.und} ` + teile[teile.length - 1];
     }
-    return '(' + geordnet.map(q => `${autorKurz(q, 'klammer')}, ${jahr(q)}`).join('; ') + ')';
+    return '(' + geordnet.map(
+      q => `${autorKurz(q, 'klammer', sprache)}, ${jahr(q)}`).join('; ') + ')';
   }
 
   /* "a, b" -> die zugehörigen Quellen; Unbekanntes bleibt null und
@@ -107,7 +123,8 @@ const Zitate = (() => {
 
   /* Eintrag fürs Literaturverzeichnis -- nur für die VORSCHAU.
      Im Export macht biblatex-apa das, und zwar maßgeblich.          */
-  function verzeichniseintrag(quelle) {
+  function verzeichniseintrag(quelle, sprache) {
+    const w = wort(sprache);
     const f = quelle.felder || {};
     const k = (x) => (x ? String(x).trim() : '');
     const teile = [];
@@ -115,7 +132,9 @@ const Zitate = (() => {
 
     const kursiv = (t) => `<i>${escHtml(t)}</i>`;
     const auflage = k(f.auflage)
-      ? ` (${/^\d+$/.test(k(f.auflage)) ? k(f.auflage) + '. Aufl.' : k(f.auflage)})`
+      ? ` (${/^\d+$/.test(k(f.auflage))
+              ? (sprache === 'en' ? k(f.auflage) + '. ed.' : k(f.auflage) + '. Aufl.')
+              : k(f.auflage)})`
       : '';
 
     switch (quelle.typ) {
@@ -127,8 +146,8 @@ const Zitate = (() => {
         break;
       case 'kapitel':
         teile.push(`${escHtml(k(f.titel))}.`);
-        teile.push(`In ${escHtml(herausgeberLang(f.herausgeber))} (Hrsg.), ${kursiv(k(f.buchtitel))}${auflage}` +
-                   `${k(f.seiten) ? ' (S. ' + escHtml(k(f.seiten)) + ')' : ''}.`);
+        teile.push(`In ${escHtml(herausgeberLang(f.herausgeber))} (${w.hrsg}), ${kursiv(k(f.buchtitel))}${auflage}` +
+                   `${k(f.seiten) ? ' (' + w.seiten + ' ' + escHtml(k(f.seiten)) + ')' : ''}.`);
         teile.push(`${escHtml(k(f.verlag))}.`);
         break;
       case 'online':
@@ -160,7 +179,7 @@ const Zitate = (() => {
   }
 
   return { nachnamen, autorKurz, autorLang, herausgeberLang, jahr, imText,
-           verzeichniseintrag, sortiert, schluesselliste, quellenZu };
+           verzeichniseintrag, sortiert, schluesselliste, quellenZu, wort };
 })();
 
 
@@ -234,7 +253,8 @@ const Richtext = (() => {
     return (runs || []).map(r => {
       if (r.text != null) return r.text;
       if (r.zitat) {
-        return Zitate.imText(Zitate.quellenZu(r.zitat, ctx.quellen), r.form, r.seite);
+        return Zitate.imText(Zitate.quellenZu(r.zitat, ctx.quellen),
+                             r.form, r.seite, ctx.sprache);
       }
       if (r.kennwert) return `${r.kennwert} = ${r.wert}`;
       if (r.verweis) return ctx.verweisText ? ctx.verweisText(r.verweis) : '[Verweis]';
@@ -260,7 +280,8 @@ const Richtext = (() => {
                ` data-typ="${typ}"${attrs}>${beschriftung}</span>`;
       };
       if (r.zitat) {
-        const txt = escHtml(Zitate.imText(Zitate.quellenZu(r.zitat, ctx.quellen), r.form, r.seite));
+        const txt = escHtml(Zitate.imText(Zitate.quellenZu(r.zitat, ctx.quellen),
+                                          r.form, r.seite, ctx.sprache));
         return chip('zitat', txt, { key: r.zitat, form: r.form || 'klammer', seite: r.seite || '' });
       }
       if (r.kennwert) {

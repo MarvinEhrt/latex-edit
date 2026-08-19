@@ -132,7 +132,8 @@ const DialogeExtra = (() => {
             const zeile = el('div', 'quelle-zeile');
             zeile.innerHTML =
               `<span class="quelle-art">${escHtml((Modell.QUELLTYPEN[q.typ] || {}).name || q.typ)}</span>
-               <div class="quelle-txt">${Zitate.verzeichniseintrag(q)}</div>`;
+               <div class="quelle-txt">${
+                 Zitate.verzeichniseintrag(q, dok.einstellungen.sprache)}</div>`;
             box.append(zeile);
           }
           vorschau.append(box);
@@ -251,7 +252,8 @@ const DialogeExtra = (() => {
             (gewaehlt.has(q) ? ' gewaehlt' : ''));
           zeile.innerHTML =
             `<span class="quelle-art">${escHtml((Modell.QUELLTYPEN[q.typ] || {}).name || q.typ)}</span>
-             <div class="quelle-txt">${Zitate.verzeichniseintrag(q)}</div>`;
+             <div class="quelle-txt">${
+               Zitate.verzeichniseintrag(q, dok.einstellungen.sprache)}</div>`;
           zeile.addEventListener('click', () => {
             if (gewaehlt.has(q)) gewaehlt.delete(q); else gewaehlt.add(q);
             zeile.classList.toggle('gewaehlt');

@@ -68,6 +68,13 @@ Strg+V zur Abbildung. Ein aus Excel kopierter Bereich wird zur APA-7-Tabelle.
 Eine Bilddatei lässt sich mitten in den Text ziehen — sie landet dort, wo man
 loslässt.
 
+**Deutsch oder Englisch:** Unter *Layout* stellt man die Sprache der
+Arbeit um. Damit wechseln Trennung, Anführungszeichen und jedes feste
+Wort im PDF — *Anmerkung./Note.*, *Literaturverzeichnis/References*,
+*S./p.*, die Beschriftungen des Deckblatts, die eidesstattliche
+Erklärung. Auch die Chips im Editor und die Rechtschreibprüfung des
+Browsers ziehen mit. Die Oberfläche selbst bleibt deutsch.
+
 **Mehrere Belege in einer Klammer:** Im Zitat-Fenster klickt man so viele
 Quellen an, wie der Satz braucht — im Text steht dann
 *(Müller & Weber, 2020; Schmidt, 2021)*, alphabetisch geordnet, wie APA 7 es

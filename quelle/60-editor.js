@@ -24,16 +24,19 @@ const Editor = (() => {
 
   function ctx() {
     const nummern = Modell.nummeriere(dok());
+    const sprache = (dok().einstellungen || {}).sprache;
+    const w = Zitate.wort(sprache);
     return {
       bearbeitbar: true,
       quellen: dok().quellen,
+      sprache,
       verweisText: (ziel) => {
         const b = findeBlock(ziel);
-        if (!b) return '?? gelöscht';
+        if (!b) return w['gelöscht'];
         const n = (nummern.get(ziel) || {}).nummer || '?';
-        return b.typ === 'tabelle' ? `Tabelle ${n}`
-             : (b.typ === 'abbildung' || b.typ === 'diagramm') ? `Abbildung ${n}`
-             : `Abschnitt ${n}`;
+        return b.typ === 'tabelle' ? `${w.tabelle} ${n}`
+             : (b.typ === 'abbildung' || b.typ === 'diagramm') ? `${w.abbildung} ${n}`
+             : `${w.abschnitt} ${n}`;
       }
     };
   }
@@ -72,7 +75,7 @@ const Editor = (() => {
     const feld = el('div', 'tx ' + klassen);
     feld.contentEditable = 'true';
     feld.spellcheck = true;
-    feld.lang = 'de';
+    feld.lang = (dok().einstellungen || {}).sprache === 'en' ? 'en' : 'de';
     /* Schreibhilfe aus der Vorlage schlägt den allgemeinen Hinweis */
     feld.dataset.leer = (feldname === 'runs' && block.hinweis) ? block.hinweis : leertext;
     feld.dataset.blockId = block.id;
@@ -483,7 +486,8 @@ const Editor = (() => {
         box.append(textfeld(block, 'runs', 'tx-zitat', 'Wörtliches Zitat ab etwa 40 Wörtern …'));
         const q = dok().quellen.find(x => x.key === block.quelle);
         box.append(el('div', 'karte-anm',
-          q ? `Quelle: ${escHtml(Zitate.imText(q, 'klammer', block.seite))}`
+          q ? `Quelle: ${escHtml(Zitate.imText(q, 'klammer', block.seite,
+                                              (dok().einstellungen || {}).sprache))}`
             : '<i>Noch keine Quelle festgelegt — auf § in der Werkzeugleiste klicken.</i>'));
         return box;
       }

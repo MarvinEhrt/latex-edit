@@ -344,6 +344,7 @@ const Modell = (() => {
   /* ---------------- Standardeinstellungen ---------------- */
 
   const STANDARD_EINSTELLUNGEN = {
+    sprache: 'de',                 // Sprache der ARBEIT, nicht der Oberfläche
     schrift: 'times',
     schriftgroesse: 12,
     zeilenabstand: 1.5,

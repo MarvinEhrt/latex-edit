@@ -268,25 +268,47 @@ const Diagramm = (() => {
 
   /* Was nach APA 7 zwingend in die Anmerkung gehört, ergänze ich selbst --
      etwa welche Streuung die Fehlerbalken zeigen. Das vergisst man sonst. */
-  function pflichtanmerkung(block, dok) {
-    const teile = [];
-    if (block.art === 'balken' && block.fehlerSpalte != null) {
-      teile.push({
-        se: 'Fehlerbalken zeigen den Standardfehler des Mittelwerts.',
-        sd: 'Fehlerbalken zeigen die Standardabweichung.',
-        ci: 'Fehlerbalken zeigen das 95-%-Konfidenzintervall.',
-        eigen: 'Fehlerbalken nach den Werten der gewählten Spalte.'
-      }[block.fehlerArt || 'se']);
+  /* Was APA 7 unter jeder Abbildung verlangt -- und was die Leserin
+     ohnehin wissen muss, um die Grafik zu deuten. Steht im PDF, folgt
+     also der Sprache der Arbeit.                                      */
+  const ANMERKUNGSTEXTE = {
+    de: {
+      se: 'Fehlerbalken zeigen den Standardfehler des Mittelwerts.',
+      sd: 'Fehlerbalken zeigen die Standardabweichung.',
+      ci: 'Fehlerbalken zeigen das 95-%-Konfidenzintervall.',
+      eigen: 'Fehlerbalken nach den Werten der gewählten Spalte.',
+      box: 'Kästen zeigen das erste bis dritte Quartil mit dem Median; '
+         + 'Antennen reichen bis höchstens dem 1,5-Fachen des '
+         + 'Quartilsabstands, Punkte darüber hinaus sind Ausreißer.',
+      gerade: (r, n) => `Die Gerade ist die lineare Ausgleichsgerade (r = ${r}, n = ${n}).`
+    },
+    en: {
+      se: 'Error bars show the standard error of the mean.',
+      sd: 'Error bars show the standard deviation.',
+      ci: 'Error bars show the 95% confidence interval.',
+      eigen: 'Error bars follow the values of the selected column.',
+      box: 'Boxes show the first to third quartile with the median; '
+         + 'whiskers extend to at most 1.5 times the interquartile range, '
+         + 'points beyond are outliers.',
+      gerade: (r, n) => `The line is the linear regression line (r = ${r}, n = ${n}).`
     }
-    if (block.art === 'box')
-      teile.push('Kästen zeigen das erste bis dritte Quartil mit dem Median; '
-               + 'Antennen reichen bis höchstens dem 1,5-Fachen des '
-               + 'Quartilsabstands, Punkte darüber hinaus sind Ausreißer.');
+  };
+
+  function pflichtanmerkung(block, dok) {
+    const en = ((dok && dok.einstellungen) || {}).sprache === 'en';
+    const T = ANMERKUNGSTEXTE[en ? 'en' : 'de'];
+    const teile = [];
+    if (block.art === 'balken' && block.fehlerSpalte != null)
+      teile.push(T[block.fehlerArt || 'se']);
+    if (block.art === 'box') teile.push(T.box);
     if (block.art === 'streu' && block.regression !== false) {
       const g = zuLatex(block, dok).kennwert;
-      if (g) teile.push(
-        `Die Gerade ist die lineare Ausgleichsgerade (r = ${
-          Daten.schreibe(g.r, 2).replace('0,', ',')}, n = ${g.n}).`);
+      if (g) {
+        /* Im Deutschen das Komma, im Englischen der Punkt -- und die
+           führende Null fällt bei r ohnehin weg. */
+        const r = Daten.schreibe(g.r, 2).replace('0,', ',');
+        teile.push(T.gerade(en ? r.replace(',', '.') : r, g.n));
+      }
     }
     return teile.join(' ');
   }
@@ -316,7 +338,9 @@ const Diagramm = (() => {
   ymajorgrids=true,
   grid style={draw=black!12, line width=0.3pt},
   every axis plot/.append style={line width=0.9pt},
-}}`;
+}}
+% Dezimaltrennzeichen wie im Fließtext: im Deutschen das Komma.
+\\asW{\\pgfkeys{/pgf/number format/.cd,use comma,1000 sep={}}}{}`;
 
   return { zuLatex, pflichtanmerkung, gitterVon, wertSpalten, regression,
            PRAEAMBEL, FARBEN };

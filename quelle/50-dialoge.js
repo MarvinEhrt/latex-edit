@@ -301,6 +301,11 @@ const Dialoge = (() => {
       const g1 = el('div', 'gruppe'); g1.append(el('h3', null, 'Schrift und Satz'));
       const gitter1 = el('div', 'feldgitter');
       gitter1.append(
+        auswahl('sprache', 'Sprache der Arbeit',
+          [{ w: 'de', l: 'Deutsch' }, { w: 'en', l: 'English' }],
+          'Bestimmt Trennung, Anführungszeichen und alle festen Wörter im PDF '
+          + '(Anmerkung./Note., Literaturverzeichnis/References). '
+          + 'Die Oberfläche bleibt deutsch.'),
         auswahl('schrift', 'Schriftart',
           [{ w: 'times', l: 'Times (klassisch)' }, { w: 'arial', l: 'Arial (modern)' }],
           'Beide sind nach APA 7 zulässig.'),
@@ -437,7 +442,7 @@ const Dialoge = (() => {
             const art = (Modell.QUELLTYPEN[q.typ] || {}).name || q.typ;
             zeile.innerHTML =
               `<span class="quelle-art">${escHtml(art)}</span>
-               <div class="quelle-txt">${Zitate.verzeichniseintrag(q)}
+               <div class="quelle-txt">${Zitate.verzeichniseintrag(q, dok.einstellungen.sprache)}
                  <div class="quelle-warn">${genutzt.has(q.key)
                    ? '&#10003; im Text zitiert'
                    : 'noch nicht zitiert — erscheint nicht im Literaturverzeichnis'}</div>
@@ -508,7 +513,8 @@ const Dialoge = (() => {
       const geordnet = Zitate.sortiert(dok.quellen);
       for (const q of geordnet) {
         const zeile = el('div', 'quelle-zeile');
-        zeile.innerHTML = `<div class="quelle-txt">${Zitate.verzeichniseintrag(q)}</div>`;
+        zeile.innerHTML = `<div class="quelle-txt">${
+          Zitate.verzeichniseintrag(q, dok.einstellungen.sprache)}</div>`;
         zeile.addEventListener('click', () => {
           const drin = gewaehlt.indexOf(q);
           if (einzeln) {
@@ -552,7 +558,8 @@ const Dialoge = (() => {
 
         vorschau.innerHTML = gewaehlt.length
           ? `<span>&#9432;</span><span>Im Text erscheint: <b style="font-family:var(--schrift-doc)">${
-              escHtml(Zitate.imText(gewaehlt, formEingabe.value, seiteEingabe.value.trim()))}</b></span>`
+              escHtml(Zitate.imText(gewaehlt, formEingabe.value, seiteEingabe.value.trim(),
+                                    dok.einstellungen.sprache))}</b></span>`
           : '<span>&#9432;</span><span>Wähle oben eine Quelle aus.</span>';
       };
       formEingabe.addEventListener('change', zeigeVorschau);
