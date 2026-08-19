@@ -872,6 +872,8 @@ const Dialoge = (() => {
         <b>Strg</b>+<b>S</b> sichern<br>
         <b>Strg</b>+<b>Z</b> rückgängig &nbsp;·&nbsp; <b>Strg</b>+<b>Y</b> wiederholen —
         auch gelöschte Bausteine kommen damit zurück<br>
+        <b>Strg</b>+<b>F</b> suchen &nbsp;·&nbsp; <b>Strg</b>+<b>H</b> suchen und ersetzen —
+        auch in Tabellen und Beschriftungen<br>
         <b>Enter</b> im Absatz: neuer Absatz darunter &nbsp;·&nbsp;
         <b>Rücktaste</b> im leeren Absatz: löscht ihn<br>
         <b>Strg</b>+<b>Umschalt</b>+<b>Z</b> Quelle zitieren &nbsp;·&nbsp;

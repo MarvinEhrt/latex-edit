@@ -328,6 +328,12 @@ const App = (() => {
     document.addEventListener('keydown', (ev) => {
       const strg = ev.ctrlKey || ev.metaKey;
       if (strg && ev.key.toLowerCase() === 's') { ev.preventDefault(); sichere(false); }
+      /* Die Browsersuche fände nur, was gerade im DOM steht -- unsere
+         durchsucht das Modell, samt Tabellen und Beschriftungen. */
+      if (strg && ev.key.toLowerCase() === 'f') { ev.preventDefault(); Suche.oeffne(false); }
+      if (strg && ev.key.toLowerCase() === 'h') { ev.preventDefault(); Suche.oeffne(true); }
+      if (ev.key === 'Escape' && Suche.offen() &&
+          !document.querySelector('.schleier')) { Suche.schliesse(); }
       if (strg && ev.key === 'Enter') { ev.preventDefault(); clearTimeout(bauTimer); baue(); }
       /* Der Browser hat für jedes Textfeld einen eigenen Rückgängig-Stapel,
          der von Baustein zu Baustein springt und Strukturänderungen nicht

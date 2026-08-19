@@ -278,6 +278,27 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* In der Papiervorschau kein Chip-Aussehen -- da zählt, wie es gedruckt wird */
 .blatt .chip { box-shadow: none; }
 
+/* ---------------- Suchen und Ersetzen ---------------- */
+
+.suchleiste {
+  flex: none; padding: 8px 12px; border-bottom: 1px solid var(--linie);
+  background-color: var(--flaeche); display: flex; flex-direction: column; gap: 6px;
+}
+.suchzeile { display: flex; align-items: center; gap: 6px; }
+.suchzeile input[type=search], .suchzeile input[type=text] {
+  flex: 1; min-width: 80px; padding: 5px 9px;
+  border: 1px solid var(--linie-stark); border-radius: var(--r);
+  background-color: var(--flaeche-2); color: var(--tinte); font-size: 13px;
+}
+.suche-stand {
+  flex: none; font-family: var(--schrift-ma); font-size: 11px;
+  color: var(--tinte-2); min-width: 66px; text-align: right;
+}
+.suche-gross {
+  display: flex; align-items: center; gap: 4px; flex: none;
+  font-size: 11.5px; color: var(--tinte-2); cursor: pointer; user-select: none;
+}
+
 /* ---------------- Schwebende Auswahlleiste ---------------- */
 
 #auswahlleiste {

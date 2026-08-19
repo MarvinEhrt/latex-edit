@@ -487,6 +487,62 @@ p('drei getippte Wörter erhöhen die Zahl um 3',
   (await s.evaluate(()=>document.getElementById('wortzahl').textContent)).includes('19'),
   await s.evaluate(()=>document.getElementById('wortzahl').textContent));
 
+// ---------------------------------------------- Suchen und Ersetzen
+
+// Y) "Proband" -> "Teilnehmende" über drei Bausteine und eine Tabellenzelle
+await frisch(()=>{
+  App.dok.bloecke=[
+    Modell.neuerBlock('ueberschrift',{ebene:1,text:'Proband und Umfeld'}),
+    Modell.neuerBlock('absatz',{runs:[{text:'Der Proband war da. '},{text:'proband klein.',i:true}]}),
+    Modell.neuerBlock('blockzitat',{runs:[{text:'Zitat über den Proband.'}]}),
+    Modell.neuerBlock('tabelle',{titel:'T',kopf:['Gruppe'],zeilen:[['Proband A']],
+      spaltenAusrichtung:['l']})];
+  Editor.zeichne();});
+await s.keyboard.press('Control+f');
+await s.waitForTimeout(300);
+p('Strg+F öffnet die Suchleiste',
+  await s.evaluate(()=>{const l=document.getElementById('suchleiste');return !!l&&l.style.display!=='none';}));
+await s.fill('#suche-feld','Proband');
+await s.waitForTimeout(200);
+p('die Trefferzahl stimmt (ohne Groß-/Kleinschreibung)',
+  (await s.locator('#suche-stand').innerText()).includes('von 5'),
+  await s.locator('#suche-stand').innerText());
+await s.check('#suche-gross');
+await s.waitForTimeout(200);
+p('das Groß-/Kleinschreibungs-Kästchen wirkt',
+  (await s.locator('#suche-stand').innerText()).includes('von 4'),
+  await s.locator('#suche-stand').innerText());
+await s.uncheck('#suche-gross');
+await s.waitForTimeout(200);
+await s.click('#suche-aufklappen');
+await s.fill('#ersetzen-feld','Teilnehmende');
+await s.click('#knopf-alle-ersetzen');
+await s.waitForTimeout(400);
+p('die Meldung nennt die Anzahl',
+  (await s.locator('#meldungen').innerText()).includes('5 Stellen ersetzt'),
+  await s.locator('#meldungen').innerText());
+const nachher = await s.evaluate(()=>({
+  h: App.dok.bloecke[0].text,
+  a: App.dok.bloecke[1].runs.map(r=>r.text).join('|'),
+  z: App.dok.bloecke[2].runs[0].text,
+  t: App.dok.bloecke[3].zeilen[0][0]}));
+p('das Modell ist überall geändert',
+  nachher.h==='Teilnehmende und Umfeld' &&
+  nachher.a==='Der Teilnehmende war da. |Teilnehmende klein.' &&
+  nachher.z==='Zitat über den Teilnehmende.' &&
+  nachher.t==='Teilnehmende A', JSON.stringify(nachher));
+await zurueck();
+const vorher = await s.evaluate(()=>({
+  h: App.dok.bloecke[0].text, t: App.dok.bloecke[3].zeilen[0][0],
+  a: App.dok.bloecke[1].runs.map(r=>r.text).join('|')}));
+p('EIN Strg+Z stellt alles zurück',
+  vorher.h==='Proband und Umfeld' && vorher.t==='Proband A' &&
+  vorher.a==='Der Proband war da. |proband klein.', JSON.stringify(vorher));
+await s.keyboard.press('Escape');
+await s.waitForTimeout(200);
+p('Escape schließt die Suchleiste',
+  await s.evaluate(()=>document.getElementById('suchleiste').style.display==='none'));
+
 // ---------------------------------------------- Sprache der Arbeit
 
 await frisch(()=>{
