@@ -72,8 +72,11 @@ const Dialoge = (() => {
     return { wrap, eingabe };
   }
 
-  /* Allgemeines Formular. felder = [{n,l,typ,h,pflicht,kurz,breit,optionen}] */
-  function formular({ titel, unter, felder, werte = {}, breit, gruppen, okText = 'Übernehmen' }) {
+  /* Allgemeines Formular. felder = [{n,l,typ,h,pflicht,kurz,breit,optionen}]
+     `entfernenText` blendet links einen roten Knopf ein, der mit
+     {entfernen:true} auflöst -- für das Bearbeiten bestehender Chips. */
+  function formular({ titel, unter, felder, werte = {}, breit, gruppen,
+                      okText = 'Übernehmen', entfernenText }) {
     return new Promise((fertig) => {
       const { koerper, fuss, schliessen } = basis({ titel, unter, breit });
       const eingaben = {};
@@ -113,6 +116,9 @@ const Dialoge = (() => {
         schliessen(); fertig(aus);
       };
 
+      if (entfernenText)
+        fuss.append(knopf(entfernenText, 'knopf-gefahr links',
+          () => { schliessen(); fertig({ entfernen: true }); }));
       fuss.append(
         knopf('Abbrechen', 'knopf-still', () => { schliessen(); fertig(null); }),
         knopf(okText, 'knopf-haupt', uebernehmen)
@@ -492,7 +498,10 @@ const Dialoge = (() => {
   /* ---------------- Zitat einfügen ---------------- */
 
   /* `einzeln` schaltet die Mehrfachauswahl ab -- ein Blockzitat gehört
-     immer zu genau einer Quelle und braucht deren Seitenzahl.        */
+     immer zu genau einer Quelle und braucht deren Seitenzahl.
+     `vorbelegung` ({zitat, form, seite}) füllt den Dialog beim
+     Bearbeiten eines bestehenden Chips; `bearbeiten` blendet den
+     Entfernen-Knopf ein.                                             */
   function zitatEinfuegen(dok, optionen = {}) {
     return new Promise(async (fertig) => {
       if (!dok.quellen.length) {
@@ -501,18 +510,21 @@ const Dialoge = (() => {
         App.aenderung();
       }
       const einzeln = !!optionen.einzeln;
+      const vor = optionen.vorbelegung || {};
       const { koerper, fuss, schliessen } = basis({
-        titel: 'Quelle zitieren',
+        titel: optionen.bearbeiten ? 'Zitat bearbeiten' : 'Quelle zitieren',
         unter: einzeln ? 'Klick auf eine Quelle, dann die Form wählen.'
                        : 'Klick auf eine Quelle. Mehrere gehen auch — sie landen in einer Klammer.',
         breit: true
       });
-      const gewaehlt = [];                       // Quellen in Anklickreihenfolge
+      /* Quellen in Anklickreihenfolge; beim Bearbeiten mit dem
+         aktuellen Stand vorbelegt (der key kann mehrere enthalten). */
+      const gewaehlt = Zitate.quellenZu(vor.zitat, dok.quellen).filter(Boolean);
 
       const liste = el('div', 'quellenliste');
       const geordnet = Zitate.sortiert(dok.quellen);
       for (const q of geordnet) {
-        const zeile = el('div', 'quelle-zeile');
+        const zeile = el('div', 'quelle-zeile' + (gewaehlt.includes(q) ? ' gewaehlt' : ''));
         zeile.innerHTML = `<div class="quelle-txt">${
           Zitate.verzeichniseintrag(q, dok.einstellungen.sprache)}</div>`;
         zeile.addEventListener('click', () => {
@@ -537,9 +549,11 @@ const Dialoge = (() => {
       const { wrap: formWrap, eingabe: formEingabe } = feldElement(
         { n: 'form', l: 'Form', typ: 'auswahl', kurz: true,
           optionen: [{ w: 'klammer', l: 'In Klammern — (Holland, 1997)' },
-                     { w: 'narrativ', l: 'Im Satz — Holland (1997) zeigte …' }] }, 'klammer');
+                     { w: 'narrativ', l: 'Im Satz — Holland (1997) zeigte …' }] },
+        vor.form || 'klammer');
       const { wrap: seiteWrap, eingabe: seiteEingabe } = feldElement(
-        { n: 'seite', l: 'Seitenzahl', kurz: true, h: 'Bei wörtlichen Zitaten Pflicht. Sonst leer lassen.' }, '');
+        { n: 'seite', l: 'Seitenzahl', kurz: true, h: 'Bei wörtlichen Zitaten Pflicht. Sonst leer lassen.' },
+        vor.seite || '');
       einstellung.append(formWrap, seiteWrap);
       const seiteHilfe = seiteWrap.querySelector('.hilfe');
 
@@ -567,13 +581,16 @@ const Dialoge = (() => {
       zeigeVorschau();
 
       koerper.append(liste, einstellung, vorschau);
+      if (optionen.bearbeiten)
+        fuss.append(knopf('Entfernen', 'knopf-gefahr links',
+          () => { schliessen(); fertig({ entfernen: true }); }));
       fuss.append(
-        knopf('Neue Quelle', 'knopf-still links', async () => {
+        knopf('Neue Quelle', 'knopf-still' + (optionen.bearbeiten ? '' : ' links'), async () => {
           const neu = await quelleBearbeiten(dok);
           if (neu) { App.aenderung(); schliessen(); fertig(await zitatEinfuegen(dok, optionen)); }
         }),
         knopf('Abbrechen', 'knopf-still', () => { schliessen(); fertig(null); }),
-        knopf('Einfügen', 'knopf-haupt', () => {
+        knopf(optionen.bearbeiten ? 'Übernehmen' : 'Einfügen', 'knopf-haupt', () => {
           if (!gewaehlt.length) { App.melde('Bitte zuerst eine Quelle auswählen.', true); return; }
           schliessen();
           fertig({ zitat: gewaehlt.map(q => q.key).join(','),
@@ -586,13 +603,15 @@ const Dialoge = (() => {
 
   /* ---------------- Querverweis ---------------- */
 
-  function verweisEinfuegen(dok) {
+  /* `vorbelegung` (Block-Id) markiert beim Bearbeiten das aktuelle Ziel;
+     `bearbeiten` blendet den Entfernen-Knopf ein.                    */
+  function verweisEinfuegen(dok, optionen = {}) {
     return new Promise((fertig) => {
       const nummern = Modell.nummeriere(dok);
       const ziele = dok.bloecke.filter(
         b => ['tabelle', 'abbildung', 'diagramm', 'ueberschrift'].includes(b.typ));
       const { koerper, fuss, schliessen } = basis({
-        titel: 'Querverweis einfügen',
+        titel: optionen.bearbeiten ? 'Querverweis bearbeiten' : 'Querverweis einfügen',
         unter: 'Der Verweis passt sich automatisch an, wenn du Blöcke verschiebst oder ergänzt.'
       });
       if (!ziele.length) {
@@ -605,7 +624,8 @@ const Dialoge = (() => {
                              : (b.typ === 'abbildung' || b.typ === 'diagramm')
                                ? `Abbildung ${n}` : `Abschnitt ${n}`;
           const titel = b.typ === 'ueberschrift' ? b.text : b.titel;
-          const zeile = el('div', 'quelle-zeile');
+          const zeile = el('div', 'quelle-zeile' +
+            (optionen.vorbelegung === b.id ? ' gewaehlt' : ''));
           zeile.innerHTML = `<span class="quelle-art">${escHtml(b.typ)}</span>
             <div class="quelle-txt"><b style="font-family:var(--schrift-ui);font-size:13px">${escHtml(beschriftung)}</b>
             <div class="quelle-warn">${escHtml(titel || 'ohne Titel')}</div></div>`;
@@ -614,34 +634,48 @@ const Dialoge = (() => {
         }
         koerper.append(liste);
       }
+      if (optionen.bearbeiten)
+        fuss.append(knopf('Entfernen', 'knopf-gefahr links',
+          () => { schliessen(); fertig({ entfernen: true }); }));
       fuss.append(knopf('Abbrechen', 'knopf-still', () => { schliessen(); fertig(null); }));
     });
   }
 
   /* ---------------- Kennwert ---------------- */
 
-  async function kennwert() {
+  /* Beim Bearbeiten eines Chips (optionen.bearbeiten) kommen die Werte
+     vorbelegt an, und {entfernen:true} bedeutet: Chip löschen, Text
+     stehen lassen. */
+  async function kennwert(vorhanden, optionen = {}) {
     const aus = await formular({
-      titel: 'Statistischen Kennwert einfügen',
+      titel: optionen.bearbeiten ? 'Kennwert bearbeiten' : 'Statistischen Kennwert einfügen',
       unter: 'Das Symbol wird kursiv gesetzt, die Zahl nicht — genau so verlangt es APA 7.',
       felder: [
         { n: 'kennwert', l: 'Symbol', pflicht: true, kurz: true,
           h: 'z. B. M, SD, N, r, p, t, F, SW, α' },
         { n: 'wert', l: 'Wert', pflicht: true, kurz: true, h: 'z. B. 104, .84, 12.3' }
       ],
-      okText: 'Einfügen'
+      werte: vorhanden || {},
+      okText: optionen.bearbeiten ? 'Übernehmen' : 'Einfügen',
+      entfernenText: optionen.bearbeiten ? 'Entfernen' : undefined
     });
-    return aus ? { kennwert: aus.kennwert, wert: aus.wert } : null;
+    if (!aus) return null;
+    if (aus.entfernen) return aus;
+    return { kennwert: aus.kennwert, wert: aus.wert };
   }
 
-  async function fussnote(vorhanden) {
+  async function fussnote(vorhanden, optionen = {}) {
     const aus = await formular({
       titel: 'Fußnote',
       unter: 'APA 7 rät zu sparsamem Gebrauch — an deutschen Hochschulen sind sie trotzdem verbreitet.',
       felder: [{ n: 'text', l: 'Text der Fußnote', typ: 'text-mehrzeilig', pflicht: true, breit: true }],
-      werte: { text: vorhanden || '' }, okText: 'Einfügen'
+      werte: { text: vorhanden || '' },
+      okText: optionen.bearbeiten ? 'Übernehmen' : 'Einfügen',
+      entfernenText: optionen.bearbeiten ? 'Entfernen' : undefined
     });
-    return aus ? aus.text : null;
+    if (!aus) return null;
+    if (aus.entfernen) return aus;
+    return aus.text;
   }
 
   /* ---------------- Tabelle ---------------- */
@@ -851,7 +885,9 @@ const Dialoge = (() => {
         <span class="chip chip-verweis">Tabelle 3</span> &nbsp;ein Querverweis — die Nummer stimmt immer,
         auch nach dem Umsortieren<br>
         <span class="chip chip-kennwert"><i>SW</i>&nbsp;=&nbsp;104</span> &nbsp;ein statistischer Kennwert —
-        Symbol kursiv, wie APA 7 es will
+        Symbol kursiv, wie APA 7 es will<br>
+        <b>Klick auf einen Chip</b> öffnet ihn zum Bearbeiten — dort lässt er
+        sich auch entfernen, der Text drumherum bleibt stehen
         </div>
       </div>
       <div class="gruppe"><h3>Das PDF</h3>

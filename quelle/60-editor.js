@@ -325,6 +325,54 @@ const Editor = (() => {
     });
   }
 
+  /* ---------------- Chips bearbeiten ----------------
+     Ein Klick auf einen eingefügten Chip öffnet den passenden Dialog,
+     vorbelegt mit dem aktuellen Stand. Ersetzt (oder entfernt) wird
+     direkt im DOM; das anschließende input-Ereignis lässt
+     Richtext.vonHtml das Modell neu einlesen -- derselbe Weg, den
+     fuegeAmCursorEin schon geht.                                     */
+
+  function verdrahteChipKlick() {
+    const flaeche = document.getElementById('blockliste');
+    if (!flaeche || flaeche.dataset.chipsBereit) return;
+    flaeche.dataset.chipsBereit = '1';
+    flaeche.addEventListener('click', (ev) => {
+      const chip = ev.target.closest('.tx .chip');
+      if (!chip) return;
+      ev.preventDefault();
+      bearbeiteChip(chip);
+    });
+  }
+
+  async function bearbeiteChip(chip) {
+    const feld = chip.closest('.tx');
+    const d = chip.dataset;
+    let neu = null;
+    if (d.typ === 'zitat') {
+      neu = await Dialoge.zitatEinfuegen(dok(), { bearbeiten: true,
+        vorbelegung: { zitat: d.key, form: d.form, seite: d.seite } });
+    } else if (d.typ === 'fussnote') {
+      neu = await Dialoge.fussnote(d.text, { bearbeiten: true });
+      if (typeof neu === 'string') neu = { fussnote: neu };
+    } else if (d.typ === 'kennwert') {
+      neu = await Dialoge.kennwert({ kennwert: d.sym, wert: d.wert }, { bearbeiten: true });
+    } else if (d.typ === 'verweis') {
+      neu = await Dialoge.verweisEinfuegen(dok(), { bearbeiten: true, vorbelegung: d.ziel });
+    }
+    if (!neu || !feld || !document.contains(chip)) return;
+
+    Verlauf.merke(dok());
+    if (neu.entfernen) {
+      chip.remove();
+    } else {
+      const huelle = document.createElement('template');
+      huelle.innerHTML = chipHtml(neu);
+      chip.replaceWith(huelle.content);
+    }
+    feld.dispatchEvent(new Event('input', { bubbles: true }));
+    App.aenderung();
+  }
+
   /* ---------------- Teilen und Zusammenführen ----------------
      Beides über den DOM statt über Zeichenpositionen: ein Zitat oder ein
      Querverweis ist ein unteilbares Element, und der Cursor kann darin
@@ -828,6 +876,7 @@ const Editor = (() => {
       behaelter.append(kasten);
     }
     verdrahteDateiablage();
+    verdrahteChipKlick();
   }
 
   /* ---------------- Gliederung ---------------- */

@@ -158,6 +158,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .knopf-still { border-color: transparent; background: transparent; color: var(--tinte-2); }
 .knopf-still:hover { background-color: var(--akzent-hell); border-color: transparent; color: var(--tinte); }
 .knopf-klein { padding: 3px 7px; font-size: 12px; }
+.knopf-gefahr { color: var(--warn); border-color: var(--warn); background: transparent; }
+.knopf-gefahr:hover { background-color: var(--warn-bg); border-color: var(--warn); }
 .knopf[disabled] { opacity: .45; cursor: not-allowed; }
 
 /* ---------------- Gliederung ---------------- */

@@ -336,6 +336,65 @@ p('Strg+Z nimmt auch das Mehrfachzitat zurück',
   !(await s.evaluate(()=>App.dok.bloecke[0].runs.some(r=>r.zitat))),
   JSON.stringify(await s.evaluate(()=>App.dok.bloecke[0].runs)));
 
+// ---------------------------------------------- Chips bearbeiten
+
+// S) Zitat-Chip anklicken: Dialog vorbelegt, Änderung ersetzt den Run
+await frisch(()=>{
+  App.dok.quellen=[{key:'holland1997',typ:'buch',felder:{autoren:'Holland, John L.',jahr:'1997',titel:'T',verlag:'P'}}];
+  App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[
+    {text:'Vorne '},{zitat:'holland1997',form:'klammer',seite:'12'},{text:' hinten'}]})];
+  Editor.zeichne();});
+await s.locator('.block .chip-zitat').click();
+await s.waitForSelector('.dialog', {timeout:5000});
+p('Zitat-Dialog zeigt die Quelle als gewählt',
+  await s.evaluate(()=>document.querySelector('.dialog .quelle-zeile').classList.contains('gewaehlt')));
+p('die Seitenzahl ist vorbelegt',
+  (await s.evaluate(()=>document.getElementById('f_seite').value))==='12',
+  await s.evaluate(()=>document.getElementById('f_seite').value));
+await s.fill('#f_seite','99');
+await s.locator('.dialog .knopf-haupt', {hasText:'Übernehmen'}).click();
+await s.waitForTimeout(500);
+let zr = await s.evaluate(()=>App.dok.bloecke[0].runs.filter(r=>r.zitat));
+p('genau EIN Zitat-Run mit neuer Seitenzahl',
+  zr.length===1 && zr[0].seite==='99', JSON.stringify(await s.evaluate(()=>App.dok.bloecke[0].runs)));
+await zurueck();
+zr = await s.evaluate(()=>App.dok.bloecke[0].runs.filter(r=>r.zitat));
+p('Strg+Z stellt die alte Seitenzahl her',
+  zr.length===1 && zr[0].seite==='12', JSON.stringify(zr));
+
+// T) Fußnoten-Chip: Textanfang sichtbar, Text im Dialog änderbar
+await frisch(()=>{
+  App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[
+    {text:'Text'},{fussnote:'Vgl. dazu auch die ältere Literatur.'}]})];
+  Editor.zeichne();});
+p('Fußnoten-Chip zeigt den Textanfang',
+  (await s.locator('.block .chip-fussnote').innerText()).includes('Vgl. dazu auch'),
+  await s.locator('.block .chip-fussnote').innerText());
+await s.locator('.block .chip-fussnote').click();
+await s.waitForSelector('.dialog', {timeout:5000});
+p('Fußnoten-Dialog zeigt den Text',
+  (await s.evaluate(()=>document.getElementById('f_text').value))==='Vgl. dazu auch die ältere Literatur.',
+  await s.evaluate(()=>document.getElementById('f_text').value));
+await s.fill('#f_text','Neuer Fußnotentext.');
+await s.locator('.dialog .knopf-haupt').click();
+await s.waitForTimeout(500);
+p('geänderter Fußnotentext steht im Modell',
+  (await s.evaluate(()=>App.dok.bloecke[0].runs.find(r=>r.fussnote!=null).fussnote))==='Neuer Fußnotentext.',
+  JSON.stringify(await s.evaluate(()=>App.dok.bloecke[0].runs)));
+
+// U) Kennwert-Chip entfernen: Run weg, umgebender Text intakt
+await frisch(()=>{
+  App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[
+    {text:'Wert '},{kennwert:'SW',wert:'104'},{text:' Ende'}]})];
+  Editor.zeichne();});
+await s.locator('.block .chip-kennwert').click();
+await s.waitForSelector('.dialog', {timeout:5000});
+await s.locator('.dialog .knopf-gefahr', {hasText:'Entfernen'}).click();
+await s.waitForTimeout(500);
+const kr = await s.evaluate(()=>App.dok.bloecke[0].runs);
+p('Entfernen löscht den Kennwert-Run, der Text bleibt',
+  !kr.some(r=>r.kennwert) && (await txt())[0]==='Wert  Ende', JSON.stringify(kr));
+
 // ---------------------------------------------- Sprache der Arbeit
 
 await frisch(()=>{
