@@ -1,0 +1,558 @@
+{
+ "version": 1,
+ "meta": {
+  "arbeitstyp": "hausarbeit",
+  "titel": "Berufliche Interessen und Studienzufriedenheit",
+  "untertitel": "Eine Beispielarbeit mit frei erfundenen Daten",
+  "verfasser": "Erika Mustermann",
+  "matrikelnummer": "1234567",
+  "studiengang": "B.Sc. Psychologie",
+  "semester": "3. Fachsemester",
+  "email": "",
+  "hochschule": "Musterhochschule",
+  "fachbereich": "Fachbereich Psychologie",
+  "institut": "",
+  "modul": "Empirisch-experimentelles Praktikum",
+  "betreuung": "Prof. Dr. Max Mustermann",
+  "zweitgutachten": "",
+  "ort": "Musterstadt",
+  "abgabedatum": "19. August 2026",
+  "abstract": "Untersucht wurde der Zusammenhang zwischen beruflichen Interessen und Studienzufriedenheit. In einer Online-Befragung bearbeiteten 120 Psychologiestudierende den Allgemeinen Interessen-Struktur-Test sowie eine Kurzskala zur Studienzufriedenheit. Soziale Interessen hingen positiv mit der Studienzufriedenheit zusammen, investigative Interessen nicht. Die Befunde stützen die Kongruenzannahme der Interessentheorie. Alle Daten und Personen dieser Beispielarbeit sind frei erfunden.",
+  "abkuerzungen": []
+ },
+ "einstellungen": {
+  "schrift": "times",
+  "schriftgroesse": 12,
+  "zeilenabstand": 1.5,
+  "ausrichtung": "blocksatz",
+  "absatzEinzug": true,
+  "seitenzahlPosition": "unten",
+  "seitenzahlStil": "roemisch-arabisch",
+  "deckblatt": true,
+  "inhaltsverzeichnis": true,
+  "abbildungsverzeichnis": true,
+  "tabellenverzeichnis": true,
+  "abkuerzungsverzeichnis": false,
+  "abstract": true,
+  "eidesstattlich": false,
+  "anhang": false
+ },
+ "bloecke": [
+  {
+   "id": "beisp-h01",
+   "typ": "ueberschrift",
+   "ebene": 1,
+   "text": "Einleitung"
+  },
+  {
+   "id": "beisp-a01",
+   "typ": "absatz",
+   "runs": [
+    {
+     "text": "Warum wählen Menschen ein bestimmtes Studienfach — und was hält sie darin zufrieden? Nach "
+    },
+    {
+     "zitat": "holland1997",
+     "form": "narrativ"
+    },
+    {
+     "text": " lassen sich berufliche Interessen in sechs Dimensionen ordnen; je besser Interessen und Umwelt zueinander passen, desto günstiger fallen Zufriedenheit und Leistung aus. Diese Beispielarbeit zeigt an einer erfundenen Fragebogenstudie, wie eine empirische Hausarbeit im Schreibtisch entsteht."
+    },
+    {
+     "fussnote": "Alle Daten, Personen und Ergebnisse in dieser Beispielarbeit sind frei erfunden und dienen nur der Veranschaulichung."
+    }
+   ]
+  },
+  {
+   "id": "beisp-h02",
+   "typ": "ueberschrift",
+   "ebene": 1,
+   "text": "Theoretischer Hintergrund"
+  },
+  {
+   "id": "beisp-h03",
+   "typ": "ueberschrift",
+   "ebene": 2,
+   "text": "Forschungsstand"
+  },
+  {
+   "id": "beisp-a02",
+   "typ": "absatz",
+   "runs": [
+    {
+     "text": "Berufliche Interessen gelten als relativ stabile Präferenzen für bestimmte Tätigkeiten und Umwelten "
+    },
+    {
+     "zitat": "holland1997,nye2012",
+     "form": "klammer"
+    },
+    {
+     "text": ". Zentral ist der Begriff der "
+    },
+    {
+     "text": "Kongruenz",
+     "i": true
+    },
+    {
+     "text": ": Metaanalytisch zeigt sich, dass die Passung zwischen Interessen und Umwelt mit Leistung und Verbleib zusammenhängt "
+    },
+    {
+     "zitat": "nye2012",
+     "form": "klammer"
+    },
+    {
+     "text": ". Studienzufriedenheit wird hier als mehrdimensionales Konstrukt aus Zufriedenheit mit den Studieninhalten, den Studienbedingungen und der Bewältigung von Studienbelastungen verstanden "
+    },
+    {
+     "zitat": "westermann1996",
+     "form": "klammer"
+    },
+    {
+     "text": "."
+    }
+   ]
+  },
+  {
+   "id": "beisp-z01",
+   "typ": "blockzitat",
+   "runs": [
+    {
+     "text": "The choice of a vocation is an expression of personality."
+    }
+   ],
+   "quelle": "holland1997",
+   "seite": ""
+  },
+  {
+   "id": "beisp-h04",
+   "typ": "ueberschrift",
+   "ebene": 2,
+   "text": "Fragestellung und Hypothesen"
+  },
+  {
+   "id": "beisp-a03",
+   "typ": "absatz",
+   "runs": [
+    {
+     "text": "Daraus ergibt sich die Fragestellung, ob die Ausprägung einzelner Interessendimensionen mit der Studienzufriedenheit im Fach Psychologie zusammenhängt. Geprüft werden zwei Hypothesen:"
+    }
+   ]
+  },
+  {
+   "id": "beisp-l01",
+   "typ": "liste",
+   "ordnung": "nummern",
+   "punkte": [
+    [
+     {
+      "text": "Hypothese 1: ",
+      "b": true
+     },
+     {
+      "text": "Soziale Interessen korrelieren positiv mit der Studienzufriedenheit."
+     }
+    ],
+    [
+     {
+      "text": "Hypothese 2: ",
+      "b": true
+     },
+     {
+      "text": "Investigative Interessen korrelieren positiv mit der Studienzufriedenheit."
+     }
+    ]
+   ]
+  },
+  {
+   "id": "beisp-h05",
+   "typ": "ueberschrift",
+   "ebene": 1,
+   "text": "Methode"
+  },
+  {
+   "id": "beisp-h06",
+   "typ": "ueberschrift",
+   "ebene": 2,
+   "text": "Stichprobe"
+  },
+  {
+   "id": "beisp-a04",
+   "typ": "absatz",
+   "runs": [
+    {
+     "text": "An der Online-Befragung nahmen "
+    },
+    {
+     "kennwert": "N",
+     "wert": "120"
+    },
+    {
+     "text": " Psychologiestudierende teil (Alter: "
+    },
+    {
+     "kennwert": "M",
+     "wert": "23,4"
+    },
+    {
+     "text": ", "
+    },
+    {
+     "kennwert": "SD",
+     "wert": "3,1"
+    },
+    {
+     "text": " Jahre). Die Rekrutierung erfolgte über Lehrveranstaltungen und Aushänge; die Teilnahme war freiwillig, anonym und wurde nicht vergütet."
+    }
+   ]
+  },
+  {
+   "id": "beisp-h07",
+   "typ": "ueberschrift",
+   "ebene": 2,
+   "text": "Erhebungsinstrumente"
+  },
+  {
+   "id": "beisp-a05",
+   "typ": "absatz",
+   "runs": [
+    {
+     "text": "Berufliche Interessen wurden mit dem Allgemeinen Interessen-Struktur-Test erfasst "
+    },
+    {
+     "zitat": "bergmann2005",
+     "form": "klammer"
+    },
+    {
+     "text": ". Die Studienzufriedenheit wurde mit einer Kurzskala nach "
+    },
+    {
+     "zitat": "westermann1996",
+     "form": "narrativ"
+    },
+    {
+     "text": " erhoben (zehn Items, fünfstufige Antwortskala, interne Konsistenz "
+    },
+    {
+     "kennwert": "α",
+     "wert": ",87"
+    },
+    {
+     "text": ")."
+    }
+   ]
+  },
+  {
+   "id": "beisp-h08",
+   "typ": "ueberschrift",
+   "ebene": 2,
+   "text": "Durchführung"
+  },
+  {
+   "id": "beisp-a06",
+   "typ": "absatz",
+   "runs": [
+    {
+     "text": "Die Befragung lief im Sommersemester über vier Wochen. Nach einer Aufklärung über Zweck, Freiwilligkeit und Anonymität bearbeiteten die Teilnehmenden zuerst den Interessentest, anschließend die Zufriedenheitsskala; die Bearbeitung dauerte etwa 20 Minuten."
+    }
+   ]
+  },
+  {
+   "id": "beisp-h09",
+   "typ": "ueberschrift",
+   "ebene": 2,
+   "text": "Auswertungsstrategie"
+  },
+  {
+   "id": "beisp-a07",
+   "typ": "absatz",
+   "runs": [
+    {
+     "text": "Zur Prüfung der Hypothesen wurden Produkt-Moment-Korrelationen nach Pearson berechnet (Signifikanzniveau 5 %). Der Korrelationskoeffizient ist definiert als"
+    }
+   ]
+  },
+  {
+   "id": "beisp-f01",
+   "typ": "formel",
+   "tex": "r_{xy} = \\frac{\\mathrm{cov}(X, Y)}{s_X \\cdot s_Y}"
+  },
+  {
+   "id": "beisp-h10",
+   "typ": "ueberschrift",
+   "ebene": 1,
+   "text": "Ergebnisse"
+  },
+  {
+   "id": "beisp-a08",
+   "typ": "absatz",
+   "runs": [
+    {
+     "verweis": "beisp-t01"
+    },
+    {
+     "text": " zeigt die deskriptiven Kennwerte der sechs Interessendimensionen. Die höchste Ausprägung fand sich im sozialen, die niedrigste im konventionellen Bereich."
+    }
+   ]
+  },
+  {
+   "id": "beisp-t01",
+   "typ": "tabelle",
+   "titel": "Deskriptive Kennwerte der Interessendimensionen",
+   "anmerkung": "N = 120. Antwortskala von 1 (gar nicht) bis 5 (sehr).",
+   "kopf": [
+    "Dimension",
+    "M",
+    "SD"
+   ],
+   "zeilen": [
+    [
+     "Praktisch-technisch (R)",
+     "2,8",
+     "0,9"
+    ],
+    [
+     "Intellektuell-forschend (I)",
+     "3,6",
+     "0,7"
+    ],
+    [
+     "Künstlerisch-sprachlich (A)",
+     "3,1",
+     "1,0"
+    ],
+    [
+     "Sozial (S)",
+     "3,9",
+     "0,8"
+    ],
+    [
+     "Unternehmerisch (E)",
+     "3,3",
+     "0,9"
+    ],
+    [
+     "Konventionell (C)",
+     "2,6",
+     "0,8"
+    ]
+   ],
+   "spaltenAusrichtung": [
+    "l",
+    "c",
+    "c"
+   ]
+  },
+  {
+   "id": "beisp-d01",
+   "typ": "diagramm",
+   "art": "balken",
+   "titel": "Mittlere Ausprägung der Interessendimensionen",
+   "anmerkung": "Fehlerbalken zeigen ± 1 Standardabweichung.",
+   "quelle": "tabelle",
+   "tabelleId": "beisp-t01",
+   "daten": {
+    "kopf": [
+     "Gruppe",
+     "Mittelwert",
+     "SD"
+    ],
+    "zeilen": [
+     [
+      "A",
+      "3,4",
+      "0,8"
+     ],
+     [
+      "B",
+      "4,1",
+      "0,9"
+     ]
+    ]
+   },
+   "xSpalte": 0,
+   "wertSpalten": [
+    1
+   ],
+   "fehlerSpalte": 2,
+   "fehlerArt": "sd",
+   "achseX": "",
+   "achseY": "Mittelwert",
+   "graustufen": false,
+   "regression": false,
+   "breite": 85,
+   "hoehe": 6.4
+  },
+  {
+   "id": "beisp-a09",
+   "typ": "absatz",
+   "runs": [
+    {
+     "text": "Wie "
+    },
+    {
+     "verweis": "beisp-d01"
+    },
+    {
+     "text": " veranschaulicht, dominieren soziale und forschende Interessen. Hypothese 1 wurde gestützt: Soziale Interessen korrelierten positiv mit der Studienzufriedenheit ("
+    },
+    {
+     "kennwert": "r",
+     "wert": ",34"
+    },
+    {
+     "text": ", "
+    },
+    {
+     "text": "p",
+     "i": true
+    },
+    {
+     "text": " < ,001). Für investigative Interessen zeigte sich dagegen kein bedeutsamer Zusammenhang ("
+    },
+    {
+     "kennwert": "r",
+     "wert": ",12"
+    },
+    {
+     "text": ", "
+    },
+    {
+     "text": "p",
+     "i": true
+    },
+    {
+     "text": " = ,19); Hypothese 2 wurde verworfen."
+    }
+   ]
+  },
+  {
+   "id": "beisp-h11",
+   "typ": "ueberschrift",
+   "ebene": 1,
+   "text": "Diskussion"
+  },
+  {
+   "id": "beisp-h12",
+   "typ": "ueberschrift",
+   "ebene": 2,
+   "text": "Interpretation der Befunde"
+  },
+  {
+   "id": "beisp-a10",
+   "typ": "absatz",
+   "runs": [
+    {
+     "text": "Der Zusammenhang zwischen sozialen Interessen und Studienzufriedenheit passt zur Kongruenzannahme "
+    },
+    {
+     "zitat": "holland1997",
+     "form": "klammer"
+    },
+    {
+     "text": ": Das Psychologiestudium bietet einer sozial interessierten Person eine passende Umwelt. Dass investigative Interessen nicht mit der Zufriedenheit zusammenhingen, könnte an der Deckenwirkung liegen — fast alle Befragten zeigten hier hohe Werte."
+    }
+   ]
+  },
+  {
+   "id": "beisp-h13",
+   "typ": "ueberschrift",
+   "ebene": 2,
+   "text": "Limitationen"
+  },
+  {
+   "id": "beisp-a11",
+   "typ": "absatz",
+   "runs": [
+    {
+     "text": "Drei Einschränkungen begrenzen die Aussagekraft:"
+    }
+   ]
+  },
+  {
+   "id": "beisp-l02",
+   "typ": "liste",
+   "ordnung": "punkte",
+   "punkte": [
+    [
+     {
+      "text": "Das Querschnittsdesign erlaubt keine Aussagen über die Wirkrichtung."
+     }
+    ],
+    [
+     {
+      "text": "Die Gelegenheitsstichprobe einer einzelnen Hochschule schränkt die Verallgemeinerung ein."
+     }
+    ],
+    [
+     {
+      "text": "Beide Konstrukte wurden per Selbstauskunft erfasst; gemeinsame Methodenvarianz kann die Zusammenhänge überschätzen."
+     }
+    ]
+   ]
+  },
+  {
+   "id": "beisp-h14",
+   "typ": "ueberschrift",
+   "ebene": 2,
+   "text": "Fazit und Ausblick"
+  },
+  {
+   "id": "beisp-a12",
+   "typ": "absatz",
+   "runs": [
+    {
+     "text": "Soziale Interessen gehen mit höherer Studienzufriedenheit im Fach Psychologie einher. Längsschnittliche Studien mit heterogeneren Stichproben könnten klären, ob Interessenpassung Zufriedenheit tatsächlich vorhersagt — oder ob Zufriedenheit die Interessen formt."
+    }
+   ]
+  }
+ ],
+ "quellen": [
+  {
+   "key": "holland1997",
+   "typ": "buch",
+   "felder": {
+    "autoren": "Holland, John L.",
+    "jahr": "1997",
+    "titel": "Making vocational choices: A theory of vocational personalities and work environments",
+    "auflage": "3",
+    "verlag": "Psychological Assessment Resources"
+   }
+  },
+  {
+   "key": "nye2012",
+   "typ": "artikel",
+   "felder": {
+    "autoren": "Nye, Christopher D.; Su, Rong; Rounds, James; Drasgow, Fritz",
+    "jahr": "2012",
+    "titel": "Vocational interests and performance: A quantitative summary of over 60 years of research",
+    "zeitschrift": "Perspectives on Psychological Science",
+    "jahrgang": "7",
+    "heft": "4",
+    "seiten": "384–403",
+    "doi": "10.1177/1745691612449021"
+   }
+  },
+  {
+   "key": "bergmann2005",
+   "typ": "testverfahren",
+   "felder": {
+    "autoren": "Bergmann, Christian; Eder, Ferdinand",
+    "jahr": "2005",
+    "titel": "Allgemeiner Interessen-Struktur-Test mit Umwelt-Struktur-Test (UST-R) – Revision (AIST-R)",
+    "verlag": "Beltz"
+   }
+  },
+  {
+   "key": "westermann1996",
+   "typ": "artikel",
+   "felder": {
+    "autoren": "Westermann, Rainer; Heise, Elke; Spies, Kordelia; Trautwein, Ulrich",
+    "jahr": "1996",
+    "titel": "Identifikation und Erfassung von Komponenten der Studienzufriedenheit",
+    "zeitschrift": "Psychologie in Erziehung und Unterricht",
+    "jahrgang": "43",
+    "seiten": "1–22"
+   }
+  }
+ ]
+}
