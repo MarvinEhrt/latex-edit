@@ -158,6 +158,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .knopf-still { border-color: transparent; background: transparent; color: var(--tinte-2); }
 .knopf-still:hover { background-color: var(--akzent-hell); border-color: transparent; color: var(--tinte); }
 .knopf-klein { padding: 3px 7px; font-size: 12px; }
+.knopf-gefahr { color: var(--warn); border-color: var(--warn); background: transparent; }
+.knopf-gefahr:hover { background-color: var(--warn-bg); border-color: var(--warn); }
 .knopf[disabled] { opacity: .45; cursor: not-allowed; }
 
 /* ---------------- Gliederung ---------------- */
@@ -176,6 +178,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
   color: var(--tinte-3); flex: none; min-width: 2.4em;
 }
 .gl-e1 { font-weight: 600; color: var(--tinte); }
+.gl-woerter {
+  margin-left: auto; flex: none;
+  font-family: var(--schrift-ma); font-size: 10.5px;
+  font-variant-numeric: tabular-nums; color: var(--tinte-2);
+}
+.wortzahl { color: var(--tinte-2); font-weight: normal; text-transform: none; letter-spacing: 0; }
 .gl-e2 { padding-left: 26px; }
 .gl-e3 { padding-left: 42px; font-size: 12.5px; }
 .gl-trenner {
@@ -269,6 +277,76 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .chip:hover { filter: brightness(.94); }
 /* In der Papiervorschau kein Chip-Aussehen -- da zählt, wie es gedruckt wird */
 .blatt .chip { box-shadow: none; }
+
+/* ---------------- Suchen und Ersetzen ---------------- */
+
+.suchleiste {
+  flex: none; padding: 8px 12px; border-bottom: 1px solid var(--linie);
+  background-color: var(--flaeche); display: flex; flex-direction: column; gap: 6px;
+}
+.suchzeile { display: flex; align-items: center; gap: 6px; }
+.suchzeile input[type=search], .suchzeile input[type=text] {
+  flex: 1; min-width: 80px; padding: 5px 9px;
+  border: 1px solid var(--linie-stark); border-radius: var(--r);
+  background-color: var(--flaeche-2); color: var(--tinte); font-size: 13px;
+}
+.suche-stand {
+  flex: none; font-family: var(--schrift-ma); font-size: 11px;
+  color: var(--tinte-2); min-width: 66px; text-align: right;
+}
+.suche-gross {
+  display: flex; align-items: center; gap: 4px; flex: none;
+  font-size: 11.5px; color: var(--tinte-2); cursor: pointer; user-select: none;
+}
+
+/* ---------------- Schwebende Auswahlleiste ---------------- */
+
+#auswahlleiste {
+  position: fixed; z-index: 60; display: none; align-items: center; gap: 2px;
+  padding: 3px; border-radius: var(--r);
+  border: 1px solid var(--linie-stark); background-color: var(--flaeche);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+}
+#auswahlleiste button {
+  border: none; background: transparent; color: var(--tinte);
+  min-width: 26px; padding: 3px 6px; border-radius: 3px;
+  font-size: 13px; cursor: pointer;
+}
+#auswahlleiste button:hover { background-color: var(--akzent-hell); }
+#auswahlleiste .trenner { width: 1px; align-self: stretch; background-color: var(--linie); margin: 0 2px; }
+
+/* ---------------- Export-Menü ---------------- */
+
+#exportmenue {
+  position: fixed; z-index: 60; min-width: 250px;
+  border-radius: var(--r); overflow: hidden;
+  border: 1px solid var(--linie-stark); background-color: var(--flaeche);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+  display: flex; flex-direction: column;
+}
+#exportmenue button {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  border: none; background: transparent; color: var(--tinte);
+  padding: 8px 12px; cursor: pointer; text-align: left; font-size: 12.5px;
+}
+#exportmenue button span { font-size: 11px; color: var(--tinte-2); }
+#exportmenue button:hover { background-color: var(--akzent-hell); }
+
+/* ---------------- @-Zitieren: Vorschlagsliste ---------------- */
+
+#atliste {
+  position: fixed; z-index: 60; min-width: 240px; max-width: 380px;
+  border-radius: var(--r); overflow: hidden;
+  border: 1px solid var(--linie-stark); background-color: var(--flaeche);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+  font-family: var(--schrift-ui); font-size: 12.5px;
+}
+#atliste .at-eintrag { padding: 6px 10px; cursor: pointer; }
+#atliste .at-eintrag.aktiv { background-color: var(--akzent-hell); }
+#atliste .at-eintrag .at-titel {
+  color: var(--tinte-2); font-size: 11.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 /* ---------------- Tabellen im Editor ---------------- */
 

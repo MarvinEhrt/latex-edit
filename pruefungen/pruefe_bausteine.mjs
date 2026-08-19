@@ -336,6 +336,213 @@ p('Strg+Z nimmt auch das Mehrfachzitat zurück',
   !(await s.evaluate(()=>App.dok.bloecke[0].runs.some(r=>r.zitat))),
   JSON.stringify(await s.evaluate(()=>App.dok.bloecke[0].runs)));
 
+// ---------------------------------------------- Chips bearbeiten
+
+// S) Zitat-Chip anklicken: Dialog vorbelegt, Änderung ersetzt den Run
+await frisch(()=>{
+  App.dok.quellen=[{key:'holland1997',typ:'buch',felder:{autoren:'Holland, John L.',jahr:'1997',titel:'T',verlag:'P'}}];
+  App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[
+    {text:'Vorne '},{zitat:'holland1997',form:'klammer',seite:'12'},{text:' hinten'}]})];
+  Editor.zeichne();});
+await s.locator('.block .chip-zitat').click();
+await s.waitForSelector('.dialog', {timeout:5000});
+p('Zitat-Dialog zeigt die Quelle als gewählt',
+  await s.evaluate(()=>document.querySelector('.dialog .quelle-zeile').classList.contains('gewaehlt')));
+p('die Seitenzahl ist vorbelegt',
+  (await s.evaluate(()=>document.getElementById('f_seite').value))==='12',
+  await s.evaluate(()=>document.getElementById('f_seite').value));
+await s.fill('#f_seite','99');
+await s.locator('.dialog .knopf-haupt', {hasText:'Übernehmen'}).click();
+await s.waitForTimeout(500);
+let zr = await s.evaluate(()=>App.dok.bloecke[0].runs.filter(r=>r.zitat));
+p('genau EIN Zitat-Run mit neuer Seitenzahl',
+  zr.length===1 && zr[0].seite==='99', JSON.stringify(await s.evaluate(()=>App.dok.bloecke[0].runs)));
+await zurueck();
+zr = await s.evaluate(()=>App.dok.bloecke[0].runs.filter(r=>r.zitat));
+p('Strg+Z stellt die alte Seitenzahl her',
+  zr.length===1 && zr[0].seite==='12', JSON.stringify(zr));
+
+// T) Fußnoten-Chip: Textanfang sichtbar, Text im Dialog änderbar
+await frisch(()=>{
+  App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[
+    {text:'Text'},{fussnote:'Vgl. dazu auch die ältere Literatur.'}]})];
+  Editor.zeichne();});
+p('Fußnoten-Chip zeigt den Textanfang',
+  (await s.locator('.block .chip-fussnote').innerText()).includes('Vgl. dazu auch'),
+  await s.locator('.block .chip-fussnote').innerText());
+await s.locator('.block .chip-fussnote').click();
+await s.waitForSelector('.dialog', {timeout:5000});
+p('Fußnoten-Dialog zeigt den Text',
+  (await s.evaluate(()=>document.getElementById('f_text').value))==='Vgl. dazu auch die ältere Literatur.',
+  await s.evaluate(()=>document.getElementById('f_text').value));
+await s.fill('#f_text','Neuer Fußnotentext.');
+await s.locator('.dialog .knopf-haupt').click();
+await s.waitForTimeout(500);
+p('geänderter Fußnotentext steht im Modell',
+  (await s.evaluate(()=>App.dok.bloecke[0].runs.find(r=>r.fussnote!=null).fussnote))==='Neuer Fußnotentext.',
+  JSON.stringify(await s.evaluate(()=>App.dok.bloecke[0].runs)));
+
+// U) Kennwert-Chip entfernen: Run weg, umgebender Text intakt
+await frisch(()=>{
+  App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[
+    {text:'Wert '},{kennwert:'SW',wert:'104'},{text:' Ende'}]})];
+  Editor.zeichne();});
+await s.locator('.block .chip-kennwert').click();
+await s.waitForSelector('.dialog', {timeout:5000});
+await s.locator('.dialog .knopf-gefahr', {hasText:'Entfernen'}).click();
+await s.waitForTimeout(500);
+const kr = await s.evaluate(()=>App.dok.bloecke[0].runs);
+p('Entfernen löscht den Kennwert-Run, der Text bleibt',
+  !kr.some(r=>r.kennwert) && (await txt())[0]==='Wert  Ende', JSON.stringify(kr));
+
+// ---------------------------------------------- Auswahlleiste und @-Zitieren
+
+// V) Auswahl über zwei Wörter zeigt die schwebende Leiste, B macht fett
+await frisch(()=>{App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'Erstes zweites drittes'}]})];Editor.zeichne();});
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('Home');
+for(let i=0;i<13;i++) await s.keyboard.press('Shift+ArrowRight');   // "Erstes zweite"
+await s.waitForTimeout(400);
+p('bei Textauswahl erscheint die Leiste',
+  await s.evaluate(()=>{const l=document.getElementById('auswahlleiste');return !!l && l.style.display!=='none';}));
+await s.locator('#auswahlleiste button').first().click();
+await s.waitForTimeout(400);
+let br = await s.evaluate(()=>App.dok.bloecke[0].runs);
+p('B macht die Auswahl fett',
+  br.some(r=>r.b && (r.text||'').includes('Erstes')), JSON.stringify(br));
+await zurueck();
+br = await s.evaluate(()=>App.dok.bloecke[0].runs);
+p('Strg+Z macht das Fett rückgängig', !br.some(r=>r.b), JSON.stringify(br));
+await s.evaluate(()=>window.getSelection().removeAllRanges());
+await s.waitForTimeout(300);
+p('ohne Auswahl verschwindet die Leiste',
+  await s.evaluate(()=>document.getElementById('auswahlleiste').style.display==='none'));
+
+// W) @holl schlägt die Holland-Quelle vor, Enter fügt das Zitat ein
+await frisch(()=>{
+  App.dok.quellen=[{key:'holland1997',typ:'buch',felder:{autoren:'Holland, John L.',jahr:'1997',titel:'Making vocational choices',verlag:'PAR'}}];
+  App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'Belegt '}]})];
+  Editor.zeichne();});
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('End');
+await s.keyboard.type('@holl');
+await s.waitForTimeout(350);
+p('die @-Liste erscheint und nennt die Quelle',
+  await s.evaluate(()=>{const l=document.getElementById('atliste');return !!l && l.innerText.includes('Holland');}),
+  await s.evaluate(()=>document.getElementById('atliste')?.innerText || 'keine Liste'));
+await s.keyboard.press('Enter');
+await s.waitForTimeout(400);
+const ar = await s.evaluate(()=>App.dok.bloecke[0].runs);
+p('Enter fügt ein Klammerzitat ein',
+  ar.some(r=>r.zitat==='holland1997'&&r.form==='klammer'), JSON.stringify(ar));
+p('der getippte @holl-Text ist weg',
+  !JSON.stringify(ar).includes('@holl'), JSON.stringify(ar));
+
+// W2) kein Treffer -> einziger Eintrag „Neue Quelle anlegen …“
+await s.keyboard.type(' @xyz');
+await s.waitForTimeout(350);
+p('ohne Treffer steht dort „Neue Quelle anlegen“',
+  await s.evaluate(()=>!!document.getElementById('atliste')?.innerText.includes('Neue Quelle anlegen')),
+  await s.evaluate(()=>document.getElementById('atliste')?.innerText || 'keine Liste'));
+await s.keyboard.press('Escape');
+await s.waitForTimeout(200);
+p('Escape schließt die Liste', await s.evaluate(()=>!document.getElementById('atliste')));
+
+// ---------------------------------------------- Wortzahl
+
+// X) bekanntes Dokument: Gesamtzahl exakt, Kapitelzahlen in der Gliederung
+await frisch(()=>{
+  App.dok.quellen=[{key:'holland1997',typ:'buch',felder:{autoren:'Holland, John L.',jahr:'1997',titel:'T',verlag:'P'}}];
+  App.dok.bloecke=[
+    Modell.neuerBlock('ueberschrift',{ebene:1,text:'Einleitung'}),                     // 1
+    Modell.neuerBlock('absatz',{runs:[{text:'Drei kurze Wörter '},                     // 3
+      {zitat:'holland1997',form:'klammer'},                                            // (Holland, 1997) = 2
+      {fussnote:'Eine Fußnote mit vier Wörtern.'}]}),                                  // 5
+    Modell.neuerBlock('ueberschrift',{ebene:1,text:'Methode'}),                        // 1
+    Modell.neuerBlock('liste',{punkte:[[{text:'Punkt eins'}],[{text:'Punkt zwei'}]]}), // 4
+    Modell.neuerBlock('tabelle',{titel:'Zählt nicht',kopf:['A'],zeilen:[['viele Wörter hier']],
+      spaltenAusrichtung:['l']}),
+    Modell.neuerBlock('formel',{tex:'a = b'})];
+  App.aenderung(); Editor.zeichne(); Editor.zeichneGliederung();});
+// Einleitung: 1 + 3 + 2 + 5 = 11; Methode: 1 + 4 = 5; gesamt 16
+const gezaehlt = await s.evaluate(()=>{ const w=Modell.woerter(App.dok);
+  return {gesamt:w.gesamt, je:[...w.jeKapitel.values()]}; });
+p('die Zählung stimmt exakt (Chips und Fußnote zählen, Tabelle und Formel nicht)',
+  gezaehlt.gesamt===16 && gezaehlt.je.join(',')==='11,5', JSON.stringify(gezaehlt));
+p('der Panelkopf zeigt die Gesamtzahl',
+  (await s.evaluate(()=>document.getElementById('wortzahl').textContent)).includes('16'),
+  await s.evaluate(()=>document.getElementById('wortzahl').textContent));
+p('die Kapitelzahlen stehen in der Gliederung',
+  (await s.evaluate(()=>[...document.querySelectorAll('.gl-woerter')].map(x=>x.textContent))).join(',')==='11,5',
+  JSON.stringify(await s.evaluate(()=>[...document.querySelectorAll('.gl-woerter')].map(x=>x.textContent))));
+
+// X2) drei Wörter tippen erhöht die Zahl um 3
+// (in die Überschrift, nicht in den Absatz — dessen Ende ist ein Chip,
+//  und ein Klick darauf würde den Bearbeiten-Dialog öffnen)
+await s.keyboard.press('Escape');
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('End');
+await s.keyboard.type(' eins zwei drei'); await s.waitForTimeout(400);
+p('drei getippte Wörter erhöhen die Zahl um 3',
+  (await s.evaluate(()=>document.getElementById('wortzahl').textContent)).includes('19'),
+  await s.evaluate(()=>document.getElementById('wortzahl').textContent));
+
+// ---------------------------------------------- Suchen und Ersetzen
+
+// Y) "Proband" -> "Teilnehmende" über drei Bausteine und eine Tabellenzelle
+await frisch(()=>{
+  App.dok.bloecke=[
+    Modell.neuerBlock('ueberschrift',{ebene:1,text:'Proband und Umfeld'}),
+    Modell.neuerBlock('absatz',{runs:[{text:'Der Proband war da. '},{text:'proband klein.',i:true}]}),
+    Modell.neuerBlock('blockzitat',{runs:[{text:'Zitat über den Proband.'}]}),
+    Modell.neuerBlock('tabelle',{titel:'T',kopf:['Gruppe'],zeilen:[['Proband A']],
+      spaltenAusrichtung:['l']})];
+  Editor.zeichne();});
+await s.keyboard.press('Control+f');
+await s.waitForTimeout(300);
+p('Strg+F öffnet die Suchleiste',
+  await s.evaluate(()=>{const l=document.getElementById('suchleiste');return !!l&&l.style.display!=='none';}));
+await s.fill('#suche-feld','Proband');
+await s.waitForTimeout(200);
+p('die Trefferzahl stimmt (ohne Groß-/Kleinschreibung)',
+  (await s.locator('#suche-stand').innerText()).includes('von 5'),
+  await s.locator('#suche-stand').innerText());
+await s.check('#suche-gross');
+await s.waitForTimeout(200);
+p('das Groß-/Kleinschreibungs-Kästchen wirkt',
+  (await s.locator('#suche-stand').innerText()).includes('von 4'),
+  await s.locator('#suche-stand').innerText());
+await s.uncheck('#suche-gross');
+await s.waitForTimeout(200);
+await s.click('#suche-aufklappen');
+await s.fill('#ersetzen-feld','Teilnehmende');
+await s.click('#knopf-alle-ersetzen');
+await s.waitForTimeout(400);
+p('die Meldung nennt die Anzahl',
+  (await s.locator('#meldungen').innerText()).includes('5 Stellen ersetzt'),
+  await s.locator('#meldungen').innerText());
+const nachher = await s.evaluate(()=>({
+  h: App.dok.bloecke[0].text,
+  a: App.dok.bloecke[1].runs.map(r=>r.text).join('|'),
+  z: App.dok.bloecke[2].runs[0].text,
+  t: App.dok.bloecke[3].zeilen[0][0]}));
+p('das Modell ist überall geändert',
+  nachher.h==='Teilnehmende und Umfeld' &&
+  nachher.a==='Der Teilnehmende war da. |Teilnehmende klein.' &&
+  nachher.z==='Zitat über den Teilnehmende.' &&
+  nachher.t==='Teilnehmende A', JSON.stringify(nachher));
+await zurueck();
+const vorher = await s.evaluate(()=>({
+  h: App.dok.bloecke[0].text, t: App.dok.bloecke[3].zeilen[0][0],
+  a: App.dok.bloecke[1].runs.map(r=>r.text).join('|')}));
+p('EIN Strg+Z stellt alles zurück',
+  vorher.h==='Proband und Umfeld' && vorher.t==='Proband A' &&
+  vorher.a==='Der Proband war da. |proband klein.', JSON.stringify(vorher));
+await s.keyboard.press('Escape');
+await s.waitForTimeout(200);
+p('Escape schließt die Suchleiste',
+  await s.evaluate(()=>document.getElementById('suchleiste').style.display==='none'));
+
 // ---------------------------------------------- Sprache der Arbeit
 
 await frisch(()=>{

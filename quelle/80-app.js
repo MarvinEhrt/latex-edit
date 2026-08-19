@@ -6,6 +6,8 @@ const App = (() => {
 
   let dok = Modell.neu('hausarbeit');
   let projektname = '';
+  let letzterStand = null;        // mtime der Projektdatei beim letzten Laden/Sichern
+  let konfliktOffen = false;      // Zwei-Fenster-Dialog nur einmal zeigen
   let letzteAuswahl = null;
   let bauTimer = null, sicherTimer = null;
   let baeuftGerade = false, nochmalBauen = false;
@@ -80,7 +82,20 @@ const App = (() => {
     clearTimeout(sicherTimer);
     sicherTimer = setTimeout(() => sichere(true), 4000);
     if (!optionen.nurBau) aktualisiereKopf();
+    aktualisiereWortzahl();
     PdfAnsicht.zustand('wartet', 'Änderung erkannt …');
+  }
+
+  /* Steht dauerhaft im Panelkopf der Textspalte. Die Zählung läuft
+     über das ganze Dokument, ist aber billig genug für jeden
+     Tastendruck. */
+  function aktualisiereWortzahl() {
+    const marke = document.getElementById('wortzahl');
+    if (!marke) return;
+    const n = Modell.woerter(dok).gesamt;
+    marke.textContent = '· ' +
+      String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202F') +   // schmales Leerzeichen: 4 230
+      (n === 1 ? ' Wort' : ' Wörter');
   }
 
   /* ---------------- Rückgängig ----------------
@@ -123,7 +138,10 @@ const App = (() => {
 
       if (ergebnis.status === 'abgebrochen') return;
 
-      const warnungen = ergebnis.warnungen || [];
+      /* Warnungen aus einem gescheiterten Lauf sind Lärm über dem echten
+         Fehler -- und inhaltlich falsch, weil der Lauf nie bis zur
+         Auflösung der Zitate kam. Also nur bei Erfolg zeigen. */
+      const warnungen = ergebnis.status === 'ok' ? (ergebnis.warnungen || []) : [];
       PdfAnsicht.zeigeFehler(ergebnis.fehler, letzteZeilenkarte, vorab, warnungen, dok);
 
       if (ergebnis.status === 'ok') {
@@ -163,8 +181,13 @@ const App = (() => {
     if (!Begleiter.verbunden) return;
     const name = projektname || dok.meta.titel || 'Unbenannte Arbeit';
     try {
-      const e = await Begleiter.sichereProjekt(name, dok);
+      /* Der Änderungsstand wandert mit: liegt auf der Platte inzwischen
+         ein neuerer (zweites Fenster!), antwortet der Begleiter mit 409
+         statt wortlos zu überschreiben. */
+      const e = await Begleiter.sichereProjekt(name, dok,
+        projektname ? letzterStand : null);
       projektname = e.name;
+      letzterStand = e.stand;
       const marke = document.getElementById('speicherstand');
       if (marke) {
         const jetzt = new Date();
@@ -174,22 +197,94 @@ const App = (() => {
       }
       if (!still) melde('Gesichert als „' + e.name + '“.');
     } catch (f) {
+      if (f.status === 409) { behandleKonflikt(name); return; }
       melde('Sichern fehlgeschlagen: ' + f.message, true);
     }
   }
 
+  /* ---------------- Zwei Fenster ---------------- */
+
+  function konfliktDialog() {
+    return new Promise((fertig) => {
+      let wahl = null;
+      const { koerper, fuss, schliessen } = Dialoge.basis({
+        titel: 'In einem anderen Fenster geändert',
+        beimSchliessen: () => fertig(wahl)
+      });
+      koerper.innerHTML = `<div style="font-size:13.5px;line-height:1.55">
+        Diese Arbeit wurde in einem anderen Fenster geändert.<br><br>
+        <b>Neu laden</b> holt den neueren Stand — was hier seither getippt
+        wurde, geht verloren. <b>Trotzdem überschreiben</b> legt wie immer
+        erst eine Sicherung des anderen Standes an.</div>`;
+      fuss.append(
+        Dialoge.knopf('Trotzdem überschreiben', 'knopf-gefahr links',
+          () => { wahl = 'ueberschreiben'; schliessen(); }),
+        Dialoge.knopf('Neu laden (empfohlen)', 'knopf-haupt',
+          () => { wahl = 'laden'; schliessen(); })
+      );
+    });
+  }
+
+  async function behandleKonflikt(name) {
+    if (konfliktOffen) return;
+    konfliktOffen = true;
+    try {
+      const wahl = await konfliktDialog();
+      if (wahl === 'laden') {
+        const e = await Begleiter.ladeProjekt(name);
+        dok = Modell.normalisiere(e.dokument);
+        projektname = name;
+        letzterStand = e.stand;
+        Verlauf.leeren();
+        neuZeichnen();
+        melde('Neu geladen — der Stand aus dem anderen Fenster.');
+      } else if (wahl === 'ueberschreiben') {
+        letzterStand = null;
+        await sichere(false);
+      }
+    } catch (f) {
+      melde('Das hat nicht geklappt: ' + f.message, true);
+    } finally {
+      konfliktOffen = false;
+    }
+  }
+
   async function oeffne() {
-    const name = await DialogeExtra.projektOeffnen();
-    if (!name) return;
+    const wahl = await DialogeExtra.projektOeffnen();
+    if (!wahl) return;
+    if (wahl.fassung) return stelleFassungHer(wahl.fassung);
+    const name = wahl;
     try {
       const e = await Begleiter.ladeProjekt(name);
       dok = Modell.normalisiere(e.dokument);
       projektname = name;
+      letzterStand = e.stand;
       Verlauf.leeren();
       neuZeichnen();
       melde('Geöffnet: ' + (dok.meta.titel || name));
     } catch (f) {
       melde('Konnte nicht geöffnet werden: ' + f.message, true);
+    }
+  }
+
+  /* ---------------- Frühere Fassung wiederherstellen ---------------- */
+
+  async function stelleFassungHer(f) {
+    try {
+      /* ERST den aktuellen Stand normal sichern (legt selbst eine
+         Sicherung an -- nichts geht verloren), DANN die Fassung laden. */
+      await sichere(true);
+      const e = await Begleiter.ladeSicherung(f.name, f.datei);
+      dok = Modell.normalisiere(e.dokument);
+      projektname = f.name;
+      /* Die Wiederherstellung ist eine bewusste Entscheidung -- das
+         nächste Sichern überschreibt ohne Stand-Prüfung. */
+      letzterStand = null;
+      Verlauf.leeren();
+      neuZeichnen();
+      melde('Fassung vom ' + f.zeitText + ' wiederhergestellt.');
+    } catch (fehler) {
+      melde('Wiederherstellen fehlgeschlagen: ' + fehler.message, true);
     }
   }
 
@@ -226,6 +321,35 @@ const App = (() => {
     }
   }
 
+  /* Zwei Wege, ein Knopf: "LaTeX ansehen" ist Nachschauen, "ZIP" ist
+     Weitergeben -- beides ist Export, also stehen sie zusammen in
+     einem kleinen Menü statt einzeln in der Kopfzeile. */
+  function zeigeExportMenue() {
+    const alt = document.getElementById('exportmenue');
+    if (alt) { alt.remove(); return; }
+    const anker = document.getElementById('knopf-export');
+    const menue = document.createElement('div');
+    menue.id = 'exportmenue';
+    const eintrag = (text, hinweis, aktion) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.innerHTML = `<b>${escHtml(text)}</b><span>${escHtml(hinweis)}</span>`;
+      b.addEventListener('click', () => { menue.remove(); aktion(); });
+      menue.append(b);
+    };
+    eintrag('LaTeX ansehen', 'nur zum Nachschauen — nichts wird gespeichert',
+            () => Dialoge.texAnsehen(dok));
+    eintrag('ZIP herunterladen', 'LaTeX-Projekt für Overleaf oder zum Weitergeben',
+            exportiere);
+    const r = anker.getBoundingClientRect();
+    menue.style.top = (r.bottom + 4) + 'px';
+    menue.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+    document.body.append(menue);
+    setTimeout(() => document.addEventListener('click', (ev) => {
+      if (!menue.contains(ev.target)) menue.remove();
+    }, { once: true }));
+  }
+
   /* ---------------- Aufbau ---------------- */
 
   function neuZeichnen() {
@@ -257,6 +381,7 @@ const App = (() => {
       if (!typ) return;
       dok = Modell.neu(typ);
       projektname = '';
+      letzterStand = null;
       Verlauf.leeren();
       neuZeichnen();
       mitVerlauf(() => Dialoge.deckblatt(dok));
@@ -272,22 +397,11 @@ const App = (() => {
       await Dialoge.quellenverwaltung(dok);
       return JSON.stringify(dok.quellen) !== vorher;
     }));
-    k('knopf-zotero', () => mitVerlauf(async () => {
-      const b = await DialogeExtra.zoteroImport(dok);
-      if (b) melde(`${b.neu} übernommen, ${b.uebersprungen} schon vorhanden.`);
-      return !!(b && b.neu);
-    }));
-    k('knopf-import', () => mitVerlauf(async () => {
-      const b = await DialogeExtra.dateiImport(dok);
-      if (b) melde(`${b.neu} übernommen, ${b.uebersprungen} schon vorhanden.`);
-      return !!(b && b.neu);
-    }));
     k('knopf-einstellungen', () => DialogeExtra.einstellungen());
-    k('knopf-tex', () => Dialoge.texAnsehen(dok));
     k('knopf-hilfe', () => Dialoge.hilfe());
     k('knopf-sichern', () => sichere(false));
     k('knopf-oeffnen', oeffne);
-    k('knopf-export', exportiere);
+    k('knopf-export', zeigeExportMenue);
     k('knopf-bauen', () => { clearTimeout(bauTimer); baue(); });
 
     k('knopf-thema', () => {
@@ -312,6 +426,12 @@ const App = (() => {
     document.addEventListener('keydown', (ev) => {
       const strg = ev.ctrlKey || ev.metaKey;
       if (strg && ev.key.toLowerCase() === 's') { ev.preventDefault(); sichere(false); }
+      /* Die Browsersuche fände nur, was gerade im DOM steht -- unsere
+         durchsucht das Modell, samt Tabellen und Beschriftungen. */
+      if (strg && ev.key.toLowerCase() === 'f') { ev.preventDefault(); Suche.oeffne(false); }
+      if (strg && ev.key.toLowerCase() === 'h') { ev.preventDefault(); Suche.oeffne(true); }
+      if (ev.key === 'Escape' && Suche.offen() &&
+          !document.querySelector('.schleier')) { Suche.schliesse(); }
       if (strg && ev.key === 'Enter') { ev.preventDefault(); clearTimeout(bauTimer); baue(); }
       /* Der Browser hat für jedes Textfeld einen eigenen Rückgängig-Stapel,
          der von Baustein zu Baustein springt und Strukturänderungen nicht
@@ -365,6 +485,7 @@ const App = (() => {
         const e = await Begleiter.ladeProjekt(liste[0].name);
         dok = Modell.normalisiere(e.dokument);
         projektname = liste[0].name;
+        letzterStand = e.stand;
         Verlauf.leeren();
         melde('Fortgesetzt: ' + (dok.meta.titel || liste[0].name));
       } else {

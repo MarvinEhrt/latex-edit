@@ -29,6 +29,7 @@ HIER = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HIER)
 
 from begleiter import ablage as ablage_modul          # noqa: E402
+from begleiter import nachschlagen as nachschlagen_modul  # noqa: E402
 from begleiter import uebersetzen as uebersetzen_modul  # noqa: E402
 from begleiter import zotero as zotero_modul          # noqa: E402
 
@@ -115,7 +116,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
             if weg == "/projekt":
                 name = teile.get("name", [""])[0]
-                return _json_antwort(self, {"dokument": ABLAGE.lade(name)})
+                return _json_antwort(self, {"dokument": ABLAGE.lade(name),
+                                            "stand": ABLAGE.stand(name)})
+
+            if weg == "/sicherungen":
+                name = teile.get("name", [""])[0]
+                return _json_antwort(self, {"sicherungen": ABLAGE.sicherungen(name)})
+
+            if weg == "/sicherung":
+                name = teile.get("name", [""])[0]
+                datei = teile.get("datei", [""])[0]
+                return _json_antwort(self, {"dokument":
+                                            ABLAGE.lade_sicherung(name, datei)})
 
             if weg == "/einstellungen":
                 e = dict(ABLAGE.einstellungen())
@@ -123,6 +135,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     e["zoteroSchluessel"] = "•" * 12
                     e["zoteroGesetzt"] = True
                 return _json_antwort(self, e)
+
+            if weg == "/nachschlagen":
+                return _json_antwort(self, nachschlagen_modul.per_doi(
+                    teile.get("doi", [""])[0]))
 
             if weg == "/zotero/pruefen":
                 e = ABLAGE.einstellungen()
@@ -149,6 +165,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except VERBINDUNG_WEG:
             return                                # Browser ist weg
         except zotero_modul.ZoteroFehler as f:
+            return _json_antwort(self, {"fehler": str(f)}, 400)
+        except nachschlagen_modul.NachschlagFehler as f:
             return _json_antwort(self, {"fehler": str(f)}, 400)
         except FileNotFoundError:
             return _json_antwort(self, {"fehler": "nicht gefunden"}, 404)
@@ -179,8 +197,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self._uebersetze(daten)
 
             if weg == "/projekt":
-                return _json_antwort(self, ABLAGE.sichere(
-                    daten.get("name") or "Arbeit", daten.get("dokument") or {}))
+                try:
+                    return _json_antwort(self, ABLAGE.sichere(
+                        daten.get("name") or "Arbeit",
+                        daten.get("dokument") or {},
+                        daten.get("stand")))
+                except ablage_modul.VeralteterStand as f:
+                    return _json_antwort(self, {"fehler": str(f)}, 409)
 
             if weg == "/projekt/loeschen":
                 ABLAGE.loesche(daten.get("name", ""))

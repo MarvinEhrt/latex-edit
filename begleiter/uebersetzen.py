@@ -93,7 +93,9 @@ _ERKLAERUNGEN: list[tuple[str, str, str]] = [
      "geschweiften Klammern in der markierten Formel."),
     (r"Misplaced alignment tab|Extra alignment tab",
      "Eine Tabellenzeile hat zu viele Spalten.",
-     "Öffne die Tabelle über das Zahnrad und prüfe die Spaltenzahl."),
+     "Öffne die Tabelle über das Zahnrad und prüfe die Spaltenzahl. "
+     "Falls keine Tabelle in der Nähe ist: ein &-Zeichen im Text oder "
+     "in einer Quelle."),
     (r"Dimension too large|Arithmetic overflow",
      "Ein Maß ist zu groß.",
      "Meist eine zu breit gesetzte Abbildung. Stelle die Breite kleiner."),

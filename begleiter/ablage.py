@@ -35,6 +35,17 @@ _BILDNAME = re.compile(r"^[0-9a-f]{20}\.[a-z0-9]{1,5}$")
 
 _ENDUNGEN = {"jpeg": "jpg", "svg+xml": "svg"}
 
+# Rest eines Sicherungsnamens hinter "<Projekt>-": Zeitmarke plus
+# optionalem Buchstaben, falls zwei Sicherungen in dieselbe Sekunde
+# fallen. Streng, damit nichts anderes als Sicherung durchgeht.
+_SICHERUNGSREST = re.compile(r"^(\d{8})-(\d{6})([a-z]?)\.json$")
+
+
+class VeralteterStand(Exception):
+    """Auf der Platte liegt ein neuerer Stand als der, den das
+    sichernde Fenster zuletzt gesehen hat -- ein zweites Fenster war
+    schneller. Wer fängt, antwortet mit 409."""
+
 
 def sauberer_name(roh: str, ersatz: str = "Arbeit") -> str:
     """Dateiname, der unter Windows und Linux gleichermaßen zulässig ist."""
@@ -195,16 +206,40 @@ class Ablage:
         with open(self._pfad(name), encoding="utf-8") as f:
             return self._hole_bilder_zurueck(name, json.load(f))
 
-    def sichere(self, name: str, dokument: dict) -> dict:
+    def stand(self, name: str) -> float:
+        """Änderungsstand (mtime) der Projektdatei -- der Schlüssel des
+        Zwei-Fenster-Schutzes: die Oberfläche merkt ihn sich beim Laden
+        und schickt ihn beim Sichern zurück."""
+        try:
+            return os.path.getmtime(self._pfad(name))
+        except OSError:
+            return 0.0
+
+    def sichere(self, name: str, dokument: dict,
+                stand: float | None = None) -> dict:
         pfad = self._pfad(name)
+        # Zwei-Fenster-Schutz: kennt das Fenster nur einen älteren Stand
+        # als den auf der Platte, hat ein anderes Fenster dazwischen
+        # gesichert -- wortlos überschreiben wäre Datenverlust.
+        if (stand is not None and os.path.exists(pfad)
+                and os.path.getmtime(pfad) - float(stand) > 0.0005):
+            raise VeralteterStand(
+                "Diese Arbeit wurde in einem anderen Fenster geändert.")
         # Vor dem Überschreiben eine Sicherung behalten -- eine Abschlussarbeit
         # ist nichts, was man wegen eines Absturzes verlieren möchte.
         if os.path.exists(pfad):
             sicherung = os.path.join(self.wurzel, ".sicherungen")
             os.makedirs(sicherung, exist_ok=True)
-            marke = time.strftime("%Y%m%d-%H%M%S")
-            shutil.copy2(pfad, os.path.join(
-                sicherung, f"{sauberer_name(name)}-{marke}.json"))
+            basis = os.path.join(
+                sicherung, f"{sauberer_name(name)}-{time.strftime('%Y%m%d-%H%M%S')}")
+            # Zwei Sicherungen in derselben Sekunde: Buchstaben anhängen,
+            # sonst überschriebe die zweite die erste und die Aufräumlogik
+            # zählte falsch.
+            ziel, buchstabe = basis + ".json", "b"
+            while os.path.exists(ziel):
+                ziel = basis + buchstabe + ".json"
+                buchstabe = chr(ord(buchstabe) + 1)
+            shutil.copy2(pfad, ziel)
             self._raeume_sicherungen(sicherung, sauberer_name(name))
         schlank = self._lagere_bilder_aus(name, dokument)
         vorlaeufig = pfad + ".neu"
@@ -212,11 +247,72 @@ class Ablage:
             json.dump(schlank, f, ensure_ascii=False, indent=1)
         os.replace(vorlaeufig, pfad)     # atomar, kein halb geschriebenes Projekt
         self._raeume_bilder(name)
-        return {"name": sauberer_name(name), "bytes": os.path.getsize(pfad)}
+        return {"name": sauberer_name(name), "bytes": os.path.getsize(pfad),
+                "stand": os.path.getmtime(pfad)}
+
+    # ------------------------------------------------------- Sicherungen
+
+    def sicherungen(self, name: str) -> list[dict]:
+        """Frühere Fassungen eines Projekts, neueste zuerst."""
+        rein = sauberer_name(name)
+        ordner = os.path.join(self.wurzel, ".sicherungen")
+        raus = []
+        if not os.path.isdir(ordner):
+            return raus
+        # Neueste zuerst -- nach mtime, aus demselben Grund wie beim
+        # Aufräumen: die Namensordnung kann täuschen.
+        def mzeit(d):
+            try:
+                return os.path.getmtime(os.path.join(ordner, d))
+            except OSError:
+                return 0
+        for datei in sorted(os.listdir(ordner), key=mzeit, reverse=True):
+            if not datei.startswith(rein + "-"):
+                continue
+            t = _SICHERUNGSREST.match(datei[len(rein) + 1:])
+            if not t:
+                continue
+            voll = os.path.join(ordner, datei)
+            try:
+                with open(voll, encoding="utf-8") as f:
+                    titel = (json.load(f).get("meta") or {}).get("titel") or rein
+            except Exception:
+                titel = rein + "  (nicht lesbar)"
+            try:
+                zeit = time.mktime(time.strptime(
+                    t.group(1) + t.group(2), "%Y%m%d%H%M%S"))
+            except ValueError:
+                zeit = 0
+            raus.append({"datei": datei, "zeit": zeit, "titel": titel,
+                         "bytes": os.path.getsize(voll)})
+        return raus
+
+    def lade_sicherung(self, name: str, datei: str) -> dict:
+        """Eine frühere Fassung laden. `datei` wird strikt gegen das
+        eigene Listing geprüft -- kein Pfadausbruch, so wie _BILDNAME
+        es für Bilddateien hält."""
+        if datei not in {e["datei"] for e in self.sicherungen(name)}:
+            raise FileNotFoundError(datei)
+        voll = os.path.join(self.wurzel, ".sicherungen", datei)
+        with open(voll, encoding="utf-8") as f:
+            # Die Sicherung nennt "bild:"-Dateien im Ordner des Projekts;
+            # _raeume_bilder löscht nur, was KEINE Sicherung mehr nennt --
+            # das Zurückholen funktioniert also unverändert.
+            return self._hole_bilder_zurueck(name, json.load(f))
 
     @staticmethod
     def _raeume_sicherungen(ordner: str, praefix: str, behalten: int = 20):
-        eigene = sorted(d for d in os.listdir(ordner) if d.startswith(praefix))
+        # Nach mtime, nicht nach Namen: copy2 übernimmt die Änderungszeit
+        # der Projektdatei, und die wächst streng -- Dateinamen dagegen
+        # können nach dem Aufräumen wieder frei werden und die
+        # Namensordnung durcheinanderbringen.
+        def mzeit(d):
+            try:
+                return os.path.getmtime(os.path.join(ordner, d))
+            except OSError:
+                return 0
+        eigene = sorted((d for d in os.listdir(ordner) if d.startswith(praefix)),
+                        key=mzeit)
         for alt in eigene[:-behalten]:
             try:
                 os.remove(os.path.join(ordner, alt))

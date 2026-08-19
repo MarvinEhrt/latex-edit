@@ -1,0 +1,26 @@
+{
+  "status": "ok",
+  "message-type": "work",
+  "message-version": "1.0.0",
+  "message": {
+    "indexed": { "date-parts": [[2026, 3, 2]] },
+    "publisher": "Hogrefe Publishing Group",
+    "issue": "2",
+    "DOI": "10.1026/0932-4089/a000291",
+    "type": "journal-article",
+    "created": { "date-parts": [[2019, 4, 12]] },
+    "page": "67-81",
+    "title": ["Interessenkongruenz und Arbeitszufriedenheit: Eine Längsschnittstudie"],
+    "volume": "63",
+    "author": [
+      { "given": "Anna", "family": "Schmidt", "sequence": "first", "affiliation": [] },
+      { "given": "Hans-Jürgen", "family": "Müller", "sequence": "additional", "affiliation": [] },
+      { "name": "Institut für Testforschung", "sequence": "additional", "affiliation": [] }
+    ],
+    "container-title": ["Zeitschrift für Arbeits- und Organisationspsychologie A&O"],
+    "language": "de",
+    "issued": { "date-parts": [[2019, 4]] },
+    "URL": "http://dx.doi.org/10.1026/0932-4089/a000291",
+    "ISSN": ["0932-4089", "2190-6270"]
+  }
+}

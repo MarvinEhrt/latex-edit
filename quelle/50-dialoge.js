@@ -16,7 +16,10 @@ const Dialoge = (() => {
 
   /* ---------------- Grundgerüst ---------------- */
 
-  function basis({ titel, unter, breit }) {
+  /* `beimSchliessen` wird bei JEDEM Schließweg gerufen (Knopf, Escape,
+     Klick auf den Schleier) -- damit ein wartendes Promise auch dann
+     auflöst, wenn der Dialog weggeklickt wird. */
+  function basis({ titel, unter, breit, beimSchliessen }) {
     const schleier = el('div', 'schleier');
     const dialog = el('div', 'dialog' + (breit ? ' dialog-breit' : ''));
     const kopf = el('div', 'dialog-kopf',
@@ -27,7 +30,11 @@ const Dialoge = (() => {
     schleier.append(dialog);
     document.body.append(schleier);
 
-    const schliessen = () => { schleier.remove(); document.removeEventListener('keydown', taste); };
+    const schliessen = () => {
+      schleier.remove();
+      document.removeEventListener('keydown', taste);
+      if (beimSchliessen) beimSchliessen();
+    };
     const taste = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); schliessen(); } };
     document.addEventListener('keydown', taste);
     schleier.addEventListener('mousedown', (ev) => { if (ev.target === schleier) schliessen(); });
@@ -72,8 +79,11 @@ const Dialoge = (() => {
     return { wrap, eingabe };
   }
 
-  /* Allgemeines Formular. felder = [{n,l,typ,h,pflicht,kurz,breit,optionen}] */
-  function formular({ titel, unter, felder, werte = {}, breit, gruppen, okText = 'Übernehmen' }) {
+  /* Allgemeines Formular. felder = [{n,l,typ,h,pflicht,kurz,breit,optionen}]
+     `entfernenText` blendet links einen roten Knopf ein, der mit
+     {entfernen:true} auflöst -- für das Bearbeiten bestehender Chips. */
+  function formular({ titel, unter, felder, werte = {}, breit, gruppen,
+                      okText = 'Übernehmen', entfernenText }) {
     return new Promise((fertig) => {
       const { koerper, fuss, schliessen } = basis({ titel, unter, breit });
       const eingaben = {};
@@ -113,6 +123,9 @@ const Dialoge = (() => {
         schliessen(); fertig(aus);
       };
 
+      if (entfernenText)
+        fuss.append(knopf(entfernenText, 'knopf-gefahr links',
+          () => { schliessen(); fertig({ entfernen: true }); }));
       fuss.append(
         knopf('Abbrechen', 'knopf-still', () => { schliessen(); fertig(null); }),
         knopf(okText, 'knopf-haupt', uebernehmen)
@@ -381,12 +394,52 @@ const Dialoge = (() => {
 
   async function quelleBearbeiten(dok, vorhanden) {
     let typ = vorhanden ? vorhanden.typ : null;
+    let nachgeschlagen = null;         // {typ, felder} aus dem DOI-Nachschlagen
     if (!typ) {
-      typ = await new Promise((fertig) => {
+      const wahl = await new Promise((fertig) => {
         const { koerper, fuss, schliessen } = basis({
           titel: 'Was für eine Quelle ist das?',
           unter: 'Danach werden nur die Felder abgefragt, die dieser Quellenart entsprechen.'
         });
+
+        /* Wer den DOI hat, muss gar nichts wählen: Crossref kennt Typ
+           und Felder. Die Maske danach bleibt editierbar -- gespeichert
+           wird erst mit dem Speichern-Knopf. */
+        if (Begleiter.verbunden) {
+          const doiBox = el('div', 'gruppe');
+          doiBox.innerHTML = '<h3>Abkürzung: per DOI nachschlagen</h3>';
+          const zeile = el('div');
+          zeile.style.cssText = 'display:flex;gap:6px;align-items:center';
+          const eingabe = el('input');
+          eingabe.placeholder = 'DOI einfügen, z. B. 10.1026/0932-4089/a000291';
+          eingabe.style.cssText = 'flex:1;padding:6px 9px;border:1px solid var(--linie-stark);' +
+            'border-radius:var(--r);background:var(--flaeche-2);color:var(--tinte);font-size:13px';
+          const meldung = el('div');
+          const nachschlagen = async () => {
+            suchKnopf.disabled = true;
+            suchKnopf.textContent = 'Frage Crossref …';
+            meldung.innerHTML = '';
+            try {
+              const e = await Begleiter.nachschlagen(eingabe.value);
+              schliessen();
+              fertig(e);                          // {typ, felder}
+            } catch (f) {
+              meldung.innerHTML = '';
+              meldung.append(el('div', 'notiz warnung',
+                '<span>&#9888;</span><span>' + escHtml(f.message) + '</span>'));
+              suchKnopf.disabled = false;
+              suchKnopf.textContent = 'Nachschlagen';
+            }
+          };
+          const suchKnopf = knopf('Nachschlagen', 'knopf-klein', nachschlagen);
+          eingabe.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') { ev.preventDefault(); nachschlagen(); }
+          });
+          zeile.append(eingabe, suchKnopf);
+          doiBox.append(zeile, meldung);
+          koerper.append(doiBox);
+        }
+
         const liste = el('div', 'quellenliste');
         for (const [schluessel, t] of Object.entries(Modell.QUELLTYPEN)) {
           const zeile = el('div', 'quelle-zeile');
@@ -397,7 +450,9 @@ const Dialoge = (() => {
         koerper.append(liste);
         fuss.append(knopf('Abbrechen', 'knopf-still', () => { schliessen(); fertig(null); }));
       });
-      if (!typ) return null;
+      if (!wahl) return null;
+      if (typeof wahl === 'object') { typ = wahl.typ; nachgeschlagen = wahl; }
+      else typ = wahl;
     }
 
     const def = Modell.QUELLTYPEN[typ];
@@ -406,7 +461,7 @@ const Dialoge = (() => {
       unter: 'Namen als <b>Nachname, Vorname</b>, mehrere durch <b>Semikolon</b> getrennt. ' +
              'Institutionen ohne Komma schreiben.',
       breit: true,
-      werte: vorhanden ? vorhanden.felder : {},
+      werte: vorhanden ? vorhanden.felder : (nachgeschlagen ? nachgeschlagen.felder : {}),
       felder: def.felder,
       okText: 'Speichern'
     });
@@ -479,10 +534,22 @@ const Dialoge = (() => {
       };
       zeichne();
 
+      /* Zotero und Datei-Import sind Wege, an Quellen zu kommen -- sie
+         gehören hierher, nicht in die Kopfzeile. */
+      const importiere = async (weg) => {
+        const b = await weg(dok);
+        if (b) App.melde(`${b.neu} übernommen, ${b.uebersprungen} schon vorhanden.`);
+        if (b && b.neu) App.aenderung();
+        zeichne();
+      };
       fuss.append(
         knopf('Neue Quelle', 'knopf-haupt', async () => {
           if (await quelleBearbeiten(dok)) { App.aenderung(); zeichne(); }
         }),
+        knopf('Aus Zotero …', 'knopf-still',
+          () => importiere(DialogeExtra.zoteroImport)),
+        knopf('Aus Datei …', 'knopf-still',
+          () => importiere(DialogeExtra.dateiImport)),
         knopf('Fertig', 'knopf-still', () => { schliessen(); fertig(true); })
       );
       fuss.firstChild.classList.add('links');
@@ -492,7 +559,10 @@ const Dialoge = (() => {
   /* ---------------- Zitat einfügen ---------------- */
 
   /* `einzeln` schaltet die Mehrfachauswahl ab -- ein Blockzitat gehört
-     immer zu genau einer Quelle und braucht deren Seitenzahl.        */
+     immer zu genau einer Quelle und braucht deren Seitenzahl.
+     `vorbelegung` ({zitat, form, seite}) füllt den Dialog beim
+     Bearbeiten eines bestehenden Chips; `bearbeiten` blendet den
+     Entfernen-Knopf ein.                                             */
   function zitatEinfuegen(dok, optionen = {}) {
     return new Promise(async (fertig) => {
       if (!dok.quellen.length) {
@@ -501,18 +571,21 @@ const Dialoge = (() => {
         App.aenderung();
       }
       const einzeln = !!optionen.einzeln;
+      const vor = optionen.vorbelegung || {};
       const { koerper, fuss, schliessen } = basis({
-        titel: 'Quelle zitieren',
+        titel: optionen.bearbeiten ? 'Zitat bearbeiten' : 'Quelle zitieren',
         unter: einzeln ? 'Klick auf eine Quelle, dann die Form wählen.'
                        : 'Klick auf eine Quelle. Mehrere gehen auch — sie landen in einer Klammer.',
         breit: true
       });
-      const gewaehlt = [];                       // Quellen in Anklickreihenfolge
+      /* Quellen in Anklickreihenfolge; beim Bearbeiten mit dem
+         aktuellen Stand vorbelegt (der key kann mehrere enthalten). */
+      const gewaehlt = Zitate.quellenZu(vor.zitat, dok.quellen).filter(Boolean);
 
       const liste = el('div', 'quellenliste');
       const geordnet = Zitate.sortiert(dok.quellen);
       for (const q of geordnet) {
-        const zeile = el('div', 'quelle-zeile');
+        const zeile = el('div', 'quelle-zeile' + (gewaehlt.includes(q) ? ' gewaehlt' : ''));
         zeile.innerHTML = `<div class="quelle-txt">${
           Zitate.verzeichniseintrag(q, dok.einstellungen.sprache)}</div>`;
         zeile.addEventListener('click', () => {
@@ -537,9 +610,11 @@ const Dialoge = (() => {
       const { wrap: formWrap, eingabe: formEingabe } = feldElement(
         { n: 'form', l: 'Form', typ: 'auswahl', kurz: true,
           optionen: [{ w: 'klammer', l: 'In Klammern — (Holland, 1997)' },
-                     { w: 'narrativ', l: 'Im Satz — Holland (1997) zeigte …' }] }, 'klammer');
+                     { w: 'narrativ', l: 'Im Satz — Holland (1997) zeigte …' }] },
+        vor.form || 'klammer');
       const { wrap: seiteWrap, eingabe: seiteEingabe } = feldElement(
-        { n: 'seite', l: 'Seitenzahl', kurz: true, h: 'Bei wörtlichen Zitaten Pflicht. Sonst leer lassen.' }, '');
+        { n: 'seite', l: 'Seitenzahl', kurz: true, h: 'Bei wörtlichen Zitaten Pflicht. Sonst leer lassen.' },
+        vor.seite || '');
       einstellung.append(formWrap, seiteWrap);
       const seiteHilfe = seiteWrap.querySelector('.hilfe');
 
@@ -567,13 +642,16 @@ const Dialoge = (() => {
       zeigeVorschau();
 
       koerper.append(liste, einstellung, vorschau);
+      if (optionen.bearbeiten)
+        fuss.append(knopf('Entfernen', 'knopf-gefahr links',
+          () => { schliessen(); fertig({ entfernen: true }); }));
       fuss.append(
-        knopf('Neue Quelle', 'knopf-still links', async () => {
+        knopf('Neue Quelle', 'knopf-still' + (optionen.bearbeiten ? '' : ' links'), async () => {
           const neu = await quelleBearbeiten(dok);
           if (neu) { App.aenderung(); schliessen(); fertig(await zitatEinfuegen(dok, optionen)); }
         }),
         knopf('Abbrechen', 'knopf-still', () => { schliessen(); fertig(null); }),
-        knopf('Einfügen', 'knopf-haupt', () => {
+        knopf(optionen.bearbeiten ? 'Übernehmen' : 'Einfügen', 'knopf-haupt', () => {
           if (!gewaehlt.length) { App.melde('Bitte zuerst eine Quelle auswählen.', true); return; }
           schliessen();
           fertig({ zitat: gewaehlt.map(q => q.key).join(','),
@@ -586,13 +664,15 @@ const Dialoge = (() => {
 
   /* ---------------- Querverweis ---------------- */
 
-  function verweisEinfuegen(dok) {
+  /* `vorbelegung` (Block-Id) markiert beim Bearbeiten das aktuelle Ziel;
+     `bearbeiten` blendet den Entfernen-Knopf ein.                    */
+  function verweisEinfuegen(dok, optionen = {}) {
     return new Promise((fertig) => {
       const nummern = Modell.nummeriere(dok);
       const ziele = dok.bloecke.filter(
         b => ['tabelle', 'abbildung', 'diagramm', 'ueberschrift'].includes(b.typ));
       const { koerper, fuss, schliessen } = basis({
-        titel: 'Querverweis einfügen',
+        titel: optionen.bearbeiten ? 'Querverweis bearbeiten' : 'Querverweis einfügen',
         unter: 'Der Verweis passt sich automatisch an, wenn du Blöcke verschiebst oder ergänzt.'
       });
       if (!ziele.length) {
@@ -605,7 +685,8 @@ const Dialoge = (() => {
                              : (b.typ === 'abbildung' || b.typ === 'diagramm')
                                ? `Abbildung ${n}` : `Abschnitt ${n}`;
           const titel = b.typ === 'ueberschrift' ? b.text : b.titel;
-          const zeile = el('div', 'quelle-zeile');
+          const zeile = el('div', 'quelle-zeile' +
+            (optionen.vorbelegung === b.id ? ' gewaehlt' : ''));
           zeile.innerHTML = `<span class="quelle-art">${escHtml(b.typ)}</span>
             <div class="quelle-txt"><b style="font-family:var(--schrift-ui);font-size:13px">${escHtml(beschriftung)}</b>
             <div class="quelle-warn">${escHtml(titel || 'ohne Titel')}</div></div>`;
@@ -614,34 +695,48 @@ const Dialoge = (() => {
         }
         koerper.append(liste);
       }
+      if (optionen.bearbeiten)
+        fuss.append(knopf('Entfernen', 'knopf-gefahr links',
+          () => { schliessen(); fertig({ entfernen: true }); }));
       fuss.append(knopf('Abbrechen', 'knopf-still', () => { schliessen(); fertig(null); }));
     });
   }
 
   /* ---------------- Kennwert ---------------- */
 
-  async function kennwert() {
+  /* Beim Bearbeiten eines Chips (optionen.bearbeiten) kommen die Werte
+     vorbelegt an, und {entfernen:true} bedeutet: Chip löschen, Text
+     stehen lassen. */
+  async function kennwert(vorhanden, optionen = {}) {
     const aus = await formular({
-      titel: 'Statistischen Kennwert einfügen',
+      titel: optionen.bearbeiten ? 'Kennwert bearbeiten' : 'Statistischen Kennwert einfügen',
       unter: 'Das Symbol wird kursiv gesetzt, die Zahl nicht — genau so verlangt es APA 7.',
       felder: [
         { n: 'kennwert', l: 'Symbol', pflicht: true, kurz: true,
           h: 'z. B. M, SD, N, r, p, t, F, SW, α' },
         { n: 'wert', l: 'Wert', pflicht: true, kurz: true, h: 'z. B. 104, .84, 12.3' }
       ],
-      okText: 'Einfügen'
+      werte: vorhanden || {},
+      okText: optionen.bearbeiten ? 'Übernehmen' : 'Einfügen',
+      entfernenText: optionen.bearbeiten ? 'Entfernen' : undefined
     });
-    return aus ? { kennwert: aus.kennwert, wert: aus.wert } : null;
+    if (!aus) return null;
+    if (aus.entfernen) return aus;
+    return { kennwert: aus.kennwert, wert: aus.wert };
   }
 
-  async function fussnote(vorhanden) {
+  async function fussnote(vorhanden, optionen = {}) {
     const aus = await formular({
       titel: 'Fußnote',
       unter: 'APA 7 rät zu sparsamem Gebrauch — an deutschen Hochschulen sind sie trotzdem verbreitet.',
       felder: [{ n: 'text', l: 'Text der Fußnote', typ: 'text-mehrzeilig', pflicht: true, breit: true }],
-      werte: { text: vorhanden || '' }, okText: 'Einfügen'
+      werte: { text: vorhanden || '' },
+      okText: optionen.bearbeiten ? 'Übernehmen' : 'Einfügen',
+      entfernenText: optionen.bearbeiten ? 'Entfernen' : undefined
     });
-    return aus ? aus.text : null;
+    if (!aus) return null;
+    if (aus.entfernen) return aus;
+    return aus.text;
   }
 
   /* ---------------- Tabelle ---------------- */
@@ -838,9 +933,13 @@ const Dialoge = (() => {
         <b>Strg</b>+<b>S</b> sichern<br>
         <b>Strg</b>+<b>Z</b> rückgängig &nbsp;·&nbsp; <b>Strg</b>+<b>Y</b> wiederholen —
         auch gelöschte Bausteine kommen damit zurück<br>
+        <b>Strg</b>+<b>F</b> suchen &nbsp;·&nbsp; <b>Strg</b>+<b>H</b> suchen und ersetzen —
+        auch in Tabellen und Beschriftungen<br>
         <b>Enter</b> im Absatz: neuer Absatz darunter &nbsp;·&nbsp;
         <b>Rücktaste</b> im leeren Absatz: löscht ihn<br>
-        <b>Strg</b>+<b>Umschalt</b>+<b>Z</b> Quelle zitieren
+        <b>Strg</b>+<b>Umschalt</b>+<b>Z</b> Quelle zitieren &nbsp;·&nbsp;
+        <b>@</b>+Anfangsbuchstaben tippen zitiert direkt beim Schreiben<br>
+        Text auswählen zeigt eine kleine Leiste: fett, kursiv, zitieren — ohne Umweg
         </div>
       </div>
       <div class="gruppe"><h3>Was farbig hinterlegt ist</h3>
@@ -851,7 +950,9 @@ const Dialoge = (() => {
         <span class="chip chip-verweis">Tabelle 3</span> &nbsp;ein Querverweis — die Nummer stimmt immer,
         auch nach dem Umsortieren<br>
         <span class="chip chip-kennwert"><i>SW</i>&nbsp;=&nbsp;104</span> &nbsp;ein statistischer Kennwert —
-        Symbol kursiv, wie APA 7 es will
+        Symbol kursiv, wie APA 7 es will<br>
+        <b>Klick auf einen Chip</b> öffnet ihn zum Bearbeiten — dort lässt er
+        sich auch entfernen, der Text drumherum bleibt stehen
         </div>
       </div>
       <div class="gruppe"><h3>Das PDF</h3>
@@ -865,18 +966,25 @@ const Dialoge = (() => {
         bleibt dabei stehen</b>, du verlierst also nie die Ansicht.</p>
       </div>
       <div class="gruppe"><h3>Quellen von anderswo</h3>
+        <p style="margin:0 0 8px;font-size:13.5px;line-height:1.6">
+        <b>Per DOI:</b> beim Anlegen einer neuen Quelle den DOI einfügen und
+        <b>Nachschlagen</b> klicken — die Felder füllen sich von selbst.</p>
         <p style="margin:0;font-size:13.5px;line-height:1.6">
-        <b>Zotero</b> holt deine Bibliothek direkt — einmal einen Schlüssel unter
+        <b>Zotero</b> holt deine Bibliothek direkt — im Quellen-Dialog auf
+        <b>Aus Zotero …</b> klicken, einmal einen Schlüssel unter
         zotero.org/settings/keys anlegen, fertig.<br>
-        <b>Citavi</b> (und EndNote, Mendeley, JabRef) über <b>Import</b>: dort
-        exportieren als BibTeX oder RIS, Datei hier hineinziehen.</p>
+        <b>Citavi</b> (und EndNote, Mendeley, JabRef) über <b>Aus Datei …</b>
+        im Quellen-Dialog: dort exportieren als BibTeX oder RIS, Datei hier
+        hineinziehen.</p>
       </div>
       <div class="gruppe"><h3>Wo liegt meine Arbeit?</h3>
         <p style="margin:0;font-size:13.5px;line-height:1.6">
         Als eine Datei im Ordner <b>Arbeiten</b> neben dem Programm. Beim
-        Überschreiben wird die Vorfassung nach <b>.sicherungen</b> kopiert.
-        <b>ZIP</b> packt zusätzlich das reine LaTeX-Projekt — zum Weitergeben
-        oder für Overleaf.</p>
+        Überschreiben wird die Vorfassung nach <b>.sicherungen</b> kopiert —
+        unter <b>Öffnen &rarr; Frühere Fassungen</b> lässt sich jede davon
+        mit einem Klick wiederherstellen.
+        <b>Export</b> zeigt das erzeugte LaTeX oder packt das Projekt als
+        ZIP — zum Weitergeben oder für Overleaf.</p>
       </div>`;
     fuss.append(knopf('Alles klar', 'knopf-haupt', schliessen));
   }

@@ -69,6 +69,139 @@ const Editor = (() => {
     return Richtext.zuHtml([run], ctx());
   }
 
+  /* ---------------- @-Zitieren ----------------
+     Tippt man @ am Wortanfang und mindestens zwei weitere Zeichen,
+     erscheint unter der Schreibmarke eine Liste passender Quellen.
+     Enter/Tab fügt ein Klammerzitat ein und entfernt den getippten
+     @…-Text; Seitenzahl und Form ändert man danach per Chip-Klick.  */
+
+  let atListe = null;      // DOM der Vorschlagsliste (null = zu)
+  let atTreffer = [];      // [{q}] oder [{neu:true}]
+  let atIndex = 0;
+  let atFeld = null;
+
+  function atSchliesse() {
+    if (atListe) atListe.remove();
+    atListe = null; atTreffer = []; atFeld = null;
+  }
+
+  /* Steht vor der Schreibmarke ein @wort? Nur innerhalb EINES
+     Textknotens gesucht -- ein Treffer über eine Chip-Grenze hinweg
+     wäre ohnehin nicht löschbar. Das Nullbreiten-Leerzeichen (steht
+     hinter jedem Chip) zählt als Wortanfang. */
+  function atVorCursor(feld) {
+    const auswahl = window.getSelection();
+    if (!auswahl || !auswahl.rangeCount || !auswahl.isCollapsed) return null;
+    const marke = auswahl.getRangeAt(0);
+    const knoten = marke.startContainer;
+    if (knoten.nodeType !== 3 || !feld.contains(knoten)) return null;
+    const text = knoten.nodeValue.slice(0, marke.startOffset);
+    const m = text.match(/(^|[\s\u200B])@(\S{2,})$/);
+    return m ? { wort: m[2], knoten, offset: marke.startOffset } : null;
+  }
+
+  function atPassende(wort) {
+    const w = wort.toLowerCase();
+    return Zitate.sortiert(dok().quellen).filter(q => {
+      const f = q.felder || {};
+      return (Zitate.nachnamen(q).join(' ') + ' ' + (f.jahr || '') + ' ' +
+              (f.titel || '') + ' ' + q.key).toLowerCase().includes(w);
+    }).slice(0, 8);
+  }
+
+  function atZeichne() {
+    atListe.innerHTML = '';
+    atTreffer.forEach((t, i) => {
+      const zeile = el('div', 'at-eintrag' + (i === atIndex ? ' aktiv' : ''));
+      if (t.neu) {
+        zeile.innerHTML = '<b>Neue Quelle anlegen …</b>';
+      } else {
+        const f = t.q.felder || {};
+        zeile.innerHTML = `<b>${escHtml(Zitate.autorKurz(t.q, 'klammer'))} (${escHtml(Zitate.jahr(t.q))})</b>
+          <div class="at-titel">${escHtml(f.titel || t.q.key)}</div>`;
+      }
+      zeile.addEventListener('mousedown', (ev) => ev.preventDefault());
+      zeile.addEventListener('click', () => { atIndex = i; atUebernehmen(); });
+      atListe.append(zeile);
+    });
+  }
+
+  function atZeige(feld, fund) {
+    atFeld = feld;
+    const passend = atPassende(fund.wort);
+    atTreffer = passend.length ? passend.map(q => ({ q })) : [{ neu: true }];
+    if (atIndex >= atTreffer.length) atIndex = 0;
+    if (!atListe) {
+      atListe = el('div');
+      atListe.id = 'atliste';
+      document.body.append(atListe);
+    }
+    atZeichne();
+    const r = window.getSelection().getRangeAt(0).getBoundingClientRect();
+    const eigen = atListe.getBoundingClientRect();
+    atListe.style.left = Math.max(8, Math.min(
+      window.innerWidth - eigen.width - 8, r.left)) + 'px';
+    atListe.style.top = Math.min(window.innerHeight - eigen.height - 8, r.bottom + 4) + 'px';
+  }
+
+  function atPruefe(feld, ev) {
+    if (ev && ev.isComposing) return;            // IME nicht unterbrechen
+    const fund = atVorCursor(feld);
+    if (!fund) { atSchliesse(); return; }
+    atIndex = 0;
+    atZeige(feld, fund);
+  }
+
+  /* Markiert den getippten @…-Text, damit fuegeAmCursorEin ihn ersetzt. */
+  function atMarkiereGetipptes() {
+    const fund = atVorCursor(atFeld);
+    if (!fund) return false;
+    const bereich = document.createRange();
+    bereich.setStart(fund.knoten, fund.offset - fund.wort.length - 1);
+    bereich.setEnd(fund.knoten, fund.offset);
+    const auswahl = window.getSelection();
+    auswahl.removeAllRanges();
+    auswahl.addRange(bereich);
+    return true;
+  }
+
+  function atUebernehmen() {
+    const feld = atFeld;
+    const treffer = atTreffer[atIndex];
+    if (!feld || !treffer) { atSchliesse(); return; }
+
+    if (treffer.neu) {
+      /* Position merken, Dialog öffnen; danach ersetzt die neue Quelle
+         den getippten Text -- wenn das Feld noch da ist. */
+      const fund = atVorCursor(feld);
+      atSchliesse();
+      (async () => {
+        const q = await Dialoge.quelleBearbeiten(dok());
+        if (!q) return;
+        App.aenderung();
+        if (!fund || !document.contains(fund.knoten)) return;
+        feld.focus();
+        const bereich = document.createRange();
+        bereich.setStart(fund.knoten, fund.offset - fund.wort.length - 1);
+        bereich.setEnd(fund.knoten, fund.offset);
+        const auswahl = window.getSelection();
+        auswahl.removeAllRanges();
+        auswahl.addRange(bereich);
+        Verlauf.merke(dok(), 'tx:' + feld.dataset.blockId + ':' + (feld.dataset.feld || ''));
+        fuegeAmCursorEin(chipHtml({ zitat: q.key, form: 'klammer' }));
+      })();
+      return;
+    }
+
+    if (!atMarkiereGetipptes()) { atSchliesse(); return; }
+    const key = treffer.q.key;
+    atSchliesse();
+    /* Derselbe ort wie beim Tippen: Tippfluss und Einfügen werden so
+       zu EINEM Verlaufsschritt. */
+    Verlauf.merke(dok(), 'tx:' + feld.dataset.blockId + ':' + (feld.dataset.feld || ''));
+    fuegeAmCursorEin(chipHtml({ zitat: key, form: 'klammer' }));
+  }
+
   /* ---------------- Textfeld ---------------- */
 
   function textfeld(block, feldname, klassen, leertext, runsAus) {
@@ -94,17 +227,21 @@ const Editor = (() => {
       Verlauf.merke(dok(), 'tx:' + block.id + ':' + feldname);
     });
 
-    feld.addEventListener('input', () => {
+    feld.addEventListener('input', (ev) => {
       if (feldname === 'text') block.text = feld.textContent;
       else if (runsAus) runsAus(Richtext.vonHtml(feld));
       else block.runs = Richtext.vonHtml(feld);
       App.aenderung({ nurVorschau: true });
-      if (feldname === 'text') zeichneGliederung();
+      /* Die Gliederung zeigt auch die Kapitel-Wortzahlen -- sie hängt
+         also an jedem Tastendruck, nicht nur an Überschriften. */
+      zeichneGliederung();
+      if (feldname !== 'text') atPruefe(feld, ev);
     });
 
     feld.addEventListener('focus', () => waehle(block.id, false));
 
     feld.addEventListener('blur', () => {
+      if (atFeld === feld) atSchliesse();
       /* Platzhaltertext verschwindet, sobald wirklich getippt wurde */
       const runs = feldname === 'text' ? null : (block.runs || []);
       if (runs && runs.length === 1 && runs[0].platzhalter) return;
@@ -152,12 +289,34 @@ const Editor = (() => {
   function tasten(ev, block, feld, feldname) {
     const strg = ev.ctrlKey || ev.metaKey;
 
+    /* Offene @-Vorschlagsliste: Pfeile wählen, Enter/Tab übernimmt,
+       Escape schließt -- alles andere läuft normal weiter. */
+    if (atListe && atFeld === feld) {
+      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+        ev.preventDefault();
+        atIndex = (atIndex + (ev.key === 'ArrowDown' ? 1 : atTreffer.length - 1))
+                  % atTreffer.length;
+        atZeichne();
+        return;
+      }
+      if (ev.key === 'Enter' || ev.key === 'Tab') {
+        ev.preventDefault();
+        atUebernehmen();
+        return;
+      }
+      if (ev.key === 'Escape') { ev.preventDefault(); atSchliesse(); return; }
+    }
+
     if (strg && ev.shiftKey && ev.key.toLowerCase() === 'z') {
       ev.preventDefault(); App.zitatEinfuegen(); return;
     }
-    if (strg && ev.key.toLowerCase() === 'b') { ev.preventDefault(); document.execCommand('bold');
+    /* execCommand feuert kein beforeinput -- ohne eigenen Schnappschuss
+       ließe sich das Fett nicht zurücknehmen. */
+    if (strg && ev.key.toLowerCase() === 'b') { ev.preventDefault(); Verlauf.merke(dok());
+      document.execCommand('bold');
       feld.dispatchEvent(new Event('input', { bubbles: true })); return; }
-    if (strg && ev.key.toLowerCase() === 'i') { ev.preventDefault(); document.execCommand('italic');
+    if (strg && ev.key.toLowerCase() === 'i') { ev.preventDefault(); Verlauf.merke(dok());
+      document.execCommand('italic');
       feld.dispatchEvent(new Event('input', { bubbles: true })); return; }
 
     /* Enter teilt an der Schreibmarke -- wie in Word. Steht sie am Ende,
@@ -323,6 +482,54 @@ const Editor = (() => {
         break;
       }
     });
+  }
+
+  /* ---------------- Chips bearbeiten ----------------
+     Ein Klick auf einen eingefügten Chip öffnet den passenden Dialog,
+     vorbelegt mit dem aktuellen Stand. Ersetzt (oder entfernt) wird
+     direkt im DOM; das anschließende input-Ereignis lässt
+     Richtext.vonHtml das Modell neu einlesen -- derselbe Weg, den
+     fuegeAmCursorEin schon geht.                                     */
+
+  function verdrahteChipKlick() {
+    const flaeche = document.getElementById('blockliste');
+    if (!flaeche || flaeche.dataset.chipsBereit) return;
+    flaeche.dataset.chipsBereit = '1';
+    flaeche.addEventListener('click', (ev) => {
+      const chip = ev.target.closest('.tx .chip');
+      if (!chip) return;
+      ev.preventDefault();
+      bearbeiteChip(chip);
+    });
+  }
+
+  async function bearbeiteChip(chip) {
+    const feld = chip.closest('.tx');
+    const d = chip.dataset;
+    let neu = null;
+    if (d.typ === 'zitat') {
+      neu = await Dialoge.zitatEinfuegen(dok(), { bearbeiten: true,
+        vorbelegung: { zitat: d.key, form: d.form, seite: d.seite } });
+    } else if (d.typ === 'fussnote') {
+      neu = await Dialoge.fussnote(d.text, { bearbeiten: true });
+      if (typeof neu === 'string') neu = { fussnote: neu };
+    } else if (d.typ === 'kennwert') {
+      neu = await Dialoge.kennwert({ kennwert: d.sym, wert: d.wert }, { bearbeiten: true });
+    } else if (d.typ === 'verweis') {
+      neu = await Dialoge.verweisEinfuegen(dok(), { bearbeiten: true, vorbelegung: d.ziel });
+    }
+    if (!neu || !feld || !document.contains(chip)) return;
+
+    Verlauf.merke(dok());
+    if (neu.entfernen) {
+      chip.remove();
+    } else {
+      const huelle = document.createElement('template');
+      huelle.innerHTML = chipHtml(neu);
+      chip.replaceWith(huelle.content);
+    }
+    feld.dispatchEvent(new Event('input', { bubbles: true }));
+    App.aenderung();
   }
 
   /* ---------------- Teilen und Zusammenführen ----------------
@@ -828,6 +1035,7 @@ const Editor = (() => {
       behaelter.append(kasten);
     }
     verdrahteDateiablage();
+    verdrahteChipKlick();
   }
 
   /* ---------------- Gliederung ---------------- */
@@ -844,6 +1052,7 @@ const Editor = (() => {
         'Noch keine Überschriften. Füge unten im Text eine Überschrift ein — sie erscheint dann hier.'));
       return;
     }
+    const zaehlung = Modell.woerter(dok());
     let anhangGesetzt = false;
     for (const b of dok().bloecke) {
       if (b.typ !== 'ueberschrift') continue;
@@ -856,7 +1065,9 @@ const Editor = (() => {
       const eintrag = el('div', `gl-eintrag gl-e${e}` + (b.id === gewaehlteId ? ' aktiv' : ''));
       eintrag.dataset.id = b.id;
       eintrag.innerHTML = `<span class="gl-nr">${escHtml(info.nummer || '')}</span>
-                           <span class="${e === 1 ? 'gl-e1' : ''}">${escHtml(b.text || '(ohne Titel)')}</span>`;
+                           <span class="${e === 1 ? 'gl-e1' : ''}">${escHtml(b.text || '(ohne Titel)')}</span>` +
+        (e === 1 ? `<span class="gl-woerter" title="Wörter in diesem Kapitel">${
+                     zaehlung.jeKapitel.get(b.id) || 0}</span>` : '');
       eintrag.addEventListener('click', () => { waehle(b.id); fokussiere(b.id); });
       behaelter.append(eintrag);
     }

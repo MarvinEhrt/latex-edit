@@ -57,6 +57,11 @@ const DialogeExtra = (() => {
              </div>`;
           const werkzeug = el('div');
           werkzeug.style.cssText = 'display:flex;gap:4px;flex:none';
+          werkzeug.append(knopf('Frühere Fassungen …', 'knopf-klein', async (ev) => {
+            ev.stopPropagation();
+            const fassung = await fassungenDialog(p);
+            if (fassung) { schliessen(); fertig({ fassung }); }
+          }));
           werkzeug.append(knopf('Löschen', 'knopf-klein', async (ev) => {
             ev.stopPropagation();
             const ok = await Dialoge.bestaetigen({
@@ -79,6 +84,62 @@ const DialogeExtra = (() => {
       zeichne();
 
       fuss.append(knopf('Abbrechen', 'knopf-still', () => { schliessen(); fertig(null); }));
+    });
+  }
+
+  /* ================================================ Frühere Fassungen */
+
+  /* Kurzform "18.08., 14:32" -- fürs Wiederfinden reicht das, das Jahr
+     steht ohnehin selten zur Debatte. */
+  const zeitKurz = (sekunden) => {
+    const d = new Date(sekunden * 1000);
+    return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) +
+           ', ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  function fassungenDialog(p) {
+    return new Promise(async (fertig) => {
+      let gewaehlt = null;
+      const { koerper, fuss, schliessen } = Dialoge.basis({
+        titel: 'Frühere Fassungen — ' + p.titel,
+        unter: 'Vor dem Wiederherstellen wird der aktuelle Stand normal ' +
+               'gesichert — es geht nichts verloren.',
+        breit: true,
+        beimSchliessen: () => fertig(gewaehlt)
+      });
+      koerper.innerHTML = '<div class="leerhinweis">Sicherungen werden geladen …</div>';
+      fuss.append(knopf('Abbrechen', 'knopf-still', schliessen));
+
+      let liste = [];
+      try {
+        liste = (await Begleiter.sicherungen(p.name)).sicherungen;
+      } catch (f) {
+        koerper.innerHTML = '';
+        koerper.append(el('div', 'notiz warnung',
+          '<span>&#9888;</span><span>' + escHtml(f.message) + '</span>'));
+        return;
+      }
+      koerper.innerHTML = '';
+      if (!liste.length) {
+        koerper.append(el('div', 'leerhinweis',
+          'Noch keine Sicherungen. Sie entstehen von selbst bei jedem Überschreiben.'));
+        return;
+      }
+      const box = el('div', 'quellenliste');
+      for (const s of liste) {
+        const zeile = el('div', 'quelle-zeile');
+        zeile.innerHTML =
+          `<div class="quelle-txt">
+             <b style="font-family:var(--schrift-ui);font-size:13.5px">${escHtml(zeitKurz(s.zeit))}</b>
+             <div class="quelle-warn">${escHtml(s.titel)} · ${(s.bytes / 1024).toFixed(0)} KB</div>
+           </div>`;
+        zeile.addEventListener('click', () => {
+          gewaehlt = { name: p.name, datei: s.datei, zeitText: zeitKurz(s.zeit) };
+          schliessen();
+        });
+        box.append(zeile);
+      }
+      koerper.append(box);
     });
   }
 

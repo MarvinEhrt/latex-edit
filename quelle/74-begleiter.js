@@ -18,7 +18,11 @@ const Begleiter = (() => {
   async function antwort(a) {
     let daten;
     try { daten = await a.json(); } catch { daten = {}; }
-    if (!a.ok) throw new Error(daten.fehler || `Fehler ${a.status}`);
+    if (!a.ok) {
+      const fehler = new Error(daten.fehler || `Fehler ${a.status}`);
+      fehler.status = a.status;         // 409 = anderes Fenster war schneller
+      throw fehler;
+    }
     return daten;
   }
 
@@ -61,10 +65,14 @@ const Begleiter = (() => {
     pdfAdresse,
     projekte:        () => hole('/projekte'),
     ladeProjekt:     (name) => hole('/projekt', { name }),
-    sichereProjekt:  (name, dokument) => sende('/projekt', { name, dokument }),
+    sichereProjekt:  (name, dokument, stand) =>
+                       sende('/projekt', { name, dokument, stand }),
     loescheProjekt:  (name) => sende('/projekt/loeschen', { name }),
+    sicherungen:     (name) => hole('/sicherungen', { name }),
+    ladeSicherung:   (name, datei) => hole('/sicherung', { name, datei }),
     einstellungen:   () => hole('/einstellungen'),
     setzeEinstellungen: (werte) => sende('/einstellungen', werte),
+    nachschlagen:    (doi) => hole('/nachschlagen', { doi }),
     zoteroPruefen:   (schluessel) => hole('/zotero/pruefen', { schluessel }),
     zoteroSammlungen: (art) => hole('/zotero/sammlungen', { art: art || 'users' }),
     zoteroBibliothek: (art, sammlung) =>

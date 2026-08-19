@@ -273,10 +273,11 @@ const Richtext = (() => {
         if (r.i) h = `<em>${h}</em>`;
         return h;
       }
-      const chip = (typ, beschriftung, daten) => {
+      const chip = (typ, beschriftung, daten, titel) => {
         const attrs = Object.entries(daten)
           .map(([k, v]) => ` data-${k}="${escHtml(v)}"`).join('');
         return `<span class="chip chip-${typ}"${bearbeitbar ? ' contenteditable="false"' : ''}` +
+               `${titel ? ` title="${escHtml(titel)}"` : ''}` +
                ` data-typ="${typ}"${attrs}>${beschriftung}</span>`;
       };
       if (r.zitat) {
@@ -293,7 +294,12 @@ const Richtext = (() => {
         return chip('verweis', escHtml(txt), { ziel: r.verweis });
       }
       if (r.fussnote != null) {
-        return chip('fussnote', 'Fußnote', { text: r.fussnote });
+        /* Der Text steckt sonst unsichtbar im data-Attribut -- die
+           ersten Worte zeigen, welche Fußnote das ist. */
+        const voll = String(r.fussnote).trim();
+        const kurz = voll.length > 24 ? voll.slice(0, 24).trimEnd() + '…' : voll;
+        return chip('fussnote', '¹ ' + (escHtml(kurz) || 'Fußnote'),
+                    { text: r.fussnote }, voll);
       }
       return '';
     }).join('') || '';

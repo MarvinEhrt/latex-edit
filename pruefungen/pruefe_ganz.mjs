@@ -109,7 +109,7 @@ await schritt('Tippen löst einen neuen Bau aus', async () => {
     { timeout: 90000 });
 });
 
-await schritt('Quellen aus einer BibTeX-Datei übernehmen', async () => {
+await schritt('Quellen aus einer BibTeX-Datei übernehmen (über den Quellen-Dialog)', async () => {
   const bib = join(tmpdir(), 'pruefung-quellen.bib');
   writeFileSync(bib, `@book{holland1997,
   author={Holland, John L.}, title={Making vocational choices},
@@ -118,18 +118,23 @@ await schritt('Quellen aus einer BibTeX-Datei übernehmen', async () => {
   author={M{\\"u}ller, Hans and Wei{\\ss}, Anna},
   title={Arbeitszufriedenheit}, journal={Zeitschrift},
   volume={45}, pages={113--127}, year={2020}}`);
-  await seite.click('#knopf-import');
+  /* Der Import wohnt jetzt im Quellen-Dialog, nicht mehr in der Kopfzeile. */
+  await seite.click('#knopf-quellen');
   await seite.waitForSelector('.dialog', { timeout: 5000 });
+  await seite.locator('.dialog-fuss .knopf', { hasText: 'Aus Datei' }).click();
+  await seite.waitForTimeout(400);
   await seite.setInputFiles('.dialog input[type=file]', bib);
   await seite.waitForTimeout(600);
   if (!(await seite.locator('.dialog .quelle-zeile').count()))
     throw new Error('keine Vorschau der Quellen');
-  await seite.locator('.dialog-fuss .knopf-haupt').click();
+  await seite.locator('.dialog-fuss .knopf-haupt', { hasText: 'Übernehmen' }).click();
   await seite.waitForTimeout(400);
   const anzahl = await seite.evaluate(() => App.dok.quellen.length);
   if (anzahl !== 2) throw new Error('erwartet 2 Quellen, sind ' + anzahl);
   const umlaut = await seite.evaluate(() => App.dok.quellen[1].felder.autoren);
   if (!umlaut.includes('Müller')) throw new Error('Umlaut nicht entschlüsselt: ' + umlaut);
+  await seite.locator('.dialog-fuss .knopf', { hasText: 'Fertig' }).click();
+  await seite.waitForTimeout(300);
 });
 
 await schritt('kaputte Formel wird auf den Baustein zurückgeführt', async () => {
@@ -270,6 +275,38 @@ await schritt('fehlende Quelle wird als Hinweis am Baustein gemeldet', async () 
   if (!/zu prüfen/.test(zustand)) throw new Error('Bauzustand verschweigt es: ' + zustand);
 });
 
+await schritt('ein Fehler verdrängt die PRÜFEN-Hinweise des abgebrochenen Laufs', async () => {
+  /* Die fehlende Quelle steht noch im Dokument. Kommt jetzt ein echter
+     Fehler dazu, darf die PRÜFEN-Karte nicht mehr erscheinen -- der Lauf
+     kam nie bis zur Auflösung der Zitate, die Warnung wäre Lärm. */
+  await seite.evaluate(() => {
+    const b = Modell.neuerBlock('formel', { tex: 'r = \\kaputtnochmal{a}' });
+    App.dok.bloecke.push(b);
+    window.__nochmalKaputt = b.id;
+    Editor.zeichne(); App.baue();
+  });
+  await seite.waitForFunction(
+    () => document.querySelector('#bauzustand')?.className.includes('fehler'),
+    { timeout: 90000 });
+  await seite.waitForTimeout(400);
+  const text = await seite.locator('.fehlerliste').innerText();
+  if (/PRÜFEN/.test(text)) throw new Error('PRÜFEN-Karte trotz Fehler: ' + text.slice(0, 160));
+  if (!/LATEX/.test(text)) throw new Error('der echte Fehler fehlt: ' + text.slice(0, 160));
+});
+
+await schritt('nach Reparatur erscheint der PRÜFEN-Hinweis wieder', async () => {
+  await seite.evaluate(() => {
+    App.dok.bloecke = App.dok.bloecke.filter(b => b.id !== window.__nochmalKaputt);
+    Editor.zeichne(); App.baue();
+  });
+  await seite.waitForFunction(
+    () => /\b(ok|hinweis)\b/.test(document.querySelector('#bauzustand')?.className || ''),
+    { timeout: 90000 });
+  await seite.waitForTimeout(400);
+  const text = await seite.locator('.fehlerliste').innerText();
+  if (!/PRÜFEN/.test(text)) throw new Error('PRÜFEN-Karte kam nicht zurück: ' + text.slice(0, 160));
+});
+
 await schritt('Zusammenfassung und Abkürzungen lassen sich eintragen', async () => {
   await seite.evaluate(() => {
     App.dok.bloecke = App.dok.bloecke.filter(b => b.id !== window.__ohneQuelle);
@@ -301,8 +338,13 @@ await schritt('Zusammenfassung und Abkürzungen lassen sich eintragen', async ()
   if (/AIST-R/.test(tex)) throw new Error('fremde Abkürzung immer noch im Dokument');
 });
 
-await schritt('erzeugtes LaTeX enthält, was es soll', async () => {
-  await seite.click('#knopf-tex');
+await schritt('erzeugtes LaTeX enthält, was es soll (über das Export-Menü)', async () => {
+  await seite.click('#knopf-export');
+  await seite.waitForSelector('#exportmenue', { timeout: 5000 });
+  const eintraege = await seite.locator('#exportmenue button').allInnerTexts();
+  if (!eintraege.some(t => t.includes('ZIP')))
+    throw new Error('ZIP fehlt im Export-Menü: ' + eintraege.join(' | '));
+  await seite.locator('#exportmenue button', { hasText: 'LaTeX ansehen' }).click();
   await seite.waitForSelector('.texblick', { timeout: 5000 });
   const tex = await seite.locator('.texblick').innerText();
   for (const muss of ['\\documentclass', '\\literaturverzeichnis', '\\deckblatt'])

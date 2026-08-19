@@ -161,7 +161,9 @@ liegt in `einstellungen.json` neben dem Programm, nicht im Browser. Die
 Benutzernummer liest der Schreibtisch selbst aus dem Schlüssel.
 
 **Citavi** — dort exportieren (*Datei → Exportieren → BibTeX* oder *RIS*) und
-die Datei über **Import** hineinziehen. Citavi hat keine offene
+die Datei im Quellen-Dialog über **Aus Datei …** hineinziehen (Zotero direkt:
+**Aus Zotero …**, eine Quelle einzeln: DOI einfügen und **Nachschlagen**).
+Citavi hat keine offene
 Programmierschnittstelle; der Umweg über die Exportdatei ist der einzige, den
 es gibt. Derselbe Importer liest auch EndNote, Mendeley, JabRef und
 Zotero-Exporte (BibTeX, RIS, CSL-JSON).
@@ -182,9 +184,10 @@ das schnell Hunderte Megabytes. Über die Prüfsumme teilen sich alle
 Sicherungen dieselbe Bilddatei. Wer eine Arbeit weitergibt, nimmt den
 Bilderordner mit — oder gleich das ZIP.
 
-**ZIP** packt das reine LaTeX-Projekt (`arbeit.tex`, `literatur.bib`,
-Stildatei, Bilder, Bauskript) **und** die Arbeit als JSON in einem Stück
-— zum Weitergeben oder für Overleaf.
+**Export → ZIP herunterladen** packt das reine LaTeX-Projekt (`arbeit.tex`,
+`literatur.bib`, Stildatei, Bilder, Bauskript) **und** die Arbeit als JSON in
+einem Stück — zum Weitergeben oder für Overleaf. **Export → LaTeX ansehen**
+zeigt vorher, was erzeugt wird.
 
 ---
 
