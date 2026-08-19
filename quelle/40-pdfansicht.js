@@ -105,11 +105,21 @@ const PdfAnsicht = (() => {
     const alle = [];
     for (const v of vorab || [])
       alle.push({ id: v.id, meldung: v.meldung, rat: '', vorab: true });
+    /* "LaTeX hat abgebrochen" trägt keine eigene Information -- der
+       Grund steht in der Karte davor. Deshalb keine eigene Karte,
+       sondern eine graue Unterzeile der ersten Fehlerkarte. */
+    let abbruch = false;
     for (const f of fehler || []) {
+      if (/^LaTeX hat abgebrochen/.test(f.meldung || '') &&
+          (fehler || []).length > 1) { abbruch = true; continue; }
       const treffer = f.zeile && (zeilenkarte || []).find(
         e => e.von <= f.zeile && f.zeile <= e.bis);
       alle.push({ id: treffer ? treffer.id : null, meldung: f.meldung,
                   rat: f.rat, roh: f.roh, art: 'fehler' });
+    }
+    if (abbruch) {
+      const erste = alle.find(f => f.art === 'fehler');
+      if (erste) erste.abbruch = true;
     }
     for (const w of warnungen || []) {
       alle.push({ id: dok ? bausteinZuSchluessel(w, dok) : null,
@@ -132,6 +142,7 @@ const PdfAnsicht = (() => {
           <span>${escHtml(f.meldung)}</span>
         </div>
         ${f.rat ? `<div class="fehler-rat">${escHtml(f.rat)}</div>` : ''}
+        ${f.abbruch ? '<div class="fehler-rat">LaTeX hat deswegen abgebrochen.</div>' : ''}
         ${f.id ? '<div class="fehler-rat">Klicken, um zur Stelle zu springen.</div>'
                : (f.roh ? `<details class="fehler-roh"><summary>Originalmeldung</summary>
                            <pre>${escHtml(f.roh)}</pre></details>` : '')}

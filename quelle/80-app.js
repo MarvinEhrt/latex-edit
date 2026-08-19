@@ -123,7 +123,10 @@ const App = (() => {
 
       if (ergebnis.status === 'abgebrochen') return;
 
-      const warnungen = ergebnis.warnungen || [];
+      /* Warnungen aus einem gescheiterten Lauf sind Lärm über dem echten
+         Fehler -- und inhaltlich falsch, weil der Lauf nie bis zur
+         Auflösung der Zitate kam. Also nur bei Erfolg zeigen. */
+      const warnungen = ergebnis.status === 'ok' ? (ergebnis.warnungen || []) : [];
       PdfAnsicht.zeigeFehler(ergebnis.fehler, letzteZeilenkarte, vorab, warnungen, dok);
 
       if (ergebnis.status === 'ok') {

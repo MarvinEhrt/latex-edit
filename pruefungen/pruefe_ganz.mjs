@@ -270,6 +270,38 @@ await schritt('fehlende Quelle wird als Hinweis am Baustein gemeldet', async () 
   if (!/zu prüfen/.test(zustand)) throw new Error('Bauzustand verschweigt es: ' + zustand);
 });
 
+await schritt('ein Fehler verdrängt die PRÜFEN-Hinweise des abgebrochenen Laufs', async () => {
+  /* Die fehlende Quelle steht noch im Dokument. Kommt jetzt ein echter
+     Fehler dazu, darf die PRÜFEN-Karte nicht mehr erscheinen -- der Lauf
+     kam nie bis zur Auflösung der Zitate, die Warnung wäre Lärm. */
+  await seite.evaluate(() => {
+    const b = Modell.neuerBlock('formel', { tex: 'r = \\kaputtnochmal{a}' });
+    App.dok.bloecke.push(b);
+    window.__nochmalKaputt = b.id;
+    Editor.zeichne(); App.baue();
+  });
+  await seite.waitForFunction(
+    () => document.querySelector('#bauzustand')?.className.includes('fehler'),
+    { timeout: 90000 });
+  await seite.waitForTimeout(400);
+  const text = await seite.locator('.fehlerliste').innerText();
+  if (/PRÜFEN/.test(text)) throw new Error('PRÜFEN-Karte trotz Fehler: ' + text.slice(0, 160));
+  if (!/LATEX/.test(text)) throw new Error('der echte Fehler fehlt: ' + text.slice(0, 160));
+});
+
+await schritt('nach Reparatur erscheint der PRÜFEN-Hinweis wieder', async () => {
+  await seite.evaluate(() => {
+    App.dok.bloecke = App.dok.bloecke.filter(b => b.id !== window.__nochmalKaputt);
+    Editor.zeichne(); App.baue();
+  });
+  await seite.waitForFunction(
+    () => /\b(ok|hinweis)\b/.test(document.querySelector('#bauzustand')?.className || ''),
+    { timeout: 90000 });
+  await seite.waitForTimeout(400);
+  const text = await seite.locator('.fehlerliste').innerText();
+  if (!/PRÜFEN/.test(text)) throw new Error('PRÜFEN-Karte kam nicht zurück: ' + text.slice(0, 160));
+});
+
 await schritt('Zusammenfassung und Abkürzungen lassen sich eintragen', async () => {
   await seite.evaluate(() => {
     App.dok.bloecke = App.dok.bloecke.filter(b => b.id !== window.__ohneQuelle);
