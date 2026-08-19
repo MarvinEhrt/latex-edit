@@ -80,7 +80,20 @@ const App = (() => {
     clearTimeout(sicherTimer);
     sicherTimer = setTimeout(() => sichere(true), 4000);
     if (!optionen.nurBau) aktualisiereKopf();
+    aktualisiereWortzahl();
     PdfAnsicht.zustand('wartet', 'Änderung erkannt …');
+  }
+
+  /* Steht dauerhaft im Panelkopf der Textspalte. Die Zählung läuft
+     über das ganze Dokument, ist aber billig genug für jeden
+     Tastendruck. */
+  function aktualisiereWortzahl() {
+    const marke = document.getElementById('wortzahl');
+    if (!marke) return;
+    const n = Modell.woerter(dok).gesamt;
+    marke.textContent = '· ' +
+      String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202F') +   // schmales Leerzeichen: 4 230
+      (n === 1 ? ' Wort' : ' Wörter');
   }
 
   /* ---------------- Rückgängig ----------------

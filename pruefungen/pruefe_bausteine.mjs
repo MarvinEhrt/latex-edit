@@ -448,6 +448,45 @@ await s.keyboard.press('Escape');
 await s.waitForTimeout(200);
 p('Escape schließt die Liste', await s.evaluate(()=>!document.getElementById('atliste')));
 
+// ---------------------------------------------- Wortzahl
+
+// X) bekanntes Dokument: Gesamtzahl exakt, Kapitelzahlen in der Gliederung
+await frisch(()=>{
+  App.dok.quellen=[{key:'holland1997',typ:'buch',felder:{autoren:'Holland, John L.',jahr:'1997',titel:'T',verlag:'P'}}];
+  App.dok.bloecke=[
+    Modell.neuerBlock('ueberschrift',{ebene:1,text:'Einleitung'}),                     // 1
+    Modell.neuerBlock('absatz',{runs:[{text:'Drei kurze Wörter '},                     // 3
+      {zitat:'holland1997',form:'klammer'},                                            // (Holland, 1997) = 2
+      {fussnote:'Eine Fußnote mit vier Wörtern.'}]}),                                  // 5
+    Modell.neuerBlock('ueberschrift',{ebene:1,text:'Methode'}),                        // 1
+    Modell.neuerBlock('liste',{punkte:[[{text:'Punkt eins'}],[{text:'Punkt zwei'}]]}), // 4
+    Modell.neuerBlock('tabelle',{titel:'Zählt nicht',kopf:['A'],zeilen:[['viele Wörter hier']],
+      spaltenAusrichtung:['l']}),
+    Modell.neuerBlock('formel',{tex:'a = b'})];
+  App.aenderung(); Editor.zeichne(); Editor.zeichneGliederung();});
+// Einleitung: 1 + 3 + 2 + 5 = 11; Methode: 1 + 4 = 5; gesamt 16
+const gezaehlt = await s.evaluate(()=>{ const w=Modell.woerter(App.dok);
+  return {gesamt:w.gesamt, je:[...w.jeKapitel.values()]}; });
+p('die Zählung stimmt exakt (Chips und Fußnote zählen, Tabelle und Formel nicht)',
+  gezaehlt.gesamt===16 && gezaehlt.je.join(',')==='11,5', JSON.stringify(gezaehlt));
+p('der Panelkopf zeigt die Gesamtzahl',
+  (await s.evaluate(()=>document.getElementById('wortzahl').textContent)).includes('16'),
+  await s.evaluate(()=>document.getElementById('wortzahl').textContent));
+p('die Kapitelzahlen stehen in der Gliederung',
+  (await s.evaluate(()=>[...document.querySelectorAll('.gl-woerter')].map(x=>x.textContent))).join(',')==='11,5',
+  JSON.stringify(await s.evaluate(()=>[...document.querySelectorAll('.gl-woerter')].map(x=>x.textContent))));
+
+// X2) drei Wörter tippen erhöht die Zahl um 3
+// (in die Überschrift, nicht in den Absatz — dessen Ende ist ein Chip,
+//  und ein Klick darauf würde den Bearbeiten-Dialog öffnen)
+await s.keyboard.press('Escape');
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('End');
+await s.keyboard.type(' eins zwei drei'); await s.waitForTimeout(400);
+p('drei getippte Wörter erhöhen die Zahl um 3',
+  (await s.evaluate(()=>document.getElementById('wortzahl').textContent)).includes('19'),
+  await s.evaluate(()=>document.getElementById('wortzahl').textContent));
+
 // ---------------------------------------------- Sprache der Arbeit
 
 await frisch(()=>{

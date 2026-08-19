@@ -442,6 +442,60 @@ const Modell = (() => {
     return karte;
   }
 
+  /* ---------------- Wortzahl ----------------
+     Was zählt: der Text der Bausteine absatz, blockzitat, liste und
+     ueberschrift über Richtext.zuText -- Chips zählen als ihr
+     angezeigter Text, Fußnotentext zählt mit. Was NICHT zählt:
+     Tabellen, Abbildungs-/Diagrammtitel und -anmerkungen, Formeln,
+     Deckblatt, Abstract. Das entspricht dem, was Prüfungsordnungen
+     unter "Fließtext" verstehen.                                     */
+
+  function woerter(dok) {
+    const nummern = nummeriere(dok);
+    const sprache = (dok.einstellungen || {}).sprache;
+    const w = Zitate.wort(sprache);
+    const ctx = {
+      quellen: dok.quellen,
+      sprache,
+      verweisText: (ziel) => {
+        const b = dok.bloecke.find(x => x.id === ziel);
+        if (!b) return w['gelöscht'];
+        const n = (nummern.get(ziel) || {}).nummer || '?';
+        return b.typ === 'tabelle' ? `${w.tabelle} ${n}`
+             : (b.typ === 'abbildung' || b.typ === 'diagramm') ? `${w.abbildung} ${n}`
+             : `${w.abschnitt} ${n}`;
+      }
+    };
+    const zaehle = (s) => (String(s || '').match(/\S+/g) || []).length;
+    const ausRuns = (runs) => zaehle(Richtext.zuText(runs, ctx)) +
+      (runs || []).reduce((n, r) => n + (r.fussnote != null ? zaehle(r.fussnote) : 0), 0);
+
+    let gesamt = 0;
+    const jeKapitel = new Map();       // Ebene-1-Überschrift -> Wörter des Kapitels
+    let kapitel = null;
+    for (const b of dok.bloecke) {
+      let n;
+      switch (b.typ) {
+        case 'ueberschrift':
+          if ((b.ebene || 1) === 1) { kapitel = b.id; jeKapitel.set(kapitel, 0); }
+          n = zaehle(b.text);
+          break;
+        case 'absatz':
+        case 'blockzitat':
+          n = ausRuns(b.runs);
+          break;
+        case 'liste':
+          n = (b.punkte || []).reduce((s, p) => s + ausRuns(p), 0);
+          break;
+        default:
+          continue;
+      }
+      gesamt += n;
+      if (kapitel != null) jeKapitel.set(kapitel, jeKapitel.get(kapitel) + n);
+    }
+    return { gesamt, jeKapitel };
+  }
+
   /* Welche Quellen werden tatsächlich zitiert?
      Nur die kommen ins Literaturverzeichnis (APA 7).                */
   function zitierteSchluessel(dok) {
@@ -463,7 +517,7 @@ const Modell = (() => {
     return menge;
   }
 
-  return { neu, normalisiere, neueId, neuerBlock, nummeriere, zitierteSchluessel,
+  return { neu, normalisiere, neueId, neuerBlock, nummeriere, woerter, zitierteSchluessel,
            ARBEITSTYPEN, QUELLTYPEN, BLOCKTYPEN, GERUESTE,
            STANDARD_EINSTELLUNGEN, STANDARD_META };
 })();

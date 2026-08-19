@@ -178,6 +178,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
   color: var(--tinte-3); flex: none; min-width: 2.4em;
 }
 .gl-e1 { font-weight: 600; color: var(--tinte); }
+.gl-woerter {
+  margin-left: auto; flex: none;
+  font-family: var(--schrift-ma); font-size: 10.5px;
+  font-variant-numeric: tabular-nums; color: var(--tinte-2);
+}
+.wortzahl { color: var(--tinte-2); font-weight: normal; text-transform: none; letter-spacing: 0; }
 .gl-e2 { padding-left: 26px; }
 .gl-e3 { padding-left: 42px; font-size: 12.5px; }
 .gl-trenner {

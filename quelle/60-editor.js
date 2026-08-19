@@ -232,7 +232,9 @@ const Editor = (() => {
       else if (runsAus) runsAus(Richtext.vonHtml(feld));
       else block.runs = Richtext.vonHtml(feld);
       App.aenderung({ nurVorschau: true });
-      if (feldname === 'text') zeichneGliederung();
+      /* Die Gliederung zeigt auch die Kapitel-Wortzahlen -- sie hängt
+         also an jedem Tastendruck, nicht nur an Überschriften. */
+      zeichneGliederung();
       if (feldname !== 'text') atPruefe(feld, ev);
     });
 
@@ -1050,6 +1052,7 @@ const Editor = (() => {
         'Noch keine Überschriften. Füge unten im Text eine Überschrift ein — sie erscheint dann hier.'));
       return;
     }
+    const zaehlung = Modell.woerter(dok());
     let anhangGesetzt = false;
     for (const b of dok().bloecke) {
       if (b.typ !== 'ueberschrift') continue;
@@ -1062,7 +1065,9 @@ const Editor = (() => {
       const eintrag = el('div', `gl-eintrag gl-e${e}` + (b.id === gewaehlteId ? ' aktiv' : ''));
       eintrag.dataset.id = b.id;
       eintrag.innerHTML = `<span class="gl-nr">${escHtml(info.nummer || '')}</span>
-                           <span class="${e === 1 ? 'gl-e1' : ''}">${escHtml(b.text || '(ohne Titel)')}</span>`;
+                           <span class="${e === 1 ? 'gl-e1' : ''}">${escHtml(b.text || '(ohne Titel)')}</span>` +
+        (e === 1 ? `<span class="gl-woerter" title="Wörter in diesem Kapitel">${
+                     zaehlung.jeKapitel.get(b.id) || 0}</span>` : '');
       eintrag.addEventListener('click', () => { waehle(b.id); fokussiere(b.id); });
       behaelter.append(eintrag);
     }
