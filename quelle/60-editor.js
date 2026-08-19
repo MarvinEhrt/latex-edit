@@ -431,7 +431,26 @@ const Editor = (() => {
     zeichne(); zeichneGliederung();
     waehle(block.id);
     App.melde(`Tabelle mit ${gitter.zeilen.length} Zeilen eingefügt — ` +
-              'Titel über das Zahnrad nachtragen.');
+              'Titel über das Zahnrad, ein Diagramm über „📊 Diagramm daraus“.');
+  }
+
+  /* Der kurze Weg von den Zahlen zum Bild: ein Diagramm, das auf die
+     Tabelle ZEIGT (kopiert wird nichts -- ändert sich die Tabelle,
+     ändert sich das Diagramm mit). Reine Zahlenspalten sind vorgewählt,
+     Art und Beschriftung klärt der Dialog. */
+  async function legeDiagrammAnAusTabelle(tabelle) {
+    const spalten = (tabelle.kopf || []).map((_, i) => i).filter(i => i !== 0);
+    const zahlen = spalten.filter(i =>
+      (tabelle.zeilen || []).every(z => Daten.istZahl(z[i])));
+    const block = Modell.neuerBlock('diagramm', {
+      quelle: 'tabelle', tabelleId: tabelle.id, xSpalte: 0,
+      wertSpalten: (zahlen.length ? zahlen : spalten).slice(0, 4)
+    });
+    if (!await Diagrammdialog.einrichten(block, dok())) return;
+    Verlauf.merke(dok());
+    dok().bloecke.splice(indexVon(tabelle.id) + 1, 0, block);
+    App.aenderung(); zeichne(); zeichneGliederung();
+    waehle(block.id);
   }
 
   /* Wo zwischen den Bausteinen zeigt der Mauszeiger gerade hin? */
@@ -643,6 +662,10 @@ const Editor = (() => {
         block.ordnung = block.ordnung === 'nummern' ? 'punkte' : 'nummern';
           App.aenderung(); zeichne();
         }));
+    }
+    if (block.typ === 'tabelle') {
+      leiste.append(w('📊', 'Diagramm aus dieser Tabelle', () =>
+        legeDiagrammAnAusTabelle(block)));
     }
     if (['tabelle', 'abbildung', 'formel', 'diagramm'].includes(block.typ)) {
       leiste.append(w('⚙', 'Einstellungen', async () => {
@@ -864,7 +887,11 @@ const Editor = (() => {
             block.zeilen.forEach(z => z.push(''));
             (block.spaltenAusrichtung || []).push('c');
             neuZeichnenTabelle();
-          }));
+          }),
+          knopf('📊 Diagramm daraus',
+            'Legt ein Diagramm an, das diese Tabelle darstellt — ' +
+            'ändert sich die Tabelle, ändert sich das Diagramm mit',
+            () => legeDiagrammAnAusTabelle(block)));
         karte.append(anbau);
         if (block.anmerkung)
           karte.append(el('div', 'karte-anm', `<i>Anmerkung.</i> ${Latex.textMitTokens(block.anmerkung, 'html')}`));
@@ -1079,6 +1106,9 @@ const Editor = (() => {
     const behaelter = document.getElementById('einfuegen-knoepfe');
     if (!behaelter) return;
     behaelter.innerHTML = '';
+    const wort = el('span', 'einfuegen-wort', 'Einfügen');
+    wort.title = 'Neue Bausteine erscheinen nach dem gerade gewählten';
+    behaelter.append(wort);
     const eintraege = [
       ['absatz', '¶ Absatz'], ['ueberschrift', 'H Überschrift'], ['liste', '• Liste'],
       ['tabelle', '▦ Tabelle'], ['abbildung', '🖼 Abbildung'],

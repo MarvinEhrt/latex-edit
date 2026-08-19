@@ -924,8 +924,17 @@ const Dialoge = (() => {
         schreibst du. Rechts siehst du, wie es aussehen wird.</p>
         <p style="margin:0;font-size:13.5px;line-height:1.6">
         Jeder Abschnitt ist ein <b>Baustein</b>. Fahr mit der Maus darüber: links erscheint
-        ein Griff zum Verschieben, oben rechts die Werkzeuge. Unter dem Text legst du mit
-        <b>+ Absatz</b>, <b>+ Tabelle</b> und so weiter neue Bausteine an.</p>
+        ein Griff zum Verschieben, oben rechts die Werkzeuge. Am unteren Rand der
+        Textspalte liegt immer die Leiste <b>Einfügen</b> — Absatz, Tabelle, Diagramm,
+        Formel und so weiter; Neues erscheint nach dem gerade gewählten Baustein.</p>
+      </div>
+      <div class="gruppe"><h3>Tabellen und Diagramme</h3>
+        <p style="margin:0;font-size:13.5px;line-height:1.6">
+        Zahlen aus <b>Excel, SPSS oder JASP</b> kopierst du einfach in den Text
+        (Strg+V) — daraus wird eine Tabelle. Unter jeder Tabelle sitzt
+        <b>📊 Diagramm daraus</b>: das Diagramm zeigt auf die Tabelle, ändert sich
+        die Tabelle, ändert sich das Diagramm mit. Ein <b>Bildschirmfoto</b> in der
+        Zwischenablage wird mit Strg+V direkt zur Abbildung.</p>
       </div>
       <div class="gruppe"><h3>Tastatur</h3>
         <div style="font-size:13.5px;line-height:1.9">

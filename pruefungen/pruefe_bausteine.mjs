@@ -543,6 +543,62 @@ await s.waitForTimeout(200);
 p('Escape schließt die Suchleiste',
   await s.evaluate(()=>document.getElementById('suchleiste').style.display==='none'));
 
+// ---------------------------------------------- Diagramm aus Tabelle
+
+// Z) „Diagramm daraus“ unter der Tabelle: Dialog vorbelegt, Diagramm zeigt auf die Tabelle
+await frisch(()=>{App.dok.bloecke=[Modell.neuerBlock('tabelle',
+  {titel:'Kennwerte',kopf:['Skala','M','SD'],
+   zeilen:[['Realistic','89,4','12,1'],['Investigative','97,2','11,8']],
+   spaltenAusrichtung:['l','c','c']})];Editor.zeichne();});
+await s.locator('.tabellenknoepfe .knopf', {hasText:'Diagramm daraus'}).click();
+await s.waitForSelector('.dialog', {timeout:5000});
+p('der Dialog steht auf „Aus einer Tabelle im Dokument“',
+  (await s.evaluate(()=>document.getElementById('f_quelle').value))==='tabelle',
+  await s.evaluate(()=>document.getElementById('f_quelle').value));
+p('die richtige Tabelle ist gewählt',
+  await s.evaluate(()=>document.getElementById('f_tabelleId').value===App.dok.bloecke[0].id));
+p('die Zahlenspalten M und SD sind vorgewählt',
+  (await s.evaluate(()=>[...document.querySelectorAll('.dialog .spaltenwahl input')]
+    .filter(k=>k.checked).length))===2,
+  JSON.stringify(await s.evaluate(()=>[...document.querySelectorAll('.dialog .spaltenwahl input')]
+    .map(k=>k.checked))));
+await s.locator('.dialog .knopf-haupt', {hasText:'Übernehmen'}).click();
+await s.waitForTimeout(500);
+const dia = await s.evaluate(()=>App.dok.bloecke.map(b=>({typ:b.typ,quelle:b.quelle,tabelleId:b.tabelleId})));
+p('das Diagramm steht direkt unter der Tabelle und zeigt auf sie',
+  dia.length===2 && dia[1].typ==='diagramm' && dia[1].quelle==='tabelle' &&
+  await s.evaluate(()=>App.dok.bloecke[1].tabelleId===App.dok.bloecke[0].id),
+  JSON.stringify(dia));
+p('die Karte nennt die Tabelle als Quelle',
+  (await s.locator('.diagrammkarte').innerText()).includes('aus einer Tabelle im Dokument'),
+  await s.locator('.diagrammkarte').innerText());
+await zurueck();
+p('Strg+Z nimmt das Diagramm zurück',
+  (await s.evaluate(()=>App.dok.bloecke.map(b=>b.typ))).join(',')==='tabelle',
+  JSON.stringify(await s.evaluate(()=>App.dok.bloecke.map(b=>b.typ))));
+
+// Z2) auch über die Werkzeugleiste der Tabelle erreichbar
+await s.locator('.block').first().hover();
+await s.locator('.blockleiste button[title="Diagramm aus dieser Tabelle"]').click();
+await s.waitForSelector('.dialog', {timeout:5000});
+await s.locator('.dialog .knopf-still', {hasText:'Abbrechen'}).click();
+await s.waitForTimeout(300);
+p('Abbrechen legt kein Diagramm an',
+  (await s.evaluate(()=>App.dok.bloecke.map(b=>b.typ))).join(',')==='tabelle');
+
+// ---------------------------------------------- Einfügeleiste immer in Reichweite
+
+await frisch(()=>{App.dok.bloecke=Array.from({length:40},(_,i)=>
+  Modell.neuerBlock('absatz',{runs:[{text:'Absatz '+i}]}));Editor.zeichne();});
+await s.evaluate(()=>{document.querySelector('.spalte-mitte .panelkoerper').scrollTop=0;});
+await s.waitForTimeout(300);
+p('die Einfügeleiste ist auch am Dokumentanfang sichtbar',
+  await s.evaluate(()=>{const r=document.querySelector('.einfuegen').getBoundingClientRect();
+    return r.top>=0 && r.bottom<=window.innerHeight;}),
+  JSON.stringify(await s.evaluate(()=>document.querySelector('.einfuegen').getBoundingClientRect())));
+p('die Leiste trägt das Wort „Einfügen“',
+  (await s.locator('.einfuegen-wort').innerText()).toLowerCase().includes('einfügen'));
+
 // ---------------------------------------------- Sprache der Arbeit
 
 await frisch(()=>{
