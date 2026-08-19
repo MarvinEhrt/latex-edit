@@ -97,6 +97,7 @@ des Dokuments:
 
 Die Zahlen tippt man ins Raster, fügt sie aus Excel oder SPSS ein (Strg+V),
 zieht eine CSV-Datei darauf — oder verweist auf **eine Tabelle im Dokument**.
+Der kürzeste Weg dahin: **„📊 Diagramm daraus"** direkt unter jeder Tabelle.
 Beim Verweis wird nichts kopiert: ändert sich die Tabelle, ändert sich das
 Diagramm mit.
 
