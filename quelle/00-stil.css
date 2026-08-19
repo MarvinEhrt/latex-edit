@@ -272,6 +272,38 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* In der Papiervorschau kein Chip-Aussehen -- da zählt, wie es gedruckt wird */
 .blatt .chip { box-shadow: none; }
 
+/* ---------------- Schwebende Auswahlleiste ---------------- */
+
+#auswahlleiste {
+  position: fixed; z-index: 60; display: none; align-items: center; gap: 2px;
+  padding: 3px; border-radius: var(--r);
+  border: 1px solid var(--linie-stark); background-color: var(--flaeche);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+}
+#auswahlleiste button {
+  border: none; background: transparent; color: var(--tinte);
+  min-width: 26px; padding: 3px 6px; border-radius: 3px;
+  font-size: 13px; cursor: pointer;
+}
+#auswahlleiste button:hover { background-color: var(--akzent-hell); }
+#auswahlleiste .trenner { width: 1px; align-self: stretch; background-color: var(--linie); margin: 0 2px; }
+
+/* ---------------- @-Zitieren: Vorschlagsliste ---------------- */
+
+#atliste {
+  position: fixed; z-index: 60; min-width: 240px; max-width: 380px;
+  border-radius: var(--r); overflow: hidden;
+  border: 1px solid var(--linie-stark); background-color: var(--flaeche);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+  font-family: var(--schrift-ui); font-size: 12.5px;
+}
+#atliste .at-eintrag { padding: 6px 10px; cursor: pointer; }
+#atliste .at-eintrag.aktiv { background-color: var(--akzent-hell); }
+#atliste .at-eintrag .at-titel {
+  color: var(--tinte-2); font-size: 11.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
 /* ---------------- Tabellen im Editor ---------------- */
 
 .tab-karte, .abb-karte, .formel-karte {

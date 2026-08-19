@@ -874,7 +874,9 @@ const Dialoge = (() => {
         auch gelöschte Bausteine kommen damit zurück<br>
         <b>Enter</b> im Absatz: neuer Absatz darunter &nbsp;·&nbsp;
         <b>Rücktaste</b> im leeren Absatz: löscht ihn<br>
-        <b>Strg</b>+<b>Umschalt</b>+<b>Z</b> Quelle zitieren
+        <b>Strg</b>+<b>Umschalt</b>+<b>Z</b> Quelle zitieren &nbsp;·&nbsp;
+        <b>@</b>+Anfangsbuchstaben tippen zitiert direkt beim Schreiben<br>
+        Text auswählen zeigt eine kleine Leiste: fett, kursiv, zitieren — ohne Umweg
         </div>
       </div>
       <div class="gruppe"><h3>Was farbig hinterlegt ist</h3>

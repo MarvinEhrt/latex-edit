@@ -395,6 +395,59 @@ const kr = await s.evaluate(()=>App.dok.bloecke[0].runs);
 p('Entfernen löscht den Kennwert-Run, der Text bleibt',
   !kr.some(r=>r.kennwert) && (await txt())[0]==='Wert  Ende', JSON.stringify(kr));
 
+// ---------------------------------------------- Auswahlleiste und @-Zitieren
+
+// V) Auswahl über zwei Wörter zeigt die schwebende Leiste, B macht fett
+await frisch(()=>{App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'Erstes zweites drittes'}]})];Editor.zeichne();});
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('Home');
+for(let i=0;i<13;i++) await s.keyboard.press('Shift+ArrowRight');   // "Erstes zweite"
+await s.waitForTimeout(400);
+p('bei Textauswahl erscheint die Leiste',
+  await s.evaluate(()=>{const l=document.getElementById('auswahlleiste');return !!l && l.style.display!=='none';}));
+await s.locator('#auswahlleiste button').first().click();
+await s.waitForTimeout(400);
+let br = await s.evaluate(()=>App.dok.bloecke[0].runs);
+p('B macht die Auswahl fett',
+  br.some(r=>r.b && (r.text||'').includes('Erstes')), JSON.stringify(br));
+await zurueck();
+br = await s.evaluate(()=>App.dok.bloecke[0].runs);
+p('Strg+Z macht das Fett rückgängig', !br.some(r=>r.b), JSON.stringify(br));
+await s.evaluate(()=>window.getSelection().removeAllRanges());
+await s.waitForTimeout(300);
+p('ohne Auswahl verschwindet die Leiste',
+  await s.evaluate(()=>document.getElementById('auswahlleiste').style.display==='none'));
+
+// W) @holl schlägt die Holland-Quelle vor, Enter fügt das Zitat ein
+await frisch(()=>{
+  App.dok.quellen=[{key:'holland1997',typ:'buch',felder:{autoren:'Holland, John L.',jahr:'1997',titel:'Making vocational choices',verlag:'PAR'}}];
+  App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'Belegt '}]})];
+  Editor.zeichne();});
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('End');
+await s.keyboard.type('@holl');
+await s.waitForTimeout(350);
+p('die @-Liste erscheint und nennt die Quelle',
+  await s.evaluate(()=>{const l=document.getElementById('atliste');return !!l && l.innerText.includes('Holland');}),
+  await s.evaluate(()=>document.getElementById('atliste')?.innerText || 'keine Liste'));
+await s.keyboard.press('Enter');
+await s.waitForTimeout(400);
+const ar = await s.evaluate(()=>App.dok.bloecke[0].runs);
+p('Enter fügt ein Klammerzitat ein',
+  ar.some(r=>r.zitat==='holland1997'&&r.form==='klammer'), JSON.stringify(ar));
+p('der getippte @holl-Text ist weg',
+  !JSON.stringify(ar).includes('@holl'), JSON.stringify(ar));
+
+// W2) kein Treffer -> einziger Eintrag „Neue Quelle anlegen …“
+await s.keyboard.type(' @xyz');
+await s.waitForTimeout(350);
+p('ohne Treffer steht dort „Neue Quelle anlegen“',
+  await s.evaluate(()=>!!document.getElementById('atliste')?.innerText.includes('Neue Quelle anlegen')),
+  await s.evaluate(()=>document.getElementById('atliste')?.innerText || 'keine Liste'));
+await s.keyboard.press('Escape');
+await s.waitForTimeout(200);
+p('Escape schließt die Liste', await s.evaluate(()=>!document.getElementById('atliste')));
+
 // ---------------------------------------------- Sprache der Arbeit
 
 await frisch(()=>{
