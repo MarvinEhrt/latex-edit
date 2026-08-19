@@ -315,6 +315,23 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #auswahlleiste button:hover { background-color: var(--akzent-hell); }
 #auswahlleiste .trenner { width: 1px; align-self: stretch; background-color: var(--linie); margin: 0 2px; }
 
+/* ---------------- Export-Menü ---------------- */
+
+#exportmenue {
+  position: fixed; z-index: 60; min-width: 250px;
+  border-radius: var(--r); overflow: hidden;
+  border: 1px solid var(--linie-stark); background-color: var(--flaeche);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+  display: flex; flex-direction: column;
+}
+#exportmenue button {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  border: none; background: transparent; color: var(--tinte);
+  padding: 8px 12px; cursor: pointer; text-align: left; font-size: 12.5px;
+}
+#exportmenue button span { font-size: 11px; color: var(--tinte-2); }
+#exportmenue button:hover { background-color: var(--akzent-hell); }
+
 /* ---------------- @-Zitieren: Vorschlagsliste ---------------- */
 
 #atliste {

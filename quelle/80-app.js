@@ -321,6 +321,35 @@ const App = (() => {
     }
   }
 
+  /* Zwei Wege, ein Knopf: "LaTeX ansehen" ist Nachschauen, "ZIP" ist
+     Weitergeben -- beides ist Export, also stehen sie zusammen in
+     einem kleinen Menü statt einzeln in der Kopfzeile. */
+  function zeigeExportMenue() {
+    const alt = document.getElementById('exportmenue');
+    if (alt) { alt.remove(); return; }
+    const anker = document.getElementById('knopf-export');
+    const menue = document.createElement('div');
+    menue.id = 'exportmenue';
+    const eintrag = (text, hinweis, aktion) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.innerHTML = `<b>${escHtml(text)}</b><span>${escHtml(hinweis)}</span>`;
+      b.addEventListener('click', () => { menue.remove(); aktion(); });
+      menue.append(b);
+    };
+    eintrag('LaTeX ansehen', 'nur zum Nachschauen — nichts wird gespeichert',
+            () => Dialoge.texAnsehen(dok));
+    eintrag('ZIP herunterladen', 'LaTeX-Projekt für Overleaf oder zum Weitergeben',
+            exportiere);
+    const r = anker.getBoundingClientRect();
+    menue.style.top = (r.bottom + 4) + 'px';
+    menue.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+    document.body.append(menue);
+    setTimeout(() => document.addEventListener('click', (ev) => {
+      if (!menue.contains(ev.target)) menue.remove();
+    }, { once: true }));
+  }
+
   /* ---------------- Aufbau ---------------- */
 
   function neuZeichnen() {
@@ -368,22 +397,11 @@ const App = (() => {
       await Dialoge.quellenverwaltung(dok);
       return JSON.stringify(dok.quellen) !== vorher;
     }));
-    k('knopf-zotero', () => mitVerlauf(async () => {
-      const b = await DialogeExtra.zoteroImport(dok);
-      if (b) melde(`${b.neu} übernommen, ${b.uebersprungen} schon vorhanden.`);
-      return !!(b && b.neu);
-    }));
-    k('knopf-import', () => mitVerlauf(async () => {
-      const b = await DialogeExtra.dateiImport(dok);
-      if (b) melde(`${b.neu} übernommen, ${b.uebersprungen} schon vorhanden.`);
-      return !!(b && b.neu);
-    }));
     k('knopf-einstellungen', () => DialogeExtra.einstellungen());
-    k('knopf-tex', () => Dialoge.texAnsehen(dok));
     k('knopf-hilfe', () => Dialoge.hilfe());
     k('knopf-sichern', () => sichere(false));
     k('knopf-oeffnen', oeffne);
-    k('knopf-export', exportiere);
+    k('knopf-export', zeigeExportMenue);
     k('knopf-bauen', () => { clearTimeout(bauTimer); baue(); });
 
     k('knopf-thema', () => {

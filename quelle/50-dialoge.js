@@ -534,10 +534,22 @@ const Dialoge = (() => {
       };
       zeichne();
 
+      /* Zotero und Datei-Import sind Wege, an Quellen zu kommen -- sie
+         gehören hierher, nicht in die Kopfzeile. */
+      const importiere = async (weg) => {
+        const b = await weg(dok);
+        if (b) App.melde(`${b.neu} übernommen, ${b.uebersprungen} schon vorhanden.`);
+        if (b && b.neu) App.aenderung();
+        zeichne();
+      };
       fuss.append(
         knopf('Neue Quelle', 'knopf-haupt', async () => {
           if (await quelleBearbeiten(dok)) { App.aenderung(); zeichne(); }
         }),
+        knopf('Aus Zotero …', 'knopf-still',
+          () => importiere(DialogeExtra.zoteroImport)),
+        knopf('Aus Datei …', 'knopf-still',
+          () => importiere(DialogeExtra.dateiImport)),
         knopf('Fertig', 'knopf-still', () => { schliessen(); fertig(true); })
       );
       fuss.firstChild.classList.add('links');
@@ -958,10 +970,12 @@ const Dialoge = (() => {
         <b>Per DOI:</b> beim Anlegen einer neuen Quelle den DOI einfügen und
         <b>Nachschlagen</b> klicken — die Felder füllen sich von selbst.</p>
         <p style="margin:0;font-size:13.5px;line-height:1.6">
-        <b>Zotero</b> holt deine Bibliothek direkt — einmal einen Schlüssel unter
+        <b>Zotero</b> holt deine Bibliothek direkt — im Quellen-Dialog auf
+        <b>Aus Zotero …</b> klicken, einmal einen Schlüssel unter
         zotero.org/settings/keys anlegen, fertig.<br>
-        <b>Citavi</b> (und EndNote, Mendeley, JabRef) über <b>Import</b>: dort
-        exportieren als BibTeX oder RIS, Datei hier hineinziehen.</p>
+        <b>Citavi</b> (und EndNote, Mendeley, JabRef) über <b>Aus Datei …</b>
+        im Quellen-Dialog: dort exportieren als BibTeX oder RIS, Datei hier
+        hineinziehen.</p>
       </div>
       <div class="gruppe"><h3>Wo liegt meine Arbeit?</h3>
         <p style="margin:0;font-size:13.5px;line-height:1.6">
@@ -969,8 +983,8 @@ const Dialoge = (() => {
         Überschreiben wird die Vorfassung nach <b>.sicherungen</b> kopiert —
         unter <b>Öffnen &rarr; Frühere Fassungen</b> lässt sich jede davon
         mit einem Klick wiederherstellen.
-        <b>ZIP</b> packt zusätzlich das reine LaTeX-Projekt — zum Weitergeben
-        oder für Overleaf.</p>
+        <b>Export</b> zeigt das erzeugte LaTeX oder packt das Projekt als
+        ZIP — zum Weitergeben oder für Overleaf.</p>
       </div>`;
     fuss.append(knopf('Alles klar', 'knopf-haupt', schliessen));
   }
