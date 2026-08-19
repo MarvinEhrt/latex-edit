@@ -12,7 +12,8 @@ const HIER = dirname(fileURLToPath(import.meta.url));
 const WURZEL = dirname(HIER);
 // playwright-core liegt je nach Installation woanders. Ohne Angabe wird
 // der übliche Paketname aufgelöst (npm i -D playwright-core).
-const { chromium } = await import(process.env.PLAYWRIGHT_CORE || 'playwright-core');
+const pw = await import(process.env.PLAYWRIGHT_CORE || 'playwright-core');
+const chromium = pw.chromium || pw.default?.chromium;   // je nach Fassung benannt oder default
 
 // Wo die Bildschirmfotos landen, und welcher Chromium benutzt wird.
 const BILDER = process.env.SCHREIBTISCH_BILDER || tmpdir();
@@ -29,8 +30,12 @@ const schritt = async (name, fn) => {
 
 /* ---------------- Begleiter starten ---------------- */
 
+/* Eigener Ablageordner: sonst setzt die Prüfung beim nächsten Lauf auf
+   dem Dokument des letzten auf, und Bausteine sammeln sich an. */
+const ABLAGE = mkdtempSync(join(tmpdir(), 'schreibtisch-pruefung-'));
 const dienst = spawn('python3', ['-u', join(WURZEL, 'schreibtisch.py')],
-                     { cwd: WURZEL, env: { ...process.env, BROWSER: 'true' } });
+                     { cwd: WURZEL, env: { ...process.env, BROWSER: 'true',
+                                           SCHREIBTISCH_ARBEITEN: ABLAGE } });
 let adresse = '';
 dienst.stdout.on('data', (d) => {
   const t = d.toString();
@@ -244,7 +249,9 @@ await schritt('fehlende Quelle wird als Hinweis am Baustein gemeldet', async () 
     throw new Error('Hinweis nennt die Quelle nicht: ' + text.slice(0, 160));
   const markiert = await seite.evaluate(
     () => !!document.querySelector(`.block[data-id="${window.__ohneQuelle}"].hathinweis`));
-  if (!markiert) throw new Error('Baustein nicht markiert');
+  if (!markiert) throw new Error('Baustein nicht markiert, markiert ist ' +
+    await seite.evaluate(() =>
+      [...document.querySelectorAll('.hathinweis,.hatfehler')].map(b => b.dataset.id).join(',')));
   const zustand = await seite.locator('#bauzustand').innerText();
   if (!/zu prüfen/.test(zustand)) throw new Error('Bauzustand verschweigt es: ' + zustand);
 });
@@ -308,4 +315,5 @@ console.log(probleme.length ? `${probleme.length} Problem(e):\n  ` + probleme.jo
 
 await browser.close();
 dienst.kill('SIGTERM');
+rmSync(ABLAGE, { recursive: true, force: true });
 process.exit(probleme.length ? 1 : 0);

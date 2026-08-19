@@ -3,12 +3,17 @@
        node pruefungen/pruefe_bausteine.mjs                            */
 
 import { spawn } from 'node:child_process';
-import { dirname } from 'node:path';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const { chromium } = await import(process.env.PLAYWRIGHT_CORE || 'playwright-core');
+const pw = await import(process.env.PLAYWRIGHT_CORE || 'playwright-core');
+const chromium = pw.chromium || pw.default?.chromium;   // je nach Fassung benannt oder default
 const W = dirname(dirname(fileURLToPath(import.meta.url)));
-const d=spawn('python3',['-u',W+'/schreibtisch.py'],{cwd:W});
+const ABLAGE=mkdtempSync(join(tmpdir(),'schreibtisch-bausteine-'));   // eigener Ordner je Lauf
+const d=spawn('python3',['-u',W+'/schreibtisch.py'],
+  {cwd:W,env:{...process.env,SCHREIBTISCH_ARBEITEN:ABLAGE}});
 let adr=''; d.stdout.on('data',x=>{const m=x.toString().match(/http:\S+/); if(m)adr=m[0];});
 for(let i=0;i<80&&!adr;i++) await new Promise(r=>setTimeout(r,100));
 const b=await chromium.launch({executablePath:process.env.CHROMIUM || undefined,
@@ -194,6 +199,107 @@ await s.waitForTimeout(350);
 p('Zeile lässt sich löschen',
   (await s.evaluate(()=>App.dok.bloecke[0].zeilen.length))===1);
 
+
+// ---------------------------------------------- Rückgängig
+
+const frisch = async (js) => { await setze(js); await s.evaluate(()=>Verlauf.leeren()); };
+const zurueck = async () => { await s.keyboard.press('Control+z'); await s.waitForTimeout(400); };
+const vor     = async () => { await s.keyboard.press('Control+y'); await s.waitForTimeout(400); };
+
+// L) gelöschter Baustein kommt zurück
+await frisch(()=>{App.dok.bloecke=[
+  Modell.neuerBlock('absatz',{runs:[{text:'Bleibt'}]}),
+  Modell.neuerBlock('absatz',{runs:[{text:'Verschwindet'}]})];Editor.zeichne();});
+await s.locator('.block').nth(1).click();
+await s.locator('.block').nth(1).locator('.gefahr').click();
+await s.waitForTimeout(400);
+p('Löschen entfernt den Baustein', (await txt()).length===1, JSON.stringify(await txt()));
+await zurueck();
+t = await txt();
+p('Strg+Z holt den gelöschten Baustein zurück',
+  t.length===2 && t[1]==='Verschwindet', JSON.stringify(t));
+
+// L2) und Strg+Y löscht ihn wieder
+await vor();
+p('Strg+Y löscht ihn erneut', (await txt()).length===1, JSON.stringify(await txt()));
+
+// M) Zusammenführen zurücknehmen
+await frisch(()=>{App.dok.bloecke=[
+  Modell.neuerBlock('absatz',{runs:[{text:'Absatz eins'}]}),
+  Modell.neuerBlock('absatz',{runs:[{text:'Absatz zwei'}]})];Editor.zeichne();});
+await s.locator('.block .tx').nth(1).click();
+await s.keyboard.press('Home');
+await s.keyboard.press('Backspace'); await s.waitForTimeout(450);
+p('Rücktaste führt zusammen', (await txt()).length===1, JSON.stringify(await txt()));
+await zurueck();
+t = await txt();
+p('Strg+Z trennt die zusammengeführten Absätze wieder',
+  t.length===2 && t[0]==='Absatz eins' && t[1]==='Absatz zwei', JSON.stringify(t));
+
+// N) Tippen wird zu EINEM Schritt zusammengefasst
+await frisch(()=>{App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'Start'}]})];Editor.zeichne();});
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('End');
+await s.keyboard.type('abcdef'); await s.waitForTimeout(400);
+p('Getipptes steht im Modell', (await txt())[0]==='Startabcdef', JSON.stringify(await txt()));
+await zurueck();
+t = await txt();
+p('ein Strg+Z nimmt den ganzen Tippfluss zurück', t[0]==='Start', JSON.stringify(t));
+
+// N2) Schreibmarke steht wieder an der Tippstelle
+await s.keyboard.type('!'); await s.waitForTimeout(400);
+t = await txt();
+p('Schreibmarke landet wieder an der alten Stelle', t[0]==='Start!', JSON.stringify(t));
+
+// O) Verschieben zurücknehmen
+await frisch(()=>{App.dok.bloecke=[
+  Modell.neuerBlock('absatz',{runs:[{text:'Eins'}]}),
+  Modell.neuerBlock('absatz',{runs:[{text:'Zwei'}]})];Editor.zeichne();});
+await s.locator('.block').first().click();
+await s.locator('.block').first().locator('.blockleiste button', {hasText:'↓'}).click();
+await s.waitForTimeout(400);
+p('Baustein wandert nach unten', (await txt()).join(',')==='Zwei,Eins', (await txt()).join(','));
+await zurueck();
+p('Strg+Z stellt die Reihenfolge wieder her',
+  (await txt()).join(',')==='Eins,Zwei', (await txt()).join(','));
+
+// P) eingefügte Tabelle zurücknehmen
+await frisch(()=>{App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'Text'}]})];Editor.zeichne();});
+await s.evaluate(() => {
+  const feld = document.querySelector('.block .tx');
+  feld.focus();
+  const dt = new DataTransfer();
+  dt.setData('text/plain', 'A\tB\n1\t2');
+  feld.dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true, cancelable: true}));
+});
+await s.waitForTimeout(500);
+p('eingefügte Tabelle ist da',
+  await s.evaluate(()=>App.dok.bloecke.some(b=>b.typ==='tabelle')));
+await zurueck();
+p('Strg+Z nimmt die eingefügte Tabelle zurück',
+  !(await s.evaluate(()=>App.dok.bloecke.some(b=>b.typ==='tabelle'))),
+  JSON.stringify(await s.evaluate(()=>App.dok.bloecke.map(b=>b.typ))));
+
+// Q) leerer Verlauf schadet nicht
+await frisch(()=>{App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'Unberührt'}]})];Editor.zeichne();});
+await zurueck(); await zurueck();
+p('Strg+Z ohne Verlauf lässt alles stehen',
+  (await txt()).join(',')==='Unberührt', (await txt()).join(','));
+p('die Knöpfe sind dann ausgeschaltet',
+  await s.evaluate(()=>document.getElementById('knopf-zurueck').disabled &&
+                       document.getElementById('knopf-vor').disabled));
+
+// R) Schnappschüsse teilen die Bilddaten, statt sie zu kopieren
+const speicher = await s.evaluate(() => {
+  const gross = 'x'.repeat(2 * 1024 * 1024);          // 2 MB wie ein Bildschirmfoto
+  App.dok.bloecke = [Modell.neuerBlock('abbildung', {datenUrl: 'data:image/png;base64,' + gross})];
+  Verlauf.leeren();
+  for (let i = 0; i < 40; i++) { Verlauf.merke(App.dok); Verlauf.schnitt(); }
+  return Verlauf.tiefe();
+});
+p('40 Schnappschüsse mit 2-MB-Bild kosten keine 80 MB', speicher===40, String(speicher));
+
 console.log(`\n  ${ok} bestanden, ${fehl} durchgefallen`);
 await b.close(); d.kill();
+rmSync(ABLAGE,{recursive:true,force:true});
 process.exit(fehl?1:0);

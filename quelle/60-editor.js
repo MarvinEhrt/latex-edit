@@ -76,12 +76,20 @@ const Editor = (() => {
     /* Schreibhilfe aus der Vorlage schlägt den allgemeinen Hinweis */
     feld.dataset.leer = (feldname === 'runs' && block.hinweis) ? block.hinweis : leertext;
     feld.dataset.blockId = block.id;
+    feld.dataset.feld = feldname;
 
     if (feldname === 'text') {
       feld.textContent = block.text || '';
     } else {
       feld.innerHTML = Richtext.zuHtml(runsAus ? runsAus() : block.runs, ctx());
     }
+
+    /* Vor der Änderung merken -- beforeinput feuert, solange das Modell
+       noch den alten Stand hat. Aufeinanderfolgende Tastendrücke an
+       derselben Stelle verschmelzen zu einem Schritt. */
+    feld.addEventListener('beforeinput', () => {
+      Verlauf.merke(dok(), 'tx:' + block.id + ':' + feldname);
+    });
 
     feld.addEventListener('input', () => {
       if (feldname === 'text') block.text = feld.textContent;
@@ -156,6 +164,7 @@ const Editor = (() => {
       ev.preventDefault();
       if (block.typ === 'liste') return;                 // Listen regeln das selbst
 
+      Verlauf.merke(dok());
       const schwanz = schneideAbCursor(feld);
       if (feldname === 'text') block.text = feld.textContent;
       else block.runs = Richtext.vonHtml(feld);
@@ -188,6 +197,7 @@ const Editor = (() => {
          keinen Sinn.                                                   */
       if (!leer && TEXTBLOECKE.includes(block.typ) && TEXTBLOECKE.includes(vorher.typ)) {
         ev.preventDefault();
+        Verlauf.merke(dok());
         const kopf = vorher.runs || [];
         const naht = Richtext.zuText(kopf, ctx()).length;
         vorher.runs = [...kopf, ...(feldname === 'text'
@@ -201,6 +211,7 @@ const Editor = (() => {
 
       if (leer && dok().bloecke.length > 1) {
         ev.preventDefault();
+        Verlauf.merke(dok());
         dok().bloecke.splice(i, 1);
         App.aenderung();
         zeichne(); zeichneGliederung();
@@ -225,6 +236,7 @@ const Editor = (() => {
     }
     const leser = new FileReader();
     leser.onload = () => {
+      Verlauf.merke(dok());
       const block = Modell.neuerBlock('abbildung', {
         datenUrl: leser.result,
         dateiname: datei.name || 'bildschirmfoto.png',
@@ -247,6 +259,7 @@ const Editor = (() => {
        also links ausrichten und den Rest zentrieren. */
     const ausrichtung = gitter.kopf.map((_, i) =>
       i === 0 || !gitter.zeilen.every(z => Daten.istZahl(z[i])) ? 'l' : 'c');
+    Verlauf.merke(dok());
     const block = Modell.neuerBlock('tabelle', {
       titel: '', anmerkung: '',
       kopf: gitter.kopf, zeilen: gitter.zeilen, spaltenAusrichtung: ausrichtung
@@ -356,9 +369,13 @@ const Editor = (() => {
 
   const TEXTBLOECKE = ['absatz', 'blockzitat'];
 
-  function fokussiereAn(id, position) {
+  function fokussiereAn(id, position, feldname) {
     setTimeout(() => {
-      const feld = document.querySelector(`.tx[data-block-id="${id}"]`);
+      /* Ein Baustein kann mehrere Felder haben (Titel und Anmerkung einer
+         Tabelle etwa). Ohne Angabe nimmt man das erste. */
+      const feld = (feldname && document.querySelector(
+                      `.tx[data-block-id="${id}"][data-feld="${feldname}"]`))
+                || document.querySelector(`.tx[data-block-id="${id}"]`);
       if (feld) { feld.focus(); setzeMarke(feld, position); }
     }, 10);
   }
@@ -394,6 +411,7 @@ const Editor = (() => {
     if (block.typ === 'ueberschrift') {
       for (const e of [1, 2, 3]) {
         const b = w('H' + e, `Ebene ${e}`, () => {
+          Verlauf.merke(dok());
           block.ebene = e; App.aenderung(); zeichne(); zeichneGliederung();
         });
         if ((block.ebene || 1) === e) b.style.color = 'var(--akzent)';
@@ -411,7 +429,8 @@ const Editor = (() => {
     if (block.typ === 'liste') {
       leiste.append(w(block.ordnung === 'nummern' ? '1.' : '•',
         'Zwischen Punkten und Nummern wechseln', () => {
-          block.ordnung = block.ordnung === 'nummern' ? 'punkte' : 'nummern';
+          Verlauf.merke(dok());
+        block.ordnung = block.ordnung === 'nummern' ? 'punkte' : 'nummern';
           App.aenderung(); zeichne();
         }));
     }
@@ -420,13 +439,19 @@ const Editor = (() => {
         const f = { tabelle: Dialoge.tabelle, abbildung: Dialoge.abbildung,
                     formel: Dialoge.formel,
                     diagramm: Diagrammdialog.einrichten }[block.typ];
+        Verlauf.merke(dok());
         if (await f(block, dok())) { App.aenderung(); zeichne(); }
+        else Verlauf.verwerfeLetzten();
       }));
     }
     if (block.typ === 'blockzitat') {
       leiste.append(w('§', 'Quelle des Zitats festlegen', async () => {
         const z = await Dialoge.zitatEinfuegen(dok());
-        if (z) { block.quelle = z.zitat; block.seite = z.seite; App.aenderung(); zeichne(); }
+        if (z) {
+          Verlauf.merke(dok());
+          block.quelle = z.zitat; block.seite = z.seite;
+          App.aenderung(); zeichne();
+        }
       }));
     }
 
@@ -478,6 +503,7 @@ const Editor = (() => {
           feld.addEventListener('keydown', (ev) => {
             if (ev.key === 'Enter' && !ev.shiftKey) {
               ev.preventDefault();
+              Verlauf.merke(dok());
               block.punkte.splice(i + 1, 0, []);
               App.aenderung(); zeichne();
               setTimeout(() => {
@@ -488,6 +514,7 @@ const Editor = (() => {
             }
             if (ev.key === 'Backspace' && !feld.textContent.trim() && block.punkte.length > 1) {
               ev.preventDefault();
+              Verlauf.merke(dok());
               block.punkte.splice(i, 1);
               App.aenderung(); zeichne();
             }
@@ -507,6 +534,7 @@ const Editor = (() => {
         const neuZeichnenTabelle = () => {
           App.aenderung(); zeichne(); waehle(block.id, false);
         };
+        const merkeTabelle = () => Verlauf.merke(dok());
 
         const huelle = el('div', 'tabgitter');
         const tabelle = el('table');
@@ -523,6 +551,7 @@ const Editor = (() => {
             const k = el('button', aktuell === wert ? 'aktiv' : null, zeichen);
             k.title = 'Spalte ' + titel;
             k.addEventListener('click', () => {
+              merkeTabelle();
               block.spaltenAusrichtung = block.kopf.map((_, i) =>
                 (block.spaltenAusrichtung || [])[i] || 'l');
               block.spaltenAusrichtung[s] = wert;
@@ -534,6 +563,7 @@ const Editor = (() => {
           weg.title = 'Spalte löschen';
           weg.addEventListener('click', () => {
             if (block.kopf.length <= 1) { App.melde('Die letzte Spalte bleibt.', true); return; }
+            merkeTabelle();
             block.kopf.splice(s, 1);
             block.zeilen.forEach(z => z.splice(s, 1));
             (block.spaltenAusrichtung || []).splice(s, 1);
@@ -551,6 +581,7 @@ const Editor = (() => {
           const th = el('th');
           th.contentEditable = 'true';
           th.textContent = h;
+          th.addEventListener('beforeinput', () => Verlauf.merke(dok(), 'kopf:' + block.id + ':' + s));
           th.addEventListener('input', () => { block.kopf[s] = th.textContent; App.aenderung({ nurVorschau: true }); });
           th.addEventListener('blur', () => App.aenderung());
           kopfzeile.append(th);
@@ -566,6 +597,7 @@ const Editor = (() => {
             td.contentEditable = 'true';
             td.textContent = wert;
             td.style.textAlign = { l: 'left', c: 'center', r: 'right' }[(block.spaltenAusrichtung || [])[s]] || 'left';
+            td.addEventListener('beforeinput', () => Verlauf.merke(dok(), 'zelle:' + block.id + ':' + z + ':' + s));
             td.addEventListener('input', () => { block.zeilen[z][s] = td.textContent; App.aenderung({ nurVorschau: true }); });
             td.addEventListener('blur', () => App.aenderung());
             /* Tabulator am Ende der letzten Zelle hängt eine Zeile an --
@@ -574,6 +606,7 @@ const Editor = (() => {
               if (ev.key !== 'Tab' || ev.shiftKey) return;
               if (s !== zeile.length - 1 || z !== block.zeilen.length - 1) return;
               ev.preventDefault();
+              merkeTabelle();
               block.zeilen.push(block.kopf.map(() => ''));
               neuZeichnenTabelle();
               setTimeout(() => {
@@ -589,6 +622,7 @@ const Editor = (() => {
           weg.title = 'Zeile löschen';
           weg.addEventListener('click', () => {
             if (block.zeilen.length <= 1) { App.melde('Die letzte Zeile bleibt.', true); return; }
+            merkeTabelle();
             block.zeilen.splice(z, 1);
             neuZeichnenTabelle();
           });
@@ -609,10 +643,12 @@ const Editor = (() => {
         };
         anbau.append(
           knopf('+ Zeile', 'Zeile unten anfügen (oder Tabulator in der letzten Zelle)', () => {
+            merkeTabelle();
             block.zeilen.push(block.kopf.map(() => ''));
             neuZeichnenTabelle();
           }),
           knopf('+ Spalte', 'Spalte rechts anfügen', () => {
+            merkeTabelle();
             block.kopf.push('');
             block.zeilen.forEach(z => z.push(''));
             (block.spaltenAusrichtung || []).push('c');
@@ -698,6 +734,7 @@ const Editor = (() => {
     const i = indexVon(id);
     const j = i + richtung;
     if (i < 0 || j < 0 || j >= dok().bloecke.length) return;
+    Verlauf.merke(dok());
     const [b] = dok().bloecke.splice(i, 1);
     dok().bloecke.splice(j, 0, b);
     App.aenderung(); zeichne(); zeichneGliederung();
@@ -719,6 +756,7 @@ const Editor = (() => {
       });
       if (!ok) return;
     }
+    Verlauf.merke(dok());
     dok().bloecke = dok().bloecke.filter(x => x.id !== id);
     if (!dok().bloecke.length) dok().bloecke.push(Modell.neuerBlock('absatz'));
     App.aenderung(); zeichne(); zeichneGliederung();
@@ -771,6 +809,7 @@ const Editor = (() => {
       kasten.addEventListener('drop', (ev) => {
         if (!ziehtId || ziehtId === block.id) return;
         ev.preventDefault();
+        Verlauf.merke(dok());
         const von = indexVon(ziehtId);
         const [b] = dok().bloecke.splice(von, 1);
         dok().bloecke.splice(indexVon(block.id), 0, b);
@@ -853,6 +892,7 @@ const Editor = (() => {
        gerade gewählten Block landen, würden alle folgenden Kapitel
        stillschweigend zu Anhang A, B, C -- ein Fehler, den man erst
        im fertigen PDF bemerkt.                                       */
+    Verlauf.merke(dok());
     const nach = block.typ === 'anhangstart'
       ? dok().bloecke.length
       : (gewaehlteId ? indexVon(gewaehlteId) + 1 : dok().bloecke.length);

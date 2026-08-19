@@ -18,6 +18,7 @@ ZIEL = HIER / "oberflaeche.html"
 
 JS_DATEIEN = [
     "10-modell.js",
+    "12-verlauf.js",
     "20-richtext.js",
     "30-latex.js",
     "32-diagramm.js",

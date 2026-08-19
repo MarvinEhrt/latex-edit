@@ -33,7 +33,10 @@ from begleiter import uebersetzen as uebersetzen_modul  # noqa: E402
 from begleiter import zotero as zotero_modul          # noqa: E402
 
 OBERFLAECHE = os.path.join(HIER, "oberflaeche.html")
-ARBEITEN = os.path.join(HIER, "Arbeiten")
+# Wo die Arbeiten liegen. Wer sie lieber in der Cloud-Ablage hätte,
+# setzt SCHREIBTISCH_ARBEITEN -- die Prüfungen tun genau das, damit sie
+# nicht in den echten Arbeiten herumschreiben.
+ARBEITEN = os.environ.get("SCHREIBTISCH_ARBEITEN") or os.path.join(HIER, "Arbeiten")
 
 # Gegen fremde Seiten im selben Browser: jede Anfrage muss das Zeichen
 # mitbringen, das beim Start erzeugt und nur an unsere Seite übergeben wird.

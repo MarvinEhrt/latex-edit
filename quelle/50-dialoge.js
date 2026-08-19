@@ -802,6 +802,8 @@ const Dialoge = (() => {
         <div style="font-size:13.5px;line-height:1.9">
         <b>Strg</b>+<b>B</b> fett &nbsp;·&nbsp; <b>Strg</b>+<b>I</b> kursiv &nbsp;·&nbsp;
         <b>Strg</b>+<b>S</b> sichern<br>
+        <b>Strg</b>+<b>Z</b> rückgängig &nbsp;·&nbsp; <b>Strg</b>+<b>Y</b> wiederholen —
+        auch gelöschte Bausteine kommen damit zurück<br>
         <b>Enter</b> im Absatz: neuer Absatz darunter &nbsp;·&nbsp;
         <b>Rücktaste</b> im leeren Absatz: löscht ihn<br>
         <b>Strg</b>+<b>Umschalt</b>+<b>Z</b> Quelle zitieren

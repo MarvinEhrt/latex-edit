@@ -58,6 +58,11 @@ Rücktaste am Anfang führt ihn mit dem darüber zusammen, Umschalt+Enter setzt
 einen Zeilenumbruch innerhalb des Absatzes. Zitate und Querverweise werden
 dabei nie zerrissen.
 
+**Strg+Z nimmt alles zurück**, nicht nur Getipptes: ein gelöschter Baustein,
+eine verschobene Überschrift, eine eingefügte Tabelle, ein Zahnrad-Dialog.
+Strg+Y stellt es wieder her. Ein Tippfluss zählt als ein Schritt, nicht als
+dreißig — achtzig Schritte werden vorgehalten.
+
 **Einfügen statt Umweg:** Ein Bildschirmfoto in der Zwischenablage wird mit
 Strg+V zur Abbildung. Ein aus Excel kopierter Bereich wird zur APA-7-Tabelle.
 Eine Bilddatei lässt sich mitten in den Text ziehen — sie landet dort, wo man

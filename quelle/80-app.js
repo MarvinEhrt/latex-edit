@@ -59,6 +59,7 @@ const App = (() => {
     const run = await dialogFn();
     if (!run) return;
     if (!stelleAuswahlHer()) { melde('Die Textstelle ist nicht mehr da.', true); return; }
+    Verlauf.merke(dok);                 // fuegeAmCursorEin löst kein beforeinput aus
     Editor.fuegeAmCursorEin(Editor.chipHtml(run));
     aenderung();
   }
@@ -81,6 +82,29 @@ const App = (() => {
     if (!optionen.nurBau) aktualisiereKopf();
     PdfAnsicht.zustand('wartet', 'Änderung erkannt …');
   }
+
+  /* ---------------- Rückgängig ----------------
+     Der Verlauf hält Schnappschüsse des ganzen Dokuments. Nach dem
+     Zurücknehmen wird alles neu gezeichnet und die Schreibmarke landet
+     wieder dort, wo sie vor der Änderung stand.                       */
+
+  function aktualisiereVerlaufknoepfe() {
+    const z = document.getElementById('knopf-zurueck');
+    const v = document.getElementById('knopf-vor');
+    if (z) z.disabled = !Verlauf.kannZurueck();
+    if (v) v.disabled = !Verlauf.kannVor();
+  }
+
+  function springe(schritt, leerMeldung) {
+    const e = schritt(dok);
+    if (!e) { melde(leerMeldung); return; }
+    neuZeichnen();
+    if (e.ort) Editor.fokussiereAn(e.ort.blockId, e.ort.versatz, e.ort.feld);
+    else if (Editor.gewaehlteId()) Editor.waehle(Editor.gewaehlteId());
+  }
+
+  const nimmZurueck = () => springe(Verlauf.zurueck, 'Nichts mehr zurückzunehmen.');
+  const wiederhole  = () => springe(Verlauf.vor, 'Nichts zum Wiederholen da.');
 
   /* ---------------- Übersetzen ---------------- */
 
@@ -161,6 +185,7 @@ const App = (() => {
       const e = await Begleiter.ladeProjekt(name);
       dok = Modell.normalisiere(e.dokument);
       projektname = name;
+      Verlauf.leeren();
       neuZeichnen();
       melde('Geöffnet: ' + (dok.meta.titel || name));
     } catch (f) {
@@ -213,28 +238,50 @@ const App = (() => {
   function verdrahteKopf() {
     const k = (id, aktion) => document.getElementById(id)?.addEventListener('click', aktion);
 
+    k('knopf-zurueck', nimmZurueck);
+    k('knopf-vor', wiederhole);
+
+    /* Ein Dialog, der das Dokument selbst umschreibt, braucht seinen
+       Schnappschuss VOR dem Öffnen -- danach ist der alte Stand weg.
+       Wer abbricht, soll dafür aber keinen leeren Schritt bekommen. */
+    const mitVerlauf = async (arbeit) => {
+      Verlauf.merke(dok);
+      const geaendert = await arbeit();
+      if (!geaendert) Verlauf.verwerfeLetzten();
+      else neuZeichnen();
+      return geaendert;
+    };
+
     k('knopf-neu', async () => {
       const typ = await Dialoge.neuesDokument();
       if (!typ) return;
       dok = Modell.neu(typ);
       projektname = '';
+      Verlauf.leeren();
       neuZeichnen();
-      Dialoge.deckblatt(dok).then(g => { if (g) neuZeichnen(); });
+      mitVerlauf(() => Dialoge.deckblatt(dok));
     });
-    k('knopf-deckblatt', async () => { if (await Dialoge.deckblatt(dok)) neuZeichnen(); });
-    k('knopf-layout', async () => {
+    k('knopf-deckblatt', () => mitVerlauf(() => Dialoge.deckblatt(dok)));
+    k('knopf-layout', () => mitVerlauf(async () => {
       const e = await Dialoge.layout(dok);
-      if (e) { dok.einstellungen = e; neuZeichnen(); }
-    });
-    k('knopf-quellen', async () => { await Dialoge.quellenverwaltung(dok); neuZeichnen(); });
-    k('knopf-zotero', async () => {
+      if (e) dok.einstellungen = e;
+      return !!e;
+    }));
+    k('knopf-quellen', () => mitVerlauf(async () => {
+      const vorher = JSON.stringify(dok.quellen);
+      await Dialoge.quellenverwaltung(dok);
+      return JSON.stringify(dok.quellen) !== vorher;
+    }));
+    k('knopf-zotero', () => mitVerlauf(async () => {
       const b = await DialogeExtra.zoteroImport(dok);
-      if (b) { melde(`${b.neu} übernommen, ${b.uebersprungen} schon vorhanden.`); neuZeichnen(); }
-    });
-    k('knopf-import', async () => {
+      if (b) melde(`${b.neu} übernommen, ${b.uebersprungen} schon vorhanden.`);
+      return !!(b && b.neu);
+    }));
+    k('knopf-import', () => mitVerlauf(async () => {
       const b = await DialogeExtra.dateiImport(dok);
-      if (b) { melde(`${b.neu} übernommen, ${b.uebersprungen} schon vorhanden.`); neuZeichnen(); }
-    });
+      if (b) melde(`${b.neu} übernommen, ${b.uebersprungen} schon vorhanden.`);
+      return !!(b && b.neu);
+    }));
     k('knopf-einstellungen', () => DialogeExtra.einstellungen());
     k('knopf-tex', () => Dialoge.texAnsehen(dok));
     k('knopf-hilfe', () => Dialoge.hilfe());
@@ -266,6 +313,14 @@ const App = (() => {
       const strg = ev.ctrlKey || ev.metaKey;
       if (strg && ev.key.toLowerCase() === 's') { ev.preventDefault(); sichere(false); }
       if (strg && ev.key === 'Enter') { ev.preventDefault(); clearTimeout(bauTimer); baue(); }
+      /* Der Browser hat für jedes Textfeld einen eigenen Rückgängig-Stapel,
+         der von Baustein zu Baustein springt und Strukturänderungen nicht
+         kennt. Deshalb übernimmt der Schreibtisch die Taste ganz. */
+      const t = ev.key.toLowerCase();
+      if (strg && t === 'z' && !ev.shiftKey) { ev.preventDefault(); nimmZurueck(); }
+      else if (strg && (t === 'y' || (t === 'z' && ev.shiftKey))) {
+        ev.preventDefault(); wiederhole();
+      }
     });
   }
 
@@ -276,6 +331,7 @@ const App = (() => {
     } catch {}
 
     verdrahteKopf();
+    Verlauf.beiAenderung(aktualisiereVerlaufknoepfe);
     Editor.baueEinfuegeleiste();
 
     if (!Begleiter.verbunden) {
@@ -309,6 +365,7 @@ const App = (() => {
         const e = await Begleiter.ladeProjekt(liste[0].name);
         dok = Modell.normalisiere(e.dokument);
         projektname = liste[0].name;
+        Verlauf.leeren();
         melde('Fortgesetzt: ' + (dok.meta.titel || liste[0].name));
       } else {
         setTimeout(() => Dialoge.hilfe(), 400);
@@ -322,6 +379,7 @@ const App = (() => {
     get dok() { return dok; },
     set dok(d) { dok = d; },
     start, aenderung, melde, sichere, exportiere, baue,
+    nimmZurueck, wiederhole,
     zitatEinfuegen, verweisEinfuegen, kennwertEinfuegen, fussnoteEinfuegen
   };
 })();
