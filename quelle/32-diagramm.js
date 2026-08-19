@@ -81,6 +81,91 @@ const Diagramm = (() => {
            `mark options={fill=${farbe}, draw=${farbe}}`;
   }
 
+  /* ---------- Beschriftung der Kategorienachse ---------- */
+
+  /* pgfplots setzt die Namen unter der x-Achse waagerecht nebeneinander
+     und kürzt nichts: sechs Fächer wie "Praktisch-technisch (R)" schieben
+     sich dann übereinander zu einem unlesbaren Buchstabenteppich.
+     Deshalb wird hier vorher nachgemessen -- passt der längste Name in
+     sein Fach, bleibt alles waagerecht; sonst wird umbrochen, und wenn
+     auch zwei Zeilen nicht reichen, gedreht. */
+
+  /* Wie breit ein Text wird, weiß erst LaTeX. Hier wird deshalb
+     geschätzt: drei Breitenklassen, an gemessenen Kästen der
+     Dokumentschrift (TeX Gyre Termes, \small) geeicht. Die Schätzung
+     liegt bei üblichen Beschriftungen ein paar Prozent zu hoch -- lieber
+     einmal zu früh umbrechen als einmal zu spät. */
+  const SCHMAL = "iljftrI.,;:'()[]|! ";
+  const BREIT = 'ABCDGHKNOQRUVXYZ&%@mw';
+  const SATZBREITE = 15.9;      /* cm Satzspiegel bei 2,54 cm Rand auf A4 */
+
+  function textbreite(t) {
+    return [...String(t == null ? '' : t)].reduce((summe, c) => summe +
+      (SCHMAL.includes(c) ? 0.115
+        : 'MW'.includes(c) ? 0.33
+        : BREIT.includes(c) ? 0.28 : 0.185), 0);
+  }
+
+  /* Umbruch an Leerzeichen. Gibt null zurück, wenn schon ein einzelnes
+     Wort zu breit ist oder mehr als `maxZeilen` nötig wären -- dann hilft
+     nur noch Drehen. */
+  function umbrich(text, breite, maxZeilen = 2) {
+    const worte = String(text == null ? '' : text).split(/\s+/).filter(Boolean);
+    if (!worte.length) return [''];
+    const zeilen = [];
+    let akt = '';
+    for (const w of worte) {
+      if (textbreite(w) > breite) return null;
+      const probe = akt ? akt + ' ' + w : w;
+      if (textbreite(probe) <= breite) { akt = probe; continue; }
+      zeilen.push(akt);
+      akt = w;
+    }
+    zeilen.push(akt);
+    return zeilen.length <= maxZeilen ? zeilen : null;
+  }
+
+  /* Wie breit ein Fach auf der x-Achse ungefähr ist: Diagrammbreite
+     abzüglich dessen, was y-Beschriftung und Zahlen links wegnehmen,
+     geteilt durch die Zahl der Fächer. `rand` ist das enlarge x limits
+     der Achse -- es dehnt die Achse über die Daten hinaus und macht damit
+     jedes einzelne Fach schmaler. Die letzten 15 % bleiben frei: als
+     Spalt zwischen zwei Namen und als Reserve dafür, dass pgfplots die
+     Achse je nach Diagrammart noch etwas anders aufteilt. */
+  function fachbreite(block, anzahl, rand) {
+    const nutzbar = SATZBREITE * ((block.breite || 85) / 100) - 1.8;
+    const faecher = anzahl > 1 ? (anzahl - 1) * (1 + 2 * rand) : 1;
+    return Math.max(nutzbar / faecher * 0.85, 0.6);
+  }
+
+  /* Liefert die Achsenzeilen für die Beschriftung.
+     `namen` sind die rohen (noch unmaskierten) Namen in Achsenreihenfolge,
+     `ticks` die Tickpositionen (bei symbolischer Achse die Namen selbst).
+     `rand`: das enlarge x limits der Achse.
+     `immer`: auch dann eine Beschriftungsliste ausgeben, wenn alles passt
+     -- gebraucht dort, wo die Namen nicht schon aus den Koordinaten
+     kommen (Boxplot). */
+  function kategorienachse(block, namen, ticks, rand, immer = false) {
+    const fach = fachbreite(block, namen.length, rand);
+    const liste = (bez) =>
+      [`  xtick={${ticks.join(', ')}},`,
+       `  xticklabels={${bez.map(b => `{${b}}`).join(', ')}},`];
+    /* Solange nichts umbrochen wird, holt pgfplots die Namen selbst aus
+       den Koordinaten -- außer beim Boxplot, der keine hat. */
+    const schlicht = immer ? liste(namen.map(esc)) : ['  xtick=data,'];
+
+    if (namen.every(n => textbreite(n) <= fach)) return schlicht;
+
+    const umbrochen = namen.map(n => umbrich(n, fach));
+    if (umbrochen.every(Boolean))
+      return [...liste(umbrochen.map(zl => zl.map(esc).join('\\\\'))),
+              '  xticklabel style={align=center},'];
+
+    /* 45 Grad hält die Namen lesbar und kostet weniger Höhe als 90. */
+    return [...schlicht,
+            '  xticklabel style={rotate=45, anchor=north east, inner xsep=1pt},'];
+  }
+
   /* ---------- Balken mit Fehlerbalken ---------- */
 
   function balken(block, gitter) {
@@ -94,7 +179,7 @@ const Diagramm = (() => {
     zeilen.push(spalten.length > 1 ? '  ybar=2.5pt,' : '  ybar,');
     zeilen.push(`  bar width=${spalten.length > 1 ? '10pt' : '18pt'},`);
     zeilen.push(`  symbolic x coords={${namen.map(esc).join(', ')}},`);
-    zeilen.push('  xtick=data,');
+    zeilen.push(...kategorienachse(block, namen, namen.map(esc), 0.15));
     zeilen.push('  enlarge x limits=0.15,');
     zeilen.push('  ymin=0,');
 
@@ -134,7 +219,7 @@ const Diagramm = (() => {
       zeilen.push('  xtick=data,');
     } else {
       zeilen.push(`  symbolic x coords={${namen.map(esc).join(', ')}},`);
-      zeilen.push('  xtick=data,');
+      zeilen.push(...kategorienachse(block, namen, namen.map(esc), 0.08));
       zeilen.push('  enlarge x limits=0.08,');
     }
 
@@ -204,10 +289,10 @@ const Diagramm = (() => {
          aus -- die Kästen wirken dann wie Balken, nicht wie Boxplots. */
       '  boxplot/box extend=0.34,',
       '  boxplot/whisker extend=0.17,',
-      `  xtick={${spalten.map((_, i) => i + 1).join(',')}},`,
-      `  xticklabels={${spalten.map(s => esc(gitter.kopf[s] || '')).join(', ')}},`,
       '  enlarge x limits=0.35,',
-      '  enlarge y limits=0.10,'
+      '  enlarge y limits=0.10,',
+      ...kategorienachse(block, spalten.map(s => String(gitter.kopf[s] || '')),
+                         spalten.map((_, i) => i + 1), 0.35, true)
     ];
     const koerper = [];
     spalten.forEach((s, nr) => {
