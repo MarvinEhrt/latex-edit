@@ -394,12 +394,52 @@ const Dialoge = (() => {
 
   async function quelleBearbeiten(dok, vorhanden) {
     let typ = vorhanden ? vorhanden.typ : null;
+    let nachgeschlagen = null;         // {typ, felder} aus dem DOI-Nachschlagen
     if (!typ) {
-      typ = await new Promise((fertig) => {
+      const wahl = await new Promise((fertig) => {
         const { koerper, fuss, schliessen } = basis({
           titel: 'Was für eine Quelle ist das?',
           unter: 'Danach werden nur die Felder abgefragt, die dieser Quellenart entsprechen.'
         });
+
+        /* Wer den DOI hat, muss gar nichts wählen: Crossref kennt Typ
+           und Felder. Die Maske danach bleibt editierbar -- gespeichert
+           wird erst mit dem Speichern-Knopf. */
+        if (Begleiter.verbunden) {
+          const doiBox = el('div', 'gruppe');
+          doiBox.innerHTML = '<h3>Abkürzung: per DOI nachschlagen</h3>';
+          const zeile = el('div');
+          zeile.style.cssText = 'display:flex;gap:6px;align-items:center';
+          const eingabe = el('input');
+          eingabe.placeholder = 'DOI einfügen, z. B. 10.1026/0932-4089/a000291';
+          eingabe.style.cssText = 'flex:1;padding:6px 9px;border:1px solid var(--linie-stark);' +
+            'border-radius:var(--r);background:var(--flaeche-2);color:var(--tinte);font-size:13px';
+          const meldung = el('div');
+          const nachschlagen = async () => {
+            suchKnopf.disabled = true;
+            suchKnopf.textContent = 'Frage Crossref …';
+            meldung.innerHTML = '';
+            try {
+              const e = await Begleiter.nachschlagen(eingabe.value);
+              schliessen();
+              fertig(e);                          // {typ, felder}
+            } catch (f) {
+              meldung.innerHTML = '';
+              meldung.append(el('div', 'notiz warnung',
+                '<span>&#9888;</span><span>' + escHtml(f.message) + '</span>'));
+              suchKnopf.disabled = false;
+              suchKnopf.textContent = 'Nachschlagen';
+            }
+          };
+          const suchKnopf = knopf('Nachschlagen', 'knopf-klein', nachschlagen);
+          eingabe.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') { ev.preventDefault(); nachschlagen(); }
+          });
+          zeile.append(eingabe, suchKnopf);
+          doiBox.append(zeile, meldung);
+          koerper.append(doiBox);
+        }
+
         const liste = el('div', 'quellenliste');
         for (const [schluessel, t] of Object.entries(Modell.QUELLTYPEN)) {
           const zeile = el('div', 'quelle-zeile');
@@ -410,7 +450,9 @@ const Dialoge = (() => {
         koerper.append(liste);
         fuss.append(knopf('Abbrechen', 'knopf-still', () => { schliessen(); fertig(null); }));
       });
-      if (!typ) return null;
+      if (!wahl) return null;
+      if (typeof wahl === 'object') { typ = wahl.typ; nachgeschlagen = wahl; }
+      else typ = wahl;
     }
 
     const def = Modell.QUELLTYPEN[typ];
@@ -419,7 +461,7 @@ const Dialoge = (() => {
       unter: 'Namen als <b>Nachname, Vorname</b>, mehrere durch <b>Semikolon</b> getrennt. ' +
              'Institutionen ohne Komma schreiben.',
       breit: true,
-      werte: vorhanden ? vorhanden.felder : {},
+      werte: vorhanden ? vorhanden.felder : (nachgeschlagen ? nachgeschlagen.felder : {}),
       felder: def.felder,
       okText: 'Speichern'
     });
@@ -912,6 +954,9 @@ const Dialoge = (() => {
         bleibt dabei stehen</b>, du verlierst also nie die Ansicht.</p>
       </div>
       <div class="gruppe"><h3>Quellen von anderswo</h3>
+        <p style="margin:0 0 8px;font-size:13.5px;line-height:1.6">
+        <b>Per DOI:</b> beim Anlegen einer neuen Quelle den DOI einfügen und
+        <b>Nachschlagen</b> klicken — die Felder füllen sich von selbst.</p>
         <p style="margin:0;font-size:13.5px;line-height:1.6">
         <b>Zotero</b> holt deine Bibliothek direkt — einmal einen Schlüssel unter
         zotero.org/settings/keys anlegen, fertig.<br>

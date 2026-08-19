@@ -236,6 +236,47 @@ console.log(JSON.stringify(Latex.pruefe(d)));
            [q["key"] for q in umgebaut] == ["mueller2020", "john2008", "agenturfuerarbeit2024"],
            str([q["key"] for q in umgebaut]))
 
+    # ------------------------------------------------ Crossref-Abbildung
+    # Kein Netz in Prüfungen: die Abbildung wird mit einer eingecheckten
+    # Crossref-Antwort gefüttert.
+    from begleiter import nachschlagen as nachschlagen_modul
+    with open(os.path.join(HIER, "daten", "crossref-probe.json"),
+              encoding="utf-8") as f:
+        probe = json.load(f)
+    cr = nachschlagen_modul.abbilden(probe)
+    pruefe("Crossref: Typ journal-article wird artikel", cr["typ"] == "artikel",
+           str(cr))
+    cf = cr["felder"]
+    pruefe("Crossref: Autorenformat Nachname, Vorname; … samt Institution",
+           cf["autoren"] == "Schmidt, Anna; Müller, Hans-Jürgen; "
+                            "Institut für Testforschung", cf["autoren"])
+    pruefe("Crossref: Jahr aus issued", cf["jahr"] == "2019", cf["jahr"])
+    pruefe("Crossref: Zeitschriftenfelder übernommen",
+           cf["zeitschrift"].startswith("Zeitschrift für Arbeits-")
+           and cf["jahrgang"] == "63" and cf["heft"] == "2"
+           and cf["seiten"] == "67-81"
+           and cf["doi"] == "10.1026/0932-4089/a000291", str(cf))
+
+    kap = nachschlagen_modul.abbilden({"message": {
+        "type": "book-chapter", "title": ["Ein Kapitel"],
+        "container-title": ["Handbuch der Persönlichkeit"],
+        "author": [{"given": "O.", "family": "John"}],
+        "editor": [{"given": "R.", "family": "Robins"}],
+        "issued": {"date-parts": [[2008]]}, "page": "114-158",
+        "publisher": "Guilford", "DOI": "10.1/abc"}})
+    pruefe("Crossref: book-chapter wird kapitel mit Herausgeber und Buchtitel",
+           kap["typ"] == "kapitel"
+           and kap["felder"]["herausgeber"] == "Robins, R."
+           and kap["felder"]["buchtitel"] == "Handbuch der Persönlichkeit"
+           and kap["felder"]["verlag"] == "Guilford", str(kap))
+
+    kaputt_ok = False
+    try:
+        nachschlagen_modul.abbilden({"voellig": "anderes JSON"})
+    except nachschlagen_modul.NachschlagFehler as f:
+        kaputt_ok = "Crossref" in str(f)
+    pruefe("Crossref: kaputtes JSON gibt eine saubere Fehlermeldung", kaputt_ok)
+
     # ------------------------------------------------ Ablage
     lager = tempfile.mkdtemp(prefix="schreibtisch-ablage-")
     a = ablage_modul.Ablage(os.path.join(lager, "Arbeiten"))

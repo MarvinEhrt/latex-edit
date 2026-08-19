@@ -72,6 +72,7 @@ const Begleiter = (() => {
     ladeSicherung:   (name, datei) => hole('/sicherung', { name, datei }),
     einstellungen:   () => hole('/einstellungen'),
     setzeEinstellungen: (werte) => sende('/einstellungen', werte),
+    nachschlagen:    (doi) => hole('/nachschlagen', { doi }),
     zoteroPruefen:   (schluessel) => hole('/zotero/pruefen', { schluessel }),
     zoteroSammlungen: (art) => hole('/zotero/sammlungen', { art: art || 'users' }),
     zoteroBibliothek: (art, sammlung) =>

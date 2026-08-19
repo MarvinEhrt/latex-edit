@@ -29,6 +29,7 @@ HIER = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HIER)
 
 from begleiter import ablage as ablage_modul          # noqa: E402
+from begleiter import nachschlagen as nachschlagen_modul  # noqa: E402
 from begleiter import uebersetzen as uebersetzen_modul  # noqa: E402
 from begleiter import zotero as zotero_modul          # noqa: E402
 
@@ -135,6 +136,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     e["zoteroGesetzt"] = True
                 return _json_antwort(self, e)
 
+            if weg == "/nachschlagen":
+                return _json_antwort(self, nachschlagen_modul.per_doi(
+                    teile.get("doi", [""])[0]))
+
             if weg == "/zotero/pruefen":
                 e = ABLAGE.einstellungen()
                 s = teile.get("schluessel", [""])[0] or e.get("zoteroSchluessel", "")
@@ -160,6 +165,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except VERBINDUNG_WEG:
             return                                # Browser ist weg
         except zotero_modul.ZoteroFehler as f:
+            return _json_antwort(self, {"fehler": str(f)}, 400)
+        except nachschlagen_modul.NachschlagFehler as f:
             return _json_antwort(self, {"fehler": str(f)}, 400)
         except FileNotFoundError:
             return _json_antwort(self, {"fehler": "nicht gefunden"}, 404)
