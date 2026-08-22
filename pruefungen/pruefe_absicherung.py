@@ -107,6 +107,17 @@ def main():
         status, _ = anfrage(port, "/projekte?t=" + zeichen)
         pruefe("Projektliste mit Zeichen geht durch", status == 200, str(status))
 
+        # ---------------------------------------------- Beispielarbeit
+        # Sie liegt neben dem Programm, nicht in Arbeiten/ -- sonst wäre
+        # sie beim ersten Start die "zuletzt bearbeitete" Arbeit.
+        status, text = anfrage(port, "/beispiel?t=" + zeichen)
+        pruefe("die Beispielarbeit ist als Vorlage abrufbar",
+               status == 200 and '"bloecke"' in text, str(status))
+        import json as _json
+        status, text = anfrage(port, "/projekte?t=" + zeichen)
+        pruefe("und liegt nicht als Arbeit im Ordner",
+               _json.loads(text)["projekte"] == [], text[:200])
+
         # ---------------------------------------------- POST-Riegel
         status, _ = anfrage(port, "/projekt?t=" + zeichen, "POST",
                             kopf={"Content-Type": "text/plain"},
@@ -142,8 +153,7 @@ def main():
         pruefe("ein Dateiname mit vollem Pfad schreibt nichts dorthin",
                not os.path.exists(ziel), ziel)
 
-        # ---------------------------------------------- Aufräumen beim Ende
-        arbeitsordner = ""
+        # ---------------------------------------------- Beenden
         anfrage(port, "/beenden?t=" + zeichen, "POST",
                 kopf={"Content-Type": "application/json"}, rumpf="{}")
         for _ in range(40):
