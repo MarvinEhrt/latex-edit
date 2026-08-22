@@ -180,15 +180,28 @@ const Kontextleiste = (() => {
         breite.min = 10; breite.max = 100; breite.step = 5;
         breite.value = block.breite || 80;
         breite.title = 'Anteil der Textbreite, üblich 60–90';
-        breite.addEventListener('input', () => {
+        /* Wer 65 tippt, ist bei der 6 kurz unter dem Minimum -- solange
+           die Zahl unfertig ist, bleibt die Vorschau stehen, statt auf
+           10 % zusammenzuschnurren. Erst das Verlassen des Felds rundet
+           in den erlaubten Bereich. */
+        const uebernimm = (wert) => {
           Verlauf.merke(dok(), 'breite:' + block.id);
-          block.breite = Math.max(10, Math.min(100, +breite.value || 80));
+          block.breite = wert;
           const bild = document.querySelector(
             `.block[data-id="${block.id}"] .abb-vorschau`);
           if (bild) bild.style.width = block.breite + '%';
           App.aenderung({ nurVorschau: true });
+        };
+        breite.addEventListener('input', () => {
+          const wert = +breite.value;
+          if (wert >= 10 && wert <= 100) uebernimm(wert);
         });
-        breite.addEventListener('change', () => App.aenderung());
+        breite.addEventListener('change', () => {
+          const wert = Math.max(10, Math.min(100, +breite.value || block.breite || 80));
+          breite.value = wert;
+          if (wert !== block.breite) uebernimm(wert);
+          App.aenderung();
+        });
         return [
           feldname('Titel'),
           titelEingabe(block, 'Titel der Abbildung …'),

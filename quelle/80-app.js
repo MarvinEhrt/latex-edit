@@ -93,7 +93,9 @@ const App = (() => {
     sicherTimer = setTimeout(() => sichere(true), 4000);
     ungesichert = true;
     pdfVeraltet = true;
-    if (!optionen.nurBau) aktualisiereKopf();
+    /* nurVorschau: die Änderung betrifft nur den Inhalt -- Titel und
+       Arbeitstyp im Kopf können sich nicht geändert haben. */
+    if (!optionen.nurVorschau) aktualisiereKopf();
     aktualisiereWortzahl();
     PdfAnsicht.zustand('wartet', 'Änderung erkannt …');
   }
