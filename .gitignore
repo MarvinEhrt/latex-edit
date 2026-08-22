@@ -2,6 +2,6 @@ __pycache__/
 *.pyc
 einstellungen.json
 Arbeiten/*
-!Arbeiten/Beispielarbeit.json
 oberflaeche.html
 node_modules/
+docs/

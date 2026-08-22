@@ -27,6 +27,7 @@ const DialogeExtra = (() => {
     return new Promise(async (fertig) => {
       const { koerper, fuss, schliessen } = Dialoge.basis({
         titel: 'Arbeit öffnen',
+        beimSchliessen: () => fertig(null),
         unter: 'Alles im Ordner <b>Arbeiten</b> neben dem Programm.',
         breit: true
       });
@@ -149,6 +150,7 @@ const DialogeExtra = (() => {
     return new Promise((fertig) => {
       const { koerper, fuss, schliessen } = Dialoge.basis({
         titel: 'Quellen aus einer Datei übernehmen',
+        beimSchliessen: () => fertig(null),
         unter: 'Aus Citavi, Zotero, EndNote, Mendeley oder JabRef exportieren — ' +
                'als <b>BibTeX</b>, <b>RIS</b> oder <b>CSL-JSON</b>.',
         breit: true
@@ -273,6 +275,7 @@ const DialogeExtra = (() => {
 
       const { koerper, fuss, schliessen } = Dialoge.basis({
         titel: 'Aus Zotero übernehmen',
+        beimSchliessen: () => fertig(null),
         unter: 'Auswählen, was in die Quellenliste soll. Doppelte erkenne ich.',
         breit: true
       });
@@ -362,8 +365,10 @@ const DialogeExtra = (() => {
       Begleiter.pruefung().catch(() => ({ programme: {} }))
     ]);
 
+    let loese;
+    const geschlossen = new Promise((f) => { loese = f; });
     const { koerper, fuss, schliessen } = Dialoge.basis({
-      titel: 'Einstellungen', breit: true
+      titel: 'Einstellungen', breit: true, beimSchliessen: () => loese()
     });
 
     const werkzeugliste = Object.entries(werkzeuge.programme || {})
@@ -396,6 +401,7 @@ const DialogeExtra = (() => {
             'knopf-still links', async () => { schliessen(); await zoteroEinrichten(); }),
       knopf('Schließen', 'knopf-haupt', schliessen));
     fuss.firstChild.style.marginRight = 'auto';
+    return geschlossen;
   }
 
   return { projektOeffnen, dateiImport, zoteroImport, zoteroEinrichten, einstellungen };

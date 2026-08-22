@@ -18,7 +18,16 @@ const Dialoge = (() => {
 
   /* `beimSchliessen` wird bei JEDEM Schließweg gerufen (Knopf, Escape,
      Klick auf den Schleier) -- damit ein wartendes Promise auch dann
-     auflöst, wenn der Dialog weggeklickt wird. */
+     auflöst, wenn der Dialog weggeklickt wird. Jeder Dialog, der ein
+     Promise zurückgibt, MUSS es mitgeben: sonst wartet der Aufrufer
+     nach Escape für immer -- `mitVerlauf` käme nie zu
+     `verwerfeLetzten` und hinterließe genau den leeren
+     Verlaufsschritt, den es vermeiden soll.
+
+     Der Aufruf ist absichtlich um einen Mikrotask verzögert: die
+     Knöpfe schreiben `schliessen(); fertig(wert)`, und dieser Wert
+     soll gewinnen. Ein Promise nimmt nur die erste Auflösung an --
+     der nachgereichte Abbruchwert verfällt dann von selbst.       */
   function basis({ titel, unter, breit, beimSchliessen }) {
     const schleier = el('div', 'schleier');
     const dialog = el('div', 'dialog' + (breit ? ' dialog-breit' : ''));
@@ -30,10 +39,13 @@ const Dialoge = (() => {
     schleier.append(dialog);
     document.body.append(schleier);
 
+    let zu = false;
     const schliessen = () => {
+      if (zu) return;                 // zweimal schließen ist kein Schließen
+      zu = true;
       schleier.remove();
       document.removeEventListener('keydown', taste);
-      if (beimSchliessen) beimSchliessen();
+      if (beimSchliessen) queueMicrotask(beimSchliessen);
     };
     const taste = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); schliessen(); } };
     document.addEventListener('keydown', taste);
@@ -85,7 +97,8 @@ const Dialoge = (() => {
   function formular({ titel, unter, felder, werte = {}, breit, gruppen,
                       okText = 'Übernehmen', entfernenText }) {
     return new Promise((fertig) => {
-      const { koerper, fuss, schliessen } = basis({ titel, unter, breit });
+      const { koerper, fuss, schliessen } = basis({ titel, unter, breit,
+                                        beimSchliessen: () => fertig(null) });
       const eingaben = {};
 
       const baueGitter = (liste) => {
@@ -139,7 +152,8 @@ const Dialoge = (() => {
 
   function bestaetigen({ titel, text, okText = 'Löschen', gefahr = true }) {
     return new Promise((fertig) => {
-      const { koerper, fuss, schliessen } = basis({ titel });
+      const { koerper, fuss, schliessen } = basis({
+        titel, beimSchliessen: () => fertig(false) });
       koerper.innerHTML = `<div style="font-size:13.5px;line-height:1.55">${text}</div>`;
       fuss.append(
         knopf('Abbrechen', 'knopf-still', () => { schliessen(); fertig(false); }),
@@ -154,6 +168,7 @@ const Dialoge = (() => {
     return new Promise((fertig) => {
       const { koerper, fuss, schliessen } = basis({
         titel: 'Neue Arbeit anlegen',
+        beimSchliessen: () => fertig(null),
         unter: 'Die Gliederung wird passend zum Typ vorbereitet — du kannst sie danach frei ändern.'
       });
       let gewaehlt = 'hausarbeit';
@@ -169,10 +184,22 @@ const Dialoge = (() => {
         });
         liste.append(zeile);
       }
+      /* Zum Anfassen statt zum Lesen: die Beispielarbeit zeigt alle
+         Bausteine an einer erfundenen Studie. Sie ist eine Vorlage --
+         wer sie wählt, bekommt eine eigene Kopie und kann darin
+         herumschreiben, ohne etwas kaputtzumachen. */
+      const beispiel = el('div', 'quelle-zeile');
+      beispiel.innerHTML = `<div class="quelle-txt"><b style="font-family:var(--schrift-ui);font-size:13.5px">
+        Mit der Beispielarbeit starten</b><div class="quelle-warn">Eine fertige kleine Hausarbeit
+        mit Tabelle, Diagramm, Zitaten und Fußnote — zum Ausprobieren</div></div>`;
+      beispiel.addEventListener('click', () => { schliessen(); fertig('beispiel'); });
+
       koerper.append(
         el('div', 'notiz warnung', '<span>&#9888;</span><span>Die aktuelle Arbeit wird ersetzt. ' +
-          'Sichere sie vorher über <b>Sichern</b>, wenn du sie behalten willst.</span>'),
-        liste);
+          'Ungesicherte Änderungen werden vorher automatisch gesichert.</span>'),
+        liste,
+        el('div', 'notiz', 'Oder zum Kennenlernen:'),
+        beispiel);
       fuss.append(
         knopf('Abbrechen', 'knopf-still', () => { schliessen(); fertig(null); }),
         knopf('Anlegen', 'knopf-haupt', () => { schliessen(); fertig(gewaehlt); })
@@ -225,6 +252,7 @@ const Dialoge = (() => {
     return new Promise((fertig) => {
       const { koerper, fuss, schliessen } = basis({
         titel: 'Layout und Verzeichnisse',
+        beimSchliessen: () => fertig(null),
         unter: 'Wirkt sofort auf die Vorschau und auf das exportierte PDF.',
         breit: true
       });
@@ -399,6 +427,7 @@ const Dialoge = (() => {
       const wahl = await new Promise((fertig) => {
         const { koerper, fuss, schliessen } = basis({
           titel: 'Was für eine Quelle ist das?',
+          beimSchliessen: () => fertig(null),
           unter: 'Danach werden nur die Felder abgefragt, die dieser Quellenart entsprechen.'
         });
 
@@ -480,6 +509,7 @@ const Dialoge = (() => {
     return new Promise((fertig) => {
       const { koerper, fuss, schliessen } = basis({
         titel: 'Quellen',
+        beimSchliessen: () => fertig(),
         unter: 'Im Literaturverzeichnis erscheinen später nur die Quellen, die du auch zitierst — so will es APA 7.',
         breit: true
       });
@@ -574,6 +604,7 @@ const Dialoge = (() => {
       const vor = optionen.vorbelegung || {};
       const { koerper, fuss, schliessen } = basis({
         titel: optionen.bearbeiten ? 'Zitat bearbeiten' : 'Quelle zitieren',
+        beimSchliessen: () => fertig(null),
         unter: einzeln ? 'Klick auf eine Quelle, dann die Form wählen.'
                        : 'Klick auf eine Quelle. Mehrere gehen auch — sie landen in einer Klammer.',
         breit: true
@@ -673,6 +704,7 @@ const Dialoge = (() => {
         b => ['tabelle', 'abbildung', 'diagramm', 'ueberschrift'].includes(b.typ));
       const { koerper, fuss, schliessen } = basis({
         titel: optionen.bearbeiten ? 'Querverweis bearbeiten' : 'Querverweis einfügen',
+        beimSchliessen: () => fertig(null),
         unter: 'Der Verweis passt sich automatisch an, wenn du Blöcke verschiebst oder ergänzt.'
       });
       if (!ziele.length) {
@@ -792,6 +824,7 @@ const Dialoge = (() => {
     return new Promise((fertig) => {
       const { koerper, fuss, schliessen } = basis({
         titel: 'Abbildung einrichten',
+        beimSchliessen: () => fertig(null),
         unter: 'Das Bild wird in die Datei eingebettet und beim Export mit ausgeliefert.',
         breit: true
       });
@@ -915,8 +948,14 @@ const Dialoge = (() => {
 
   /* ---------------- Hilfe ---------------- */
 
+  /* Gibt ein Promise zurück, das beim Schließen auflöst -- der Start
+     reiht die Dialoge damit auf, statt sie übereinanderzustapeln. */
   function hilfe() {
-    const { koerper, fuss, schliessen } = basis({ titel: 'Kurzanleitung', breit: true });
+    let loese;
+    const geschlossen = new Promise((f) => { loese = f; });
+    const { koerper, fuss, schliessen } = basis({
+      titel: 'Kurzanleitung', breit: true, beimSchliessen: () => loese()
+    });
     koerper.innerHTML = `
       <div class="gruppe"><h3>So arbeitest du</h3>
         <p style="margin:0 0 8px;font-size:13.5px;line-height:1.6">
@@ -944,8 +983,11 @@ const Dialoge = (() => {
         auch gelöschte Bausteine kommen damit zurück<br>
         <b>Strg</b>+<b>F</b> suchen &nbsp;·&nbsp; <b>Strg</b>+<b>H</b> suchen und ersetzen —
         auch in Tabellen und Beschriftungen<br>
-        <b>Enter</b> im Absatz: neuer Absatz darunter &nbsp;·&nbsp;
-        <b>Rücktaste</b> im leeren Absatz: löscht ihn<br>
+        <b>Enter</b> teilt den Absatz an der Schreibmarke &nbsp;·&nbsp;
+        <b>Umschalt</b>+<b>Enter</b> nur ein Zeilenumbruch<br>
+        <b>Rücktaste</b> am Absatzanfang führt mit dem darüber zusammen,
+        im leeren Absatz löscht sie ihn<br>
+        <b>Strg</b>+<b>Enter</b> baut das PDF sofort<br>
         <b>Strg</b>+<b>Umschalt</b>+<b>Z</b> Quelle zitieren &nbsp;·&nbsp;
         <b>@</b>+Anfangsbuchstaben tippen zitiert direkt beim Schreiben<br>
         Text auswählen zeigt eine kleine Leiste: fett, kursiv, zitieren — ohne Umweg
@@ -958,6 +1000,8 @@ const Dialoge = (() => {
         anklicken, dann stehen sie zusammen in einer Klammer<br>
         <span class="chip chip-verweis">Tabelle 3</span> &nbsp;ein Querverweis — die Nummer stimmt immer,
         auch nach dem Umsortieren<br>
+        <span class="chip chip-fussnote">¹ Vgl. dazu …</span> &nbsp;eine Fußnote — der Anfang
+        ihres Textes steht im Chip, ein Klick öffnet sie ganz<br>
         <span class="chip chip-kennwert"><i>SW</i>&nbsp;=&nbsp;104</span> &nbsp;ein statistischer Kennwert —
         Symbol kursiv, wie APA 7 es will<br>
         <b>Klick auf einen Chip</b> öffnet ihn zum Bearbeiten — dort lässt er
@@ -992,10 +1036,12 @@ const Dialoge = (() => {
         Überschreiben wird die Vorfassung nach <b>.sicherungen</b> kopiert —
         unter <b>Öffnen &rarr; Frühere Fassungen</b> lässt sich jede davon
         mit einem Klick wiederherstellen.
-        <b>Export</b> zeigt das erzeugte LaTeX oder packt das Projekt als
-        ZIP — zum Weitergeben oder für Overleaf.</p>
+        <b>Export</b> lädt das fertige <b>PDF</b> herunter — das, was du
+        abgibst. Daneben zeigt es das erzeugte LaTeX oder packt das
+        Projekt als ZIP, zum Weitergeben oder für Overleaf.</p>
       </div>`;
     fuss.append(knopf('Alles klar', 'knopf-haupt', schliessen));
+    return geschlossen;
   }
 
   return { basis, knopf, feldElement, formular, bestaetigen, neuesDokument, deckblatt, layout,

@@ -25,7 +25,10 @@ HAUPTDATEI = "arbeit"
 # Das dauert je nach Leitung Minuten und darf nicht als Fehler gelten.
 ZEITABLAUF_ERSTLAUF = 900
 ZEITABLAUF = 180
-MAX_DURCHLAEUFE = 3
+# Vier, nicht drei: läuft biber mit, verbraucht dessen Lauf einen der
+# Durchgänge, und ein Dokument, dessen Seitenzahlen sich durch das
+# Inhaltsverzeichnis verschieben, braucht danach noch zwei.
+MAX_DURCHLAEUFE = 4
 
 
 # ---------------------------------------------------------------- Werkzeuge
@@ -243,6 +246,66 @@ def _braucht_neuen_lauf(log: str) -> bool:
         r"Please \(re\)run Biber|Rerun LaTeX", log))
 
 
+def _braucht_biber(log: str) -> bool:
+    """biblatex verlangt ausdrücklich nach biber. Ein weiterer
+    pdflatex-Lauf hilft dann nicht -- vorher muss biber laufen, sonst
+    dreht sich die Schleife dreimal um nichts und das
+    Literaturverzeichnis bleibt auf dem alten Stand."""
+    return bool(re.search(r"Please \(re\)run Biber", log))
+
+
+# Biber schreibt seine Fehler in eigener Sprache und in eine eigene
+# Datei (.blg). Diese Zeilen sind der einzige Ort, an dem ein kaputtes
+# Literaturverzeichnis überhaupt auftaucht.
+_BIBER_FEHLER = re.compile(r"\bERROR\s*[-–]\s*(.+)")
+
+_BIBER_ERKLAERUNGEN = [
+    (r"Cannot find '?([^' ]+)'?",
+     "Die Quellendatei „{0}“ wurde nicht gefunden.",
+     "Das ist ein Fehler im Schreibtisch selbst — bitte melden."),
+    (r"syntax error|BibTeX subsystem",
+     "Eine Quelle ist fehlerhaft aufgebaut und konnte nicht gelesen werden.",
+     "Meist ein ungewöhnliches Zeichen in einem Quellenfeld. "
+     "Prüfe die zuletzt geänderte Quelle im Quellen-Dialog."),
+    (r"Duplicate entry key '?([^' ]+)'?",
+     "Der Quellenschlüssel „{0}“ kommt zweimal vor.",
+     "Zwei Quellen teilen sich denselben Schlüssel — eine umbenennen."),
+]
+
+
+def werte_biber_aus(text: str) -> list[dict]:
+    """Fehler von biber als Karten, wie die von pdflatex.
+
+    Ohne das bleibt ein kaputtes Literaturverzeichnis völlig stumm: der
+    Rückgabewert wurde bisher nur zum Überspringen des Zwischenspeichers
+    benutzt, die Ausgabe verworfen. Sichtbar wurde daraus nur „Quelle
+    steht nicht im Literaturverzeichnis“ -- eine Erklärung, die in die
+    Irre führt, weil die Quelle sehr wohl angelegt ist.
+    """
+    raus, gesehen = [], set()
+    for zeile in (text or "").splitlines():
+        t = _BIBER_FEHLER.search(zeile)
+        if not t:
+            continue
+        roh = t.group(1).strip()
+        meldung = "Das Literaturprogramm meldet: " + roh
+        rat = ("Die vollständige Meldung steht unten im Protokoll.")
+        for muster, vorlage, hinweis in _BIBER_ERKLAERUNGEN:
+            g = re.search(muster, roh)
+            if g:
+                gruppen = [x if x is not None else "" for x in g.groups()]
+                meldung = vorlage.format(*gruppen) if gruppen else vorlage
+                rat = hinweis
+                break
+        if meldung in gesehen:
+            continue
+        gesehen.add(meldung)
+        raus.append({"art": "fehler", "sorte": "literatur", "schluessel": "",
+                     "zeile": None, "meldung": meldung, "rat": rat,
+                     "roh": zeile.strip()[:400]})
+    return raus
+
+
 # ---------------------------------------------------------------- Übersetzer
 
 class Uebersetzer:
@@ -255,6 +318,7 @@ class Uebersetzer:
         self._hashes: dict[str, str] = {}
         self._letzte_bib = ""
         self._letzte_zitate = ""
+        self._letzte_bcf = ""
         self.pdf_fassung = 0
         self._erstlauf = True
         self._sperre = threading.Lock()
@@ -264,15 +328,29 @@ class Uebersetzer:
     # -------------------------------------------------- Dateien vorbereiten
 
     def _schreibe_wenn_neu(self, name: str, inhalt: bytes) -> bool:
+        # Der Name kommt von außen. Er darf nur in diesen Ordner zeigen
+        # -- der Aufrufer prüft schon, hier steht der Riegel am Ziel.
+        pfad = os.path.abspath(os.path.join(self.ordner, name))
+        if os.path.commonpath([os.path.abspath(self.ordner), pfad]) \
+                != os.path.abspath(self.ordner):
+            raise ValueError(f"Dateiname zeigt aus dem Arbeitsordner: {name}")
         h = hashlib.sha1(inhalt).hexdigest()
         if self._hashes.get(name) == h:
             return False
-        pfad = os.path.join(self.ordner, name)
         os.makedirs(os.path.dirname(pfad) or self.ordner, exist_ok=True)
         with open(pfad, "wb") as f:
             f.write(inhalt)
         self._hashes[name] = h
         return True
+
+    def _dateihash(self, name: str) -> str:
+        """Prüfsumme einer Datei im Arbeitsordner, leer wenn es sie
+        nicht gibt."""
+        try:
+            with open(os.path.join(self.ordner, name), "rb") as f:
+                return hashlib.sha1(f.read()).hexdigest()
+        except OSError:
+            return ""
 
     # ------------------------------------------------------------- Ausführen
 
@@ -344,7 +422,12 @@ class Uebersetzer:
                             or zitate != self._letzte_zitate
                             or not os.path.exists(bbl))
 
+            # -no-shell-escape: der Formel-Baustein reicht getipptes
+            # LaTeX unverändert durch. Bei einer weitergegebenen oder
+            # heruntergeladenen .json-Arbeit liefe darin sonst fremder
+            # Code, sobald man sie das erste Mal baut.
             grundbefehl = [pdflatex, "-interaction=nonstopmode",
+                           "-no-shell-escape",
                            "-halt-on-error", "-file-line-error",
                            HAUPTDATEI + ".tex"]
 
@@ -357,17 +440,56 @@ class Uebersetzer:
                 return {"status": "abgebrochen", "fehler": [], "warnungen": [],
                         "log": "", "dauerMs": 0}
 
-            if biber_noetig and biber and rc == 0:
+            # Der .bcf ist das, was biber liest. Ändert er sich, muss
+            # biber neu laufen -- beim Umschalten der Sprache etwa
+            # bleiben .bib und Zitatschlüssel gleich, das
+            # Literaturverzeichnis wäre sonst weiter deutsch sortiert
+            # und deutsch beschriftet.
+            if self._dateihash(HAUPTDATEI + ".bcf") != self._letzte_bcf:
+                biber_noetig = True
+
+            biber_fehler: list[dict] = []
+
+            def lauf_biber():
+                """Gibt True zurück, wenn biber durchlief."""
                 rcb, ausgabeb = self._lauf([biber, HAUPTDATEI], grenze)
                 protokoll.append(ausgabeb)
                 if rcb == 0:
                     self._letzte_bib = bib
                     self._letzte_zitate = zitate
+                    self._letzte_bcf = self._dateihash(HAUPTDATEI + ".bcf")
+                    return True
+                # Biber legt sein eigenes Protokoll daneben; die
+                # eigentliche Ursache steht meistens dort.
+                blg = os.path.join(self.ordner, HAUPTDATEI + ".blg")
+                text = ausgabeb
+                try:
+                    with open(blg, encoding="utf-8", errors="replace") as f:
+                        text += "\n" + f.read()
+                except OSError:
+                    pass
+                protokoll.append(text)
+                biber_fehler.extend(werte_biber_aus(text) or [{
+                    "art": "fehler", "sorte": "literatur", "schluessel": "",
+                    "zeile": None,
+                    "meldung": "Das Literaturverzeichnis konnte nicht "
+                               "erzeugt werden.",
+                    "rat": "Das vollständige Protokoll steht unten.",
+                    "roh": text.strip()[-400:]}])
+                return False
+
+            if biber_noetig and biber and rc == 0:
+                lauf_biber()
 
             durchlauf = 1
             while (rc == 0 and durchlauf < MAX_DURCHLAEUFE
                    and (_braucht_neuen_lauf(ausgabe) or biber_noetig)
                    and not self._abbruch):
+                # Verlangt biblatex nach biber, hilft ein weiterer
+                # pdflatex-Lauf nicht -- er würde die Bitte nur
+                # wiederholen, bis das Kontingent aufgebraucht ist.
+                if biber and not biber_fehler and _braucht_biber(ausgabe):
+                    lauf_biber()
                 rc, ausgabe = self._lauf(grundbefehl, grenze)
                 protokoll.append(ausgabe)
                 biber_noetig = False
@@ -375,7 +497,11 @@ class Uebersetzer:
 
             log = "\n".join(protokoll)
             logdatei = os.path.join(self.ordner, HAUPTDATEI + ".log")
-            if os.path.exists(logdatei):
+            # Nur, wenn dieser Lauf überhaupt stattgefunden hat. Sonst
+            # überschrieb das Protokoll des VORIGEN Laufs die
+            # eigentliche Meldung -- bei "Programm nicht gefunden" sah
+            # die Nutzerin die Fehler von vorhin statt der Ursache.
+            if rc >= 0 and os.path.exists(logdatei):
                 try:
                     with open(logdatei, encoding="utf-8", errors="replace") as f:
                         log = f.read()
@@ -384,6 +510,19 @@ class Uebersetzer:
 
             fehler = werte_log_aus(log)
             warnungen = werte_warnungen_aus(log)
+            # Biber-Fehler zuerst: sie sind die Ursache, alles andere
+            # ist Folge.
+            fehler = biber_fehler + fehler
+
+            # Reicht das Kontingent nicht, stimmen Inhaltsverzeichnis und
+            # Seitenzahlen womöglich nicht -- das darf nicht stumm bleiben.
+            if rc == 0 and durchlauf >= MAX_DURCHLAEUFE and _braucht_neuen_lauf(ausgabe):
+                warnungen.append({
+                    "art": "warnung", "sorte": "", "schluessel": "", "zeile": None,
+                    "meldung": "Inhaltsverzeichnis und Seitenzahlen sind "
+                               "vielleicht noch nicht auf dem letzten Stand.",
+                    "rat": "Noch einmal „PDF bauen“ drücken, dann stimmt es.",
+                    "roh": ""})
             pdf = os.path.join(self.ordner, HAUPTDATEI + ".pdf")
             pdf_da = os.path.exists(pdf) and os.path.getsize(pdf) > 0
 
@@ -400,6 +539,14 @@ class Uebersetzer:
                            "„Pakete immer installieren“ wählen.", "roh": ""})
             else:
                 status = "fehler"
+                if rc == -2 and not fehler:
+                    # "Programm nicht gefunden" ging bisher unter.
+                    fehler.append({
+                        "art": "fehler", "sorte": "", "schluessel": "", "zeile": None,
+                        "meldung": ausgabe or "LaTeX wurde nicht gefunden.",
+                        "rat": "Installiere TeX Live (Linux) oder MiKTeX "
+                               "(Windows) und starte den Schreibtisch neu.",
+                        "roh": ""})
                 if not fehler:
                     fehler.append({
                         "art": "fehler", "sorte": "", "schluessel": "", "zeile": None,

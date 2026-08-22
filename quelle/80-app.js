@@ -8,11 +8,14 @@ const App = (() => {
   let projektname = '';
   let letzterStand = null;        // mtime der Projektdatei beim letzten Laden/Sichern
   let konfliktOffen = false;      // Zwei-Fenster-Dialog nur einmal zeigen
+  let konfliktVertagt = false;    // weggeklickt: nicht alle vier Sekunden erneut
   let letzteAuswahl = null;
   let bauTimer = null, sicherTimer = null;
   let baeuftGerade = false, nochmalBauen = false;
   let letzteZeilenkarte = [];
-  let werkzeugeVollstaendig = true;
+  let ungesichert = false;        // seit dem letzten Sichern verändert
+  let pdfFassung = 0;             // Nummer des zuletzt gelungenen Baus
+  let pdfVeraltet = true;         // seit diesem Bau wurde wieder getippt
 
   const VERZOEGERUNG = 2000;      // Millisekunden nach der letzten Eingabe
 
@@ -61,6 +64,12 @@ const App = (() => {
     const run = await dialogFn();
     if (!run) return;
     if (!stelleAuswahlHer()) { melde('Die Textstelle ist nicht mehr da.', true); return; }
+    /* An das ENDE der Auswahl, nicht an ihre Stelle. Die schwebende
+       Leiste erscheint nur über markiertem Text -- wer "Holland 1997"
+       markiert und auf ❝ drückt, will die Wörter behalten und einen
+       Beleg dahinter. fuegeAmCursorEin räumt sonst erst die Auswahl
+       weg, und die markierten Wörter sind fort. */
+    window.getSelection().collapseToEnd();
     Verlauf.merke(dok);                 // fuegeAmCursorEin löst kein beforeinput aus
     Editor.fuegeAmCursorEin(Editor.chipHtml(run));
     aenderung();
@@ -81,6 +90,8 @@ const App = (() => {
     bauTimer = setTimeout(baue, VERZOEGERUNG);
     clearTimeout(sicherTimer);
     sicherTimer = setTimeout(() => sichere(true), 4000);
+    ungesichert = true;
+    pdfVeraltet = true;
     if (!optionen.nurBau) aktualisiereKopf();
     aktualisiereWortzahl();
     PdfAnsicht.zustand('wartet', 'Änderung erkannt …');
@@ -146,6 +157,8 @@ const App = (() => {
 
       if (ergebnis.status === 'ok') {
         PdfAnsicht.merkeSeite();
+        pdfFassung = ergebnis.pdfFassung;
+        pdfVeraltet = false;
         PdfAnsicht.zeige(ergebnis.pdfFassung);
         const hinweise = warnungen.length + vorab.length;
         PdfAnsicht.zustand(hinweise ? 'hinweis' : 'ok',
@@ -177,17 +190,38 @@ const App = (() => {
     t.innerHTML = `<b>${escHtml(dok.meta.titel || 'Ohne Titel')}</b> · ${escHtml(art)}`;
   }
 
+  /* Nach Laden oder Anlegen ist das Dokument genau der Stand auf der
+     Platte -- der von neuZeichnen angestoßene Sicherungslauf schriebe
+     nur dieselben Bytes zurück und legte dafür eine Sicherung an. */
+  function giltAlsGesichert() {
+    ungesichert = false;
+    clearTimeout(sicherTimer);
+  }
+
   async function sichere(still) {
     if (!Begleiter.verbunden) return;
+    /* Der Zwei-Fenster-Dialog wurde weggeklickt. Die automatische
+       Sicherung liefe sonst in dieselbe 409 und risse den Dialog alle
+       vier Sekunden wieder auf. Wer selbst auf Sichern drückt, will es
+       jetzt wissen -- dann wird erneut gefragt. */
+    if (still && konfliktVertagt) return;
+    if (!still) konfliktVertagt = false;
     const name = projektname || dok.meta.titel || 'Unbenannte Arbeit';
+    const warNeu = !projektname;
     try {
       /* Der Änderungsstand wandert mit: liegt auf der Platte inzwischen
          ein neuerer (zweites Fenster!), antwortet der Begleiter mit 409
          statt wortlos zu überschreiben. */
       const e = await Begleiter.sichereProjekt(name, dok,
-        projektname ? letzterStand : null);
+        projektname ? letzterStand : null, warNeu);
       projektname = e.name;
       letzterStand = e.stand;
+      ungesichert = false;
+      /* Der Name war belegt -- der Begleiter ist ausgewichen, statt die
+         fremde Arbeit zu überschreiben. Das muss man erfahren. */
+      if (e.ausgewichen)
+        melde('Unter „' + name + '“ liegt schon eine Arbeit. Diese hier wurde '
+              + 'als „' + e.name + '“ gesichert.', true);
       const marke = document.getElementById('speicherstand');
       if (marke) {
         const jetzt = new Date();
@@ -200,6 +234,13 @@ const App = (() => {
       if (f.status === 409) { behandleKonflikt(name); return; }
       melde('Sichern fehlgeschlagen: ' + f.message, true);
     }
+  }
+
+  /* Sichtbar bleiben, solange nichts geschrieben wird -- sonst sieht
+     die Kopfzeile aus, als sei alles in Ordnung. */
+  function zeigeVertagtenKonflikt() {
+    const marke = document.getElementById('speicherstand');
+    if (marke) marke.textContent = 'nicht gesichert — anderes Fenster';
   }
 
   /* ---------------- Zwei Fenster ---------------- */
@@ -237,10 +278,19 @@ const App = (() => {
         letzterStand = e.stand;
         Verlauf.leeren();
         neuZeichnen();
+        giltAlsGesichert();
+        konfliktVertagt = false;
         melde('Neu geladen — der Stand aus dem anderen Fenster.');
       } else if (wahl === 'ueberschreiben') {
         letzterStand = null;
+        konfliktVertagt = false;
         await sichere(false);
+      } else {
+        /* Weggeklickt: weiterschreiben lassen, aber nicht heimlich
+           weitersichern -- und das auch zeigen. */
+        konfliktVertagt = true;
+        zeigeVertagtenKonflikt();
+        melde('Nicht gesichert. Über „Sichern“ entscheidest du später.', true);
       }
     } catch (f) {
       melde('Das hat nicht geklappt: ' + f.message, true);
@@ -249,11 +299,28 @@ const App = (() => {
     }
   }
 
+  /* Vor jedem Dokumentwechsel: was noch nicht auf der Platte liegt,
+     kommt zuerst dorthin. Fragen wäre der falsche Weg -- vier Sekunden
+     später hätte die automatische Sicherung dasselbe getan. Nur ohne
+     Begleiter bleibt das Fragen übrig, denn dann geht wirklich etwas
+     verloren. */
+  async function sichereVorWechsel() {
+    if (!ungesichert) return true;
+    if (Begleiter.verbunden) { await sichere(true); return !ungesichert; }
+    return Dialoge.bestaetigen({
+      titel: 'Ungesicherte Änderungen',
+      text: 'Ohne Begleiter kann nichts gesichert werden — die Änderungen an '
+          + 'dieser Arbeit gehen verloren.',
+      okText: 'Trotzdem verwerfen'
+    });
+  }
+
   async function oeffne() {
     const wahl = await DialogeExtra.projektOeffnen();
     if (!wahl) return;
     if (wahl.fassung) return stelleFassungHer(wahl.fassung);
     const name = wahl;
+    if (!await sichereVorWechsel()) return;
     try {
       const e = await Begleiter.ladeProjekt(name);
       dok = Modell.normalisiere(e.dokument);
@@ -261,6 +328,7 @@ const App = (() => {
       letzterStand = e.stand;
       Verlauf.leeren();
       neuZeichnen();
+      giltAlsGesichert();
       melde('Geöffnet: ' + (dok.meta.titel || name));
     } catch (f) {
       melde('Konnte nicht geöffnet werden: ' + f.message, true);
@@ -285,6 +353,25 @@ const App = (() => {
       melde('Fassung vom ' + f.zeitText + ' wiederhergestellt.');
     } catch (fehler) {
       melde('Wiederherstellen fehlgeschlagen: ' + fehler.message, true);
+    }
+  }
+
+  /* ---------------- Beispielarbeit ---------------- */
+
+  /* Die Vorlage liegt beim Programm, nicht in Arbeiten/. Geladen wird
+     eine Kopie ohne Projektnamen: das erste Sichern legt eine eigene
+     Arbeit an, die Vorlage selbst bleibt unangetastet. */
+  async function starteMitBeispiel() {
+    try {
+      const e = await Begleiter.beispiel();
+      dok = Modell.normalisiere(e.dokument);
+      projektname = '';
+      letzterStand = null;
+      Verlauf.leeren();
+      neuZeichnen();
+      melde('Beispielarbeit geöffnet — schreib ruhig hinein, es ist deine Kopie.');
+    } catch (f) {
+      melde('Die Beispielarbeit lässt sich nicht laden: ' + f.message, true);
     }
   }
 
@@ -321,9 +408,43 @@ const App = (() => {
     }
   }
 
-  /* Zwei Wege, ein Knopf: "LaTeX ansehen" ist Nachschauen, "ZIP" ist
-     Weitergeben -- beides ist Export, also stehen sie zusammen in
-     einem kleinen Menü statt einzeln in der Kopfzeile. */
+  /* Das einzige, was am Ende wirklich abgegeben wird. Es lag bisher
+     nur in der Anzeige rechts -- erreichbar allein über die Knopfleiste
+     des eingebetteten Betrachters, die je nach Browser anders aussieht
+     oder fehlt. */
+  async function pdfHerunterladen() {
+    if (!Begleiter.verbunden) {
+      melde('Ohne Begleiter lässt sich kein PDF bauen.', true);
+      return;
+    }
+    if (baeuftGerade) { melde('Das PDF wird gerade gebaut — gleich noch einmal.'); return; }
+    /* Erst bauen, dann geben: heruntergeladen wird, was im Text steht,
+       nicht der Stand von vor drei Absätzen. */
+    if (pdfVeraltet || !pdfFassung) {
+      melde('Das PDF wird gebaut …');
+      clearTimeout(bauTimer);
+      await baue();
+    }
+    if (!pdfFassung) {
+      melde('Es gibt noch kein PDF — der Bau ist fehlgeschlagen. '
+            + 'Die Meldung steht über der Anzeige.', true);
+      return;
+    }
+    try {
+      const a = await fetch(Begleiter.pdfAdresse(pdfFassung));
+      if (!a.ok) throw new Error('Der Begleiter hat kein PDF.');
+      ladeHerunter(await a.blob(), dateiname('.pdf'));
+      melde('PDF heruntergeladen.'
+            + (pdfVeraltet ? ' Achtung: der letzte Bau ist fehlgeschlagen, '
+                             + 'es ist der Stand davor.' : ''));
+    } catch (f) {
+      melde('Das PDF ließ sich nicht herunterladen: ' + f.message, true);
+    }
+  }
+
+  /* Drei Wege, ein Knopf: das fertige PDF zum Abgeben, das LaTeX zum
+     Nachschauen, das ZIP zum Weitergeben -- alles Export, also
+     zusammen in einem kleinen Menü statt einzeln in der Kopfzeile. */
   function zeigeExportMenue() {
     const alt = document.getElementById('exportmenue');
     if (alt) { alt.remove(); return; }
@@ -337,6 +458,8 @@ const App = (() => {
       b.addEventListener('click', () => { menue.remove(); aktion(); });
       menue.append(b);
     };
+    eintrag('PDF herunterladen', 'das fertige Dokument — das, was abgegeben wird',
+            pdfHerunterladen);
     eintrag('LaTeX ansehen', 'nur zum Nachschauen — nichts wird gespeichert',
             () => Dialoge.texAnsehen(dok));
     eintrag('ZIP herunterladen', 'LaTeX-Projekt für Overleaf oder zum Weitergeben',
@@ -379,11 +502,16 @@ const App = (() => {
     k('knopf-neu', async () => {
       const typ = await Dialoge.neuesDokument();
       if (!typ) return;
+      if (!await sichereVorWechsel()) return;
+      if (typ === 'beispiel') return starteMitBeispiel();
       dok = Modell.neu(typ);
       projektname = '';
       letzterStand = null;
       Verlauf.leeren();
       neuZeichnen();
+      /* Noch ist nichts getippt -- eine unberührte Vorlage muss nicht
+         als Arbeit auf der Platte landen. Das erste Wort tut es. */
+      giltAlsGesichert();
       mitVerlauf(() => Dialoge.deckblatt(dok));
     });
     k('knopf-deckblatt', () => mitVerlauf(() => Dialoge.deckblatt(dok)));
@@ -444,6 +572,16 @@ const App = (() => {
     });
   }
 
+  /* Vier Sekunden ungesicherter Text sind wenig -- und trotzdem der
+     halbe Absatz, an dem gerade gearbeitet wird. Eine eigene Meldung
+     erlauben die Browser hier längst nicht mehr; dass überhaupt
+     gefragt wird, ist der ganze Zweck. */
+  window.addEventListener('beforeunload', (ev) => {
+    if (!ungesichert) return;
+    ev.preventDefault();
+    ev.returnValue = '';
+  });
+
   async function start() {
     try {
       const thema = localStorage.getItem('schreibtisch-thema');
@@ -471,14 +609,33 @@ const App = (() => {
 
     try {
       const w = await Begleiter.pruefung();
-      werkzeugeVollstaendig = w.vollstaendig;
+      /* Kein Dialog. Wer LaTeX noch nicht hat, ist gerade zum ersten
+         Mal hier -- ein Fenster, das man erst wegklicken muss, bevor
+         man das Programm überhaupt sieht, ist der falsche Empfang.
+         Der Hinweis bleibt stattdessen dort stehen, wo später das PDF
+         erscheint, und führt von dort weiter. */
       if (!w.vollstaendig) {
         melde('pdflatex oder biber fehlt — Schreiben geht, Drucken nicht.', true);
-        setTimeout(() => DialogeExtra.einstellungen(), 600);
+        const leer = document.getElementById('pdfleer');
+        if (leer) {
+          leer.innerHTML = `<div style="max-width:340px;text-align:center">
+             <div style="font-size:26px;margin-bottom:10px">⚠</div>
+             <b>Hier fehlt noch LaTeX.</b>
+             <p style="color:var(--tinte-2);line-height:1.5">Schreiben kannst du
+             sofort — gesetzt wird die Arbeit erst, wenn <b>pdflatex</b> und
+             <b>biber</b> installiert sind. Die Kurzanleitung sagt, wie.</p></div>`;
+          const knopf = document.createElement('button');
+          knopf.type = 'button';
+          knopf.className = 'knopf knopf-haupt';
+          knopf.textContent = 'Nachsehen, was fehlt';
+          knopf.addEventListener('click', () => DialogeExtra.einstellungen());
+          leer.firstElementChild.append(knopf);
+        }
       }
     } catch { /* Begleiter meldet sich nicht -- die Meldung kommt beim Bauen */ }
 
     /* Zuletzt bearbeitete Arbeit fortsetzen */
+    let fortgesetzt = false;
     try {
       const liste = (await Begleiter.projekte()).projekte;
       if (liste.length) {
@@ -487,19 +644,25 @@ const App = (() => {
         projektname = liste[0].name;
         letzterStand = e.stand;
         Verlauf.leeren();
+        fortgesetzt = true;
         melde('Fortgesetzt: ' + (dok.meta.titel || liste[0].name));
-      } else {
-        setTimeout(() => Dialoge.hilfe(), 400);
       }
     } catch { /* nichts da, also frisches Dokument */ }
 
     neuZeichnen();
+    if (fortgesetzt) giltAlsGesichert();
+
+    /* Erst ganz am Ende und nur beim allerersten Start. Früher lief
+       hier ein setTimeout gegen ein zweites -- Kurzanleitung und
+       Einstellungen legten ihre Schleier übereinander, und der Knopf
+       der Kurzanleitung war nicht mehr erreichbar. */
+    if (!fortgesetzt) await Dialoge.hilfe();
   }
 
   return {
     get dok() { return dok; },
     set dok(d) { dok = d; },
-    start, aenderung, melde, sichere, exportiere, baue,
+    start, aenderung, melde, sichere, exportiere, baue, pdfHerunterladen,
     nimmZurueck, wiederhole,
     zitatEinfuegen, verweisEinfuegen, kennwertEinfuegen, fussnoteEinfuegen
   };

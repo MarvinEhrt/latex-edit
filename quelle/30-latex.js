@@ -33,6 +33,10 @@ const Latex = (() => {
       .join(' and ');
   }
 
+  /* \\ am Anfang oder Ende eines Absatzes bricht den Bau. */
+  const ohneRandumbrueche = (t) =>
+    t.replace(/^(?:\s*\\\\)+\s*/, '').replace(/(?:\\\\\s*)+$/, '');
+
   function erzeugeBib(dok) {
     const genutzt = Modell.zitierteSchluessel(dok);
     const zeilen = [
@@ -60,7 +64,11 @@ const Latex = (() => {
          &-Zeichen tippt als eine bibtex-Klammer. */
       const setze = (name, wert) => roh(name, wert == null ? wert : esc(wert));
       roh('author', bibAutoren(f.autoren));        // maskiert schon je Person
-      roh('year', f.jahr);
+      /* Nicht roh: biblatex setzt `year` als gewöhnlichen Text, nicht
+         verbatim wie doi/url. Ein Prozentzeichen im Jahresfeld eröffnete
+         sonst einen bibtex-Kommentar, verschluckte die schließende
+         Klammer des Eintrags -- und biber scheiterte lautlos. */
+      setze('year', f.jahr);
       setze('title', f.titel);
       setze('edition', f.auflage);
       setze('publisher', f.verlag);
@@ -304,7 +312,10 @@ const Latex = (() => {
           break;
         }
         case 'absatz': {
-          const t = Richtext.zuLatex(b.runs, ctx).trim();
+          /* Ein Zeilenumbruch (Umschalt+Enter) direkt am Absatzanfang
+             ergäbe ein \\ als erstes Zeichen -- "There's no line here
+             to end". Am Ende ebenso. */
+          const t = ohneRandumbrueche(Richtext.zuLatex(b.runs, ctx).trim());
           if (t) { K.push(''); K.push(t); }
           break;
         }

@@ -635,6 +635,145 @@ p('Strg+Z nimmt auch den Sprachwechsel zurück',
   await s.evaluate(()=>App.dok.einstellungen.sprache)==='de',
   await s.evaluate(()=>App.dok.einstellungen.sprache));
 
+// Z) Weggeklickte Dialoge lösen ihr Versprechen auf
+// Ohne das wartet der Aufrufer für immer: mitVerlauf käme nie zu
+// verwerfeLetzten und hinterließe genau den leeren Verlaufsschritt,
+// den es vermeiden soll.
+await setze(()=>{App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'Steht da'}]})];
+                 Editor.zeichne(); Verlauf.leeren();});
+const tiefeVorher = await s.evaluate(()=>Verlauf.tiefe());
+await s.locator('#knopf-layout').click(); await s.waitForTimeout(350);
+p('der Layout-Dialog geht auf', await s.locator('.schleier').count()===1);
+await s.keyboard.press('Escape'); await s.waitForTimeout(350);
+p('Escape schließt den Dialog wirklich', await s.locator('.schleier').count()===0);
+p('Escape hinterlässt keinen leeren Verlaufsschritt',
+  await s.evaluate(()=>Verlauf.tiefe())===tiefeVorher,
+  `vorher ${tiefeVorher}, nachher ${await s.evaluate(()=>Verlauf.tiefe())}`);
+
+// dasselbe über den Schleier statt über Escape
+await s.locator('#knopf-deckblatt').click(); await s.waitForTimeout(350);
+await s.locator('.schleier').click({position:{x:5,y:5}}); await s.waitForTimeout(350);
+p('ein Klick neben den Dialog schließt ihn ebenfalls',
+  await s.locator('.schleier').count()===0);
+p('auch das hinterlässt keinen leeren Schritt',
+  await s.evaluate(()=>Verlauf.tiefe())===tiefeVorher,
+  String(await s.evaluate(()=>Verlauf.tiefe())));
+
+// und der Aufrufer läuft weiter, statt am await zu hängen
+p('der Aufrufer wartet nicht ewig auf den weggeklickten Dialog',
+  await s.evaluate(async ()=>{
+    const versprechen = Dialoge.bestaetigen({titel:'Test', text:'Wegklicken'});
+    await new Promise(r=>setTimeout(r,150));
+    document.querySelector('.schleier')
+      .dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));
+    return Promise.race([
+      versprechen.then(w=>w===false ? 'aufgeloest' : 'falscher Wert'),
+      new Promise(r=>setTimeout(()=>r('haengt'),1500))
+    ]);
+  })==='aufgeloest');
+
+// Y) Zitate in Beschriftungen landen wirklich im Literaturverzeichnis
+// Wurde ein Schlüssel nicht eingesammelt, stand er zwar im LaTeX, die
+// Quelle aber nie in literatur.bib -- im PDF der rohe Schlüssel.
+const bib = await s.evaluate(()=>{
+  App.dok.quellen = [
+    {key:'holland1997', typ:'artikel', felder:{autoren:'Holland, John',
+     jahr:'1997', titel:'Interessen', zeitschrift:'Journal für A&O'}},
+    {key:'weber2020', typ:'buch', felder:{autoren:'Weber, Anna',
+     jahr:'2020 %', titel:'Zu 100% geklärt', verlag:'Verlag'}},
+    {key:'nurdiagramm', typ:'buch', felder:{autoren:'Meier, Eva',
+     jahr:'2019', titel:'Zahlen', verlag:'V'}}
+  ];
+  App.dok.bloecke = [
+    Modell.neuerBlock('tabelle', {titel:'Werte nach {{zitn:holland1997}}',
+      kopf:['a'], zeilen:[['1']], anmerkung:'Nach {{zit:weber2020}}.'}),
+    Modell.neuerBlock('diagramm', {titel:'Bild', quelle:'eigen',
+      gitter:[['x','y'],['1','2']], anmerkung:'Daten aus {{zit:nurdiagramm}}.'})
+  ];
+  return Latex.erzeuge(App.dok).dateien['literatur.bib'];
+});
+p('ein {{zitn:}} in der Beschriftung kommt ins Literaturverzeichnis',
+  bib.includes('holland1997'), bib.slice(0,200));
+p('ein Zitat in der Tabellenanmerkung ebenso', bib.includes('weber2020'));
+p('auch die Anmerkung eines Diagramms zählt', bib.includes('nurdiagramm'), bib);
+p('das Und-Zeichen im Zeitschriftennamen ist maskiert',
+  bib.includes('A\\&O') && !bib.includes('A&O'), bib.match(/journaltitle.*/)?.[0]);
+p('das Prozentzeichen im Jahr ist maskiert — sonst scheitert biber stumm',
+  bib.includes('2020 \\%'), bib.match(/year.*/)?.[0]);
+p('die Herkunft der Diagrammzahlen ist kein Quellenschlüssel',
+  !bib.includes('{eigen,'), bib);
+
+// X) Die schwebende Leiste hängt an, statt zu ersetzen
+await setze(()=>{App.dok.quellen=[{key:'holland1997', typ:'buch',
+                   felder:{autoren:'Holland, John', jahr:'1997', titel:'T', verlag:'V'}}];
+                 App.dok.bloecke=[Modell.neuerBlock('absatz',
+                   {runs:[{text:'Wie Holland 1997 zeigte'}]})];
+                 Editor.zeichne(); Verlauf.leeren();});
+// "Holland 1997" markieren (Zeichen 4 bis 17)
+await s.evaluate(()=>{
+  const feld = document.querySelector('.block .tx');
+  const knoten = feld.firstChild;
+  const bereich = document.createRange();
+  bereich.setStart(knoten, 4); bereich.setEnd(knoten, 17);
+  const a = window.getSelection(); a.removeAllRanges(); a.addRange(bereich);
+  feld.focus();
+});
+await s.waitForTimeout(300);
+p('die Leiste erscheint über der Auswahl',
+  await s.locator('#auswahlleiste').isVisible().catch(()=>false));
+await s.locator('#auswahlleiste button[title^="Quelle zitieren"]').click();
+await s.waitForTimeout(400);
+await s.locator('.dialog .quelle-zeile').first().click();
+await s.waitForTimeout(200);
+await s.locator('.dialog .knopf-haupt').last().click();
+await s.waitForTimeout(450);
+let xt = await txt();
+p('der markierte Text bleibt stehen, das Zitat kommt dahinter',
+  xt[0] && xt[0].startsWith('Wie Holland 1997'), JSON.stringify(xt));
+p('und ein Zitat-Run ist wirklich entstanden',
+  await s.evaluate(()=>App.dok.bloecke[0].runs.some(r=>r.zitat)),
+  JSON.stringify(await s.evaluate(()=>App.dok.bloecke[0].runs)));
+
+// W) Ein Absatz in der Fußnote bricht den Bau nicht mehr
+const fn = await s.evaluate(()=>{
+  App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[
+    {text:'Satz'}, {fussnote:'Erste Zeile\n\nZweite Zeile\n'}]})];
+  return Latex.erzeuge(App.dok).dateien['arbeit.tex'];
+});
+p('die Fußnote enthält keinen Absatzwechsel mehr',
+  /\\footnote\{[^}]*\}/.test(fn) && !/\\footnote\{[^}]*\n\n/.test(fn),
+  fn.match(/\\footnote\{[^}]*\}/)?.[0]);
+p('aus dem Absatzwechsel wird ein Zeilenumbruch',
+  fn.includes('Erste Zeile\\\\ Zweite Zeile'),
+  fn.match(/\\footnote\{[^}]*\}/)?.[0]);
+
+// V) Umschalt+Enter am Absatzanfang erzeugt kein nacktes \\
+const umbruch = await s.evaluate(()=>{
+  App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'\nText danach\n'}]})];
+  return Latex.erzeuge(App.dok).dateien['arbeit.tex'];
+});
+p('kein Zeilenumbruch am Anfang oder Ende eines Absatzes',
+  umbruch.includes('Text danach') && !/\n\\\\\s*\nText danach/.test(umbruch),
+  umbruch.split('Text danach')[0].slice(-40));
+
+// U) Das fertige PDF ist über das Export-Menü erreichbar
+await s.locator('#knopf-export').click();
+await s.waitForTimeout(300);
+const menue = await s.evaluate(()=>[...document.querySelectorAll('#exportmenue button b')]
+  .map(x=>x.textContent));
+p('das Export-Menü bietet das PDF an', menue.includes('PDF herunterladen'),
+  JSON.stringify(menue));
+p('und zwar an erster Stelle — es ist das, was abgegeben wird',
+  menue[0]==='PDF herunterladen', JSON.stringify(menue));
+// Ohne LaTeX gibt es kein PDF; dann muss die Meldung das ehrlich sagen,
+// statt eine leere Datei anzubieten.
+await s.locator('#exportmenue button', {hasText:'PDF herunterladen'}).click();
+await s.waitForTimeout(2500);
+const meldungen = await s.evaluate(()=>[...document.querySelectorAll('#meldungen .meldung')]
+  .map(x=>x.textContent).join(' | '));
+p('ohne gebautes PDF kommt eine ehrliche Meldung statt einer leeren Datei',
+  /kein PDF|wird gebaut|fehlgeschlagen/.test(meldungen), meldungen);
+
 console.log(`\n  ${ok} bestanden, ${fehl} durchgefallen`);
 await b.close(); d.kill();
 rmSync(ABLAGE,{recursive:true,force:true});

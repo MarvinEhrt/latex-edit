@@ -35,6 +35,7 @@ const Diagrammdialog = (() => {
     return new Promise((fertig) => {
       const { koerper, fuss, schliessen } = Dialoge.basis({
         titel: 'Diagramm einrichten',
+        beimSchliessen: () => fertig(null),
         unter: 'Gesetzt wird es in LaTeX — das PDF rechts zeigt das Ergebnis, ' +
                'nicht eine Nachbildung.',
         breit: true
