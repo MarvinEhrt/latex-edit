@@ -31,6 +31,7 @@ HIER = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HIER)
 
 from begleiter import ablage as ablage_modul          # noqa: E402
+from begleiter import github as github_modul          # noqa: E402
 from begleiter import nachschlagen as nachschlagen_modul  # noqa: E402
 from begleiter import uebersetzen as uebersetzen_modul  # noqa: E402
 from begleiter import zotero as zotero_modul          # noqa: E402
@@ -166,6 +167,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if e.get("zoteroSchluessel"):     # Schlüssel nie zurückgeben
                     e["zoteroSchluessel"] = "•" * 12
                     e["zoteroGesetzt"] = True
+                if e.get("githubToken"):          # gleiches Spiel für GitHub
+                    e["githubToken"] = "•" * 12
+                    e["githubGesetzt"] = True
                 return _json_antwort(self, e)
 
             if weg == "/nachschlagen":
@@ -257,12 +261,66 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if weg == "/einstellungen":
                 if daten.get("zoteroSchluessel", "").startswith("•"):
                     daten.pop("zoteroSchluessel")   # unveränderte Maske ignorieren
+                if daten.get("githubToken", "").startswith("•"):
+                    daten.pop("githubToken")
                 return _json_antwort(self, {"gut": True,
                                             "anzahl": len(ABLAGE.setze_einstellungen(daten))})
+
+            if weg == "/github/anmeldung/start":
+                client_id = (str(daten.get("clientId") or "").strip()
+                             or ABLAGE.einstellungen().get("githubClientId", ""))
+                start = github_modul.geraetecode(client_id)
+                # Die Client-ID ist öffentlich -- gemerkt wird sie nur,
+                # damit sie beim nächsten Verbinden schon dasteht.
+                ABLAGE.setze_einstellungen({"githubClientId": client_id})
+                return _json_antwort(self, start)
+
+            if weg == "/github/anmeldung/abfragen":
+                e = ABLAGE.einstellungen()
+                a = github_modul.geraetetoken(
+                    e.get("githubClientId", ""),
+                    str(daten.get("geraetecode") or ""))
+                if a.get("token"):
+                    wer = github_modul.wer(a["token"])
+                    ABLAGE.setze_einstellungen({
+                        "githubToken": a["token"],
+                        "githubBenutzer": wer["benutzer"],
+                        "githubName": wer["name"]})
+                    return _json_antwort(self, {"fertig": True, **wer})
+                return _json_antwort(self, {"fertig": False,
+                                            "pause": a.get("pause", 0)})
+
+            if weg == "/github/schluessel":
+                wer = github_modul.wer(str(daten.get("schluessel") or ""))
+                ABLAGE.setze_einstellungen({
+                    "githubToken": str(daten.get("schluessel") or "").strip(),
+                    "githubBenutzer": wer["benutzer"],
+                    "githubName": wer["name"]})
+                return _json_antwort(self, {"fertig": True, **wer})
+
+            if weg == "/github/trennen":
+                ABLAGE.setze_einstellungen({"githubToken": "",
+                                            "githubBenutzer": "",
+                                            "githubName": ""})
+                return _json_antwort(self, {"gut": True})
+
+            if weg == "/github/sichern":
+                e = ABLAGE.einstellungen()
+                if not e.get("githubToken"):
+                    return _json_antwort(
+                        self, {"fehler": "Noch nicht mit GitHub verbunden."}, 400)
+                name = str(daten.get("name") or "")
+                return _json_antwort(self, github_modul.sichere(
+                    e["githubToken"], e.get("githubBenutzer", ""),
+                    github_modul.repo_name(name),
+                    github_modul.sammle_dateien(ABLAGE.wurzel, name),
+                    "Sicherung vom " + time.strftime("%d.%m.%Y, %H:%M")))
 
         except VERBINDUNG_WEG:
             return                                # Browser ist weg
         except zotero_modul.ZoteroFehler as f:
+            return _json_antwort(self, {"fehler": str(f)}, 400)
+        except github_modul.GithubFehler as f:
             return _json_antwort(self, {"fehler": str(f)}, 400)
         except Exception as f:                    # noqa: BLE001
             return _json_antwort(self, {"fehler": f"{type(f).__name__}: {f}"}, 500)

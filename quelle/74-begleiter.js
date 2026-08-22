@@ -81,6 +81,11 @@ const Begleiter = (() => {
     zoteroSammlungen: (art) => hole('/zotero/sammlungen', { art: art || 'users' }),
     zoteroBibliothek: (art, sammlung) =>
       hole('/zotero/bibliothek', { art: art || 'users', sammlung: sammlung || '' }),
+    githubStart:     (clientId) => sende('/github/anmeldung/start', { clientId }),
+    githubAbfragen:  (geraetecode) => sende('/github/anmeldung/abfragen', { geraetecode }),
+    githubSchluessel: (schluessel) => sende('/github/schluessel', { schluessel }),
+    githubTrennen:   () => sende('/github/trennen', {}),
+    githubSichern:   (name) => sende('/github/sichern', { name }),
     beenden:         () => sende('/beenden', {})
   };
 })();

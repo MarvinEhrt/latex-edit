@@ -357,6 +357,105 @@ const DialogeExtra = (() => {
     });
   }
 
+  /* ================================================ GitHub */
+
+  /* Anmeldung für die Sicherung in ein privates Repository. Zwei Wege:
+     der Gerätecode-Fluss (einmalig eine eigene OAuth-App nötig) oder ein
+     eingefügter Zugangsschlüssel. Beides landet beim Begleiter auf der
+     Platte, nie im Browser. Gibt {benutzer, name} zurück oder null. */
+  function githubEinrichten() {
+    return new Promise(async (fertig) => {
+      const stand = await Begleiter.einstellungen().catch(() => ({}));
+      let erg = null;
+      let zeitgeber = null;
+      let offen = true;
+      const { koerper, fuss, schliessen } = Dialoge.basis({
+        titel: 'GitHub verbinden',
+        breit: true,
+        unter: 'Für Sicherungen in ein privates Repository. Der Zugang wird ' +
+               'neben dem Programm gespeichert, nicht im Browser.',
+        beimSchliessen: () => { offen = false; clearTimeout(zeitgeber); fertig(erg); }
+      });
+
+      const eingabe = (platzhalter, wert) => {
+        const e = el('input');
+        e.type = 'text';
+        e.placeholder = platzhalter;
+        e.value = wert || '';
+        e.style.cssText = 'flex:1;min-width:0;padding:8px 10px;' +
+          'border:1px solid var(--linie-stark);border-radius:var(--r);' +
+          'background:var(--flaeche-2);color:var(--tinte)';
+        return e;
+      };
+      const zeile = (...kinder) => {
+        const z = el('div');
+        z.style.cssText = 'display:flex;gap:6px;align-items:center;margin-top:8px';
+        z.append(...kinder);
+        return z;
+      };
+      const gelungen = (a) => {
+        erg = a;
+        App.melde('Mit GitHub verbunden als ' + (a.name || a.benutzer) + '.');
+        schliessen();
+      };
+      const warnung = (kasten, text) => {
+        kasten.innerHTML = '';
+        kasten.append(el('div', 'notiz warnung',
+          '<span>&#9888;</span><span>' + escHtml(text) + '</span>'));
+      };
+
+      /* --- Weg 1: Gerätecode --- */
+      const g1 = el('div', 'gruppe', `<h3>Über GitHub anmelden (Gerätecode)</h3>
+        <div class="quelle-warn">Braucht einmalig eine eigene, kostenlose
+        OAuth-App: unter <b>github.com/settings/applications/new</b> anlegen
+        (was in den Adressfeldern steht, ist egal), dann in der App
+        <b>Enable Device Flow</b> ankreuzen und die <b>Client-ID</b> hier
+        eintragen. Sie ist öffentlich — kein Geheimnis.</div>`);
+      const clientId = eingabe('Client-ID, z. B. Ov23li…', stand.githubClientId);
+      const anzeige1 = el('div');
+      g1.append(zeile(clientId, knopf('Anmelden', '', async () => {
+        anzeige1.innerHTML = '';
+        clearTimeout(zeitgeber);
+        let s;
+        try { s = await Begleiter.githubStart(clientId.value.trim()); }
+        catch (f) { warnung(anzeige1, f.message); return; }
+        anzeige1.innerHTML =
+          `<div class="notiz" style="margin-top:8px"><span>&#128273;</span><span>
+             Auf <a href="${escHtml(s.adresse)}" target="_blank"
+             rel="noopener"><b>${escHtml(s.adresse)}</b></a> diesen Code eingeben:<br>
+             <b style="font-size:22px;letter-spacing:.18em;font-family:var(--schrift-ma)">${escHtml(s.code)}</b><br>
+             Ich warte hier — das Fenster einfach offen lassen.</span></div>`;
+        let pause = (s.pause || 5) * 1000;
+        const frage = async () => {
+          if (!offen) return;
+          try {
+            const a = await Begleiter.githubAbfragen(s.geraetecode);
+            if (a.fertig) return gelungen(a);
+            if (a.pause) pause = a.pause * 1000;   // GitHub bittet um Ruhe
+          } catch (f) { warnung(anzeige1, f.message); return; }
+          zeitgeber = setTimeout(frage, pause);
+        };
+        zeitgeber = setTimeout(frage, pause);
+      })), anzeige1);
+
+      /* --- Weg 2: Zugangsschlüssel --- */
+      const g2 = el('div', 'gruppe', `<h3>Oder: Zugangsschlüssel einfügen</h3>
+        <div class="quelle-warn">Ohne eigene App: unter
+        <b>github.com/settings/tokens</b> → „Generate new token (classic)“
+        mit Haken bei <b>repo</b> anlegen und hier einfügen.</div>`);
+      const schluessel = eingabe('ghp_…');
+      schluessel.type = 'password';
+      const anzeige2 = el('div');
+      g2.append(zeile(schluessel, knopf('Verbinden', '', async () => {
+        try { gelungen(await Begleiter.githubSchluessel(schluessel.value.trim())); }
+        catch (f) { warnung(anzeige2, f.message); }
+      })), anzeige2);
+
+      koerper.append(g1, g2);
+      fuss.append(knopf('Abbrechen', 'knopf-still', schliessen));
+    });
+  }
+
   /* ================================================ Einstellungen */
 
   async function einstellungen() {
@@ -394,15 +493,35 @@ const DialogeExtra = (() => {
           <div class="txt"><b>${stand.zoteroGesetzt ? 'verbunden' : 'nicht verbunden'}</b>
           <span>${escHtml(stand.zoteroName ? 'als ' + stand.zoteroName : 'Schlüssel unter zotero.org/settings/keys anlegen')}</span>
         </div></div>
+      </div>
+      <div class="gruppe"><h3>GitHub</h3>
+        <div class="schalterzeile"><span style="font-size:16px">${stand.githubGesetzt ? '✓' : '–'}</span>
+          <div class="txt"><b>${stand.githubGesetzt ? 'verbunden' : 'nicht verbunden'}</b>
+          <span>${escHtml(stand.githubGesetzt
+            ? 'als ' + (stand.githubName || stand.githubBenutzer || '')
+              + ' — sichern über Export → Auf GitHub sichern'
+            : 'Arbeiten in ein privates Repository sichern — Export → Auf GitHub sichern')}</span>
+        </div></div>
       </div>`;
 
     fuss.append(
       knopf(stand.zoteroGesetzt ? 'Zotero neu verbinden' : 'Zotero verbinden',
             'knopf-still links', async () => { schliessen(); await zoteroEinrichten(); }),
+      knopf(stand.githubGesetzt ? 'GitHub trennen' : 'GitHub verbinden',
+            'knopf-still', async () => {
+              schliessen();
+              if (!stand.githubGesetzt) { await githubEinrichten(); return; }
+              try {
+                await Begleiter.githubTrennen();
+                App.melde('Von GitHub getrennt. Der Zugangsschlüssel selbst '
+                          + 'bleibt auf github.com gültig.');
+              } catch (f) { App.melde(f.message, true); }
+            }),
       knopf('Schließen', 'knopf-haupt', schliessen));
     fuss.firstChild.style.marginRight = 'auto';
     return geschlossen;
   }
 
-  return { projektOeffnen, dateiImport, zoteroImport, zoteroEinrichten, einstellungen };
+  return { projektOeffnen, dateiImport, zoteroImport, zoteroEinrichten,
+           githubEinrichten, einstellungen };
 })();

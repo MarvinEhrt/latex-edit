@@ -208,6 +208,30 @@ wird vorher gebaut; heruntergeladen wird also nie ein alter Stand.
 einem Stück — zum Weitergeben oder für Overleaf. **Export → LaTeX ansehen**
 zeigt vorher, was erzeugt wird.
 
+### Sichern auf GitHub
+
+**Export → Auf GitHub sichern** legt je Arbeit ein **privates** Repository
+an (`schreibtisch-<name>`) und setzt bei jedem Sichern einen Commit mit dem
+aktuellen Stand — Projektdatei samt Bildern; frühere Fassungen stehen in
+der Historie. In ein öffentliches Repository wird grundsätzlich nicht
+gesichert.
+
+Beim ersten Mal fragt ein Dialog nach der Anmeldung, auf zwei Wegen:
+
+* **Gerätecode:** einmalig unter `github.com/settings/applications/new`
+  eine eigene, kostenlose OAuth-App anlegen (Adressfelder egal), in der App
+  **Enable Device Flow** ankreuzen und die **Client-ID** eintragen. Der
+  Schreibtisch zeigt dann einen kurzen Code, der auf
+  `github.com/login/device` eingetippt wird — kein Kennwort, keine
+  Geheimnummer.
+* **Zugangsschlüssel:** unter `github.com/settings/tokens` ein Token
+  (classic) mit Haken bei **repo** anlegen und einfügen.
+
+Der Zugang landet — wie der Zotero-Schlüssel — in `einstellungen.json`
+neben dem Programm, nie im Browser. Getrennt wird in den
+**Einstellungen** (⚙); das entfernt den Zugang nur lokal, das Token
+selbst bleibt auf github.com gültig, bis man es dort löscht.
+
 ---
 
 ## Aufbau
@@ -219,6 +243,7 @@ Schreibtisch/
 ├── begleiter/           nur Standardbibliothek — kein pip, kein venv
 │   ├── uebersetzen.py   pdflatex/biber-Läufe, Logauswertung
 │   ├── zotero.py        Web-API von Zotero
+│   ├── github.py        Sicherung in ein privates GitHub-Repository
 │   ├── nachschlagen.py  Quelle per DOI bei Crossref
 │   └── ablage.py        Projekte und Einstellungen
 ├── quelle/              Oberfläche (17 Module)
@@ -258,8 +283,9 @@ selben Browser mitreden kann.
 ```
 python3 pruefungen/pruefe_begleiter.py   # LaTeX-Läufe, Logauswertung, Zeilenkarte,
                                          #   Zotero- und Crossref-Abbildung, Ablage,
-                                         #   Sicherungen. Ohne LaTeX läuft der Teil,
-                                         #   der die Arbeiten auf der Platte betrifft.
+                                         #   Sicherungen, GitHub-Sicherung (ohne
+                                         #   Netz). Ohne LaTeX läuft der Teil, der
+                                         #   die Arbeiten auf der Platte betrifft.
 python3 pruefungen/pruefe_absicherung.py # 16 Prüfungen: Zeichen, fremder Hostname,
                                          #   POST-Riegel, Pfadausbruch
 python3 pruefungen/pruefe_abbruch.py     #  4 Prüfungen: Dienst übersteht Abbrüche

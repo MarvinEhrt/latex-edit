@@ -537,6 +537,118 @@ def pruefe_ohne_latex():
 
     shutil.rmtree(lager, ignore_errors=True)
 
+    # ------------------------------------------------ GitHub-Sicherung
+    # Kein Netz in Prüfungen: die reinen Teile direkt, die Abläufe gegen
+    # eine untergeschobene API.
+    from begleiter import github as github_modul
+
+    pruefe("GitHub: Repo-Name aus dem Projektnamen",
+           github_modul.repo_name("Bachelorarbeit Müller (2. Fassung)")
+           == "schreibtisch-bachelorarbeit-mueller-2-fassung",
+           github_modul.repo_name("Bachelorarbeit Müller (2. Fassung)"))
+    pruefe("GitHub: leerer Projektname fällt sauber zurück",
+           github_modul.repo_name("!!!") == "schreibtisch-arbeit",
+           github_modul.repo_name("!!!"))
+
+    g_lager = tempfile.mkdtemp(prefix="schreibtisch-github-")
+    ga = ablage_modul.Ablage(os.path.join(g_lager, "Arbeiten"))
+    ga.sichere("Meine Arbeit", {"meta": {"titel": "T"}, "bloecke": [
+        {"id": "b1", "typ": "abbildung", "titel": "S",
+         "datenUrl": "data:image/png;base64," + PNG}]})
+    ga.sichere("Meine Arbeit", {"meta": {"titel": "T2"}, "bloecke": [
+        {"id": "b1", "typ": "abbildung", "titel": "S",
+         "datenUrl": "data:image/png;base64," + PNG}]})
+    dateien = github_modul.sammle_dateien(os.path.join(g_lager, "Arbeiten"),
+                                          "Meine Arbeit")
+    pruefe("GitHub: Projektdatei, Bild und LIESMICH eingesammelt",
+           "Meine Arbeit.json" in dateien and "LIESMICH.md" in dateien
+           and any(p.startswith("Meine Arbeit.bilder/") for p in dateien),
+           str(sorted(dateien)))
+    pruefe("GitHub: Sicherungen bleiben draußen",
+           not any(".sicherungen" in p for p in dateien), str(sorted(dateien)))
+    fehlt = False
+    try:
+        github_modul.sammle_dateien(os.path.join(g_lager, "Arbeiten"), "Gibtsnicht")
+    except github_modul.GithubFehler as f:
+        fehlt = "Strg+S" in str(f)
+    pruefe("GitHub: unbekannte Arbeit gibt einen Rat statt Traceback", fehlt)
+    shutil.rmtree(g_lager, ignore_errors=True)
+
+    # ---- Gerätecode-Antworten
+    echt_formular = github_modul._formular
+    antworten = {}
+    github_modul._formular = lambda url, felder: dict(antworten)
+    try:
+        antworten = {"error": "authorization_pending"}
+        pruefe("GitHub: authorization_pending heißt warten",
+               github_modul.geraetetoken("id", "code").get("wartet") is True)
+        antworten = {"error": "slow_down", "interval": 12}
+        pruefe("GitHub: slow_down bringt die neue Pause mit",
+               github_modul.geraetetoken("id", "code").get("pause") == 12)
+        antworten = {"access_token": "gho_x"}
+        pruefe("GitHub: fertige Anmeldung liefert den Schlüssel",
+               github_modul.geraetetoken("id", "code").get("token") == "gho_x")
+        abgelaufen = False
+        try:
+            antworten = {"error": "expired_token"}
+            github_modul.geraetetoken("id", "code")
+        except github_modul.GithubFehler as f:
+            abgelaufen = "abgelaufen" in str(f)
+        pruefe("GitHub: abgelaufener Code sagt es auf Deutsch", abgelaufen)
+    finally:
+        github_modul._formular = echt_formular
+
+    # ---- Sichern: Reihenfolge Blob -> Baum -> Commit -> Zweig
+    echt_api = github_modul._api
+    aufrufe = []
+
+    def falsche_api(methode, pfad, token, daten=None, darf_fehlen=False):
+        aufrufe.append((methode, pfad))
+        if pfad == "/repos/wer/schreibtisch-x":
+            return {"private": True, "default_branch": "main",
+                    "html_url": "https://github.com/wer/schreibtisch-x"}
+        if pfad.endswith("/git/ref/heads/main"):
+            return {"object": {"sha": "alt"}}
+        if pfad.endswith("/git/blobs"):
+            return {"sha": "blob" + str(len(aufrufe))}
+        if pfad.endswith("/git/trees"):
+            falsche_api.baum = daten["tree"]
+            return {"sha": "baum"}
+        if pfad.endswith("/git/commits"):
+            falsche_api.commit = daten
+            return {"sha": "abcdef1234"}
+        if pfad.endswith("/git/refs/heads/main"):
+            falsche_api.ref = daten
+            return {}
+        raise AssertionError("unerwarteter Aufruf: " + methode + " " + pfad)
+
+    github_modul._api = falsche_api
+    try:
+        e = github_modul.sichere("t", "wer", "schreibtisch-x",
+                                 {"a.json": b"{}", "b.bilder/c.png": b"\x89"},
+                                 "Sicherung")
+        pruefe("GitHub: Sichern baut Blob, Baum, Commit und setzt den Zweig",
+               e["repo"] == "wer/schreibtisch-x" and e["commit"] == "abcdef1"
+               and falsche_api.commit["parents"] == ["alt"]
+               and falsche_api.ref == {"sha": "abcdef1234", "force": False},
+               str(aufrufe))
+        pruefe("GitHub: der Baum spiegelt genau die Dateien",
+               sorted(x["path"] for x in falsche_api.baum)
+               == ["a.json", "b.bilder/c.png"], str(falsche_api.baum))
+
+        def oeffentliche_api(methode, pfad, token, daten=None, darf_fehlen=False):
+            return {"private": False, "default_branch": "main"}
+        github_modul._api = oeffentliche_api
+        verweigert = False
+        try:
+            github_modul.sichere("t", "wer", "x", {"a": b""}, "n")
+        except github_modul.GithubFehler as f:
+            verweigert = "öffentlich" in str(f)
+        pruefe("GitHub: in ein öffentliches Repository wird nicht gesichert",
+               verweigert)
+    finally:
+        github_modul._api = echt_api
+
 
 def main():
     print("\nBegleiterprüfung\n")

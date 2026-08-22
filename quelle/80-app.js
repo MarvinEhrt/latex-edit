@@ -442,9 +442,34 @@ const App = (() => {
     }
   }
 
-  /* Drei Wege, ein Knopf: das fertige PDF zum Abgeben, das LaTeX zum
-     Nachschauen, das ZIP zum Weitergeben -- alles Export, also
-     zusammen in einem kleinen Menü statt einzeln in der Kopfzeile. */
+  /* Der Stand von der Platte wandert als Commit in ein privates
+     Repository -- deshalb erst lokal sichern, dann hochladen. Die
+     Anmeldung holt der Dialog beim ersten Mal nach. */
+  async function sichereAufGithub() {
+    if (!Begleiter.verbunden) {
+      melde('Ohne Begleiter lässt sich nichts zu GitHub sichern.', true);
+      return;
+    }
+    const stand = await Begleiter.einstellungen().catch(() => ({}));
+    if (!stand.githubGesetzt && !(await DialogeExtra.githubEinrichten())) return;
+    await sichere(true);
+    if (!projektname) {
+      melde('Zuerst lokal sichern (Strg+S), dann zu GitHub.', true);
+      return;
+    }
+    melde('Wird zu GitHub hochgeladen …');
+    try {
+      const e = await Begleiter.githubSichern(projektname);
+      melde('Auf GitHub gesichert: ' + e.repo + ' (' + e.commit + ').');
+    } catch (f) {
+      melde('GitHub-Sicherung fehlgeschlagen: ' + f.message, true);
+    }
+  }
+
+  /* Vier Wege, ein Knopf: das fertige PDF zum Abgeben, das LaTeX zum
+     Nachschauen, das ZIP zum Weitergeben, GitHub zum Sichern -- alles
+     Export, also zusammen in einem kleinen Menü statt einzeln in der
+     Kopfzeile. */
   function zeigeExportMenue() {
     const alt = document.getElementById('exportmenue');
     if (alt) { alt.remove(); return; }
@@ -464,6 +489,8 @@ const App = (() => {
             () => Dialoge.texAnsehen(dok));
     eintrag('ZIP herunterladen', 'LaTeX-Projekt für Overleaf oder zum Weitergeben',
             exportiere);
+    eintrag('Auf GitHub sichern', 'privates Repository — jede Sicherung ein Commit',
+            sichereAufGithub);
     const r = anker.getBoundingClientRect();
     menue.style.top = (r.bottom + 4) + 'px';
     menue.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
