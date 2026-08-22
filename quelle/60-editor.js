@@ -409,7 +409,7 @@ const Editor = (() => {
       App.aenderung();
       zeichne(); zeichneGliederung();
       waehle(block.id);
-      App.melde('Abbildung eingefügt — Titel über das Zahnrad nachtragen.');
+      App.melde('Abbildung eingefügt — Titel oben in der Objektleiste eintragen.');
     };
     leser.onerror = () => App.melde('Das Bild ließ sich nicht lesen.', true);
     leser.readAsDataURL(datei);
@@ -432,7 +432,7 @@ const Editor = (() => {
     zeichne(); zeichneGliederung();
     waehle(block.id);
     App.melde(`Tabelle mit ${gitter.zeilen.length} Zeilen eingefügt — ` +
-              'Titel über das Zahnrad, ein Diagramm über „📊 Diagramm daraus“.');
+              'Titel und „📊 Diagramm daraus“ oben in der Objektleiste.');
   }
 
   /* Der kurze Weg von den Zahlen zum Bild: ein Diagramm, das auf die
@@ -629,6 +629,8 @@ const Editor = (() => {
 
   /* ---------------- Blockdarstellung ---------------- */
 
+  /* Nur noch das Universelle -- alles Typspezifische wohnt oben in der
+     Objektleiste (63-kontextleiste.js), die am gewählten Baustein hängt. */
   function werkzeugleiste(block) {
     const leiste = el('div', 'blockleiste');
     const w = (zeichen, titel, aktion, klasse) => {
@@ -639,59 +641,6 @@ const Editor = (() => {
       b.addEventListener('click', (ev) => { ev.stopPropagation(); aktion(); });
       return b;
     };
-
-    if (block.typ === 'ueberschrift') {
-      for (const e of [1, 2, 3]) {
-        const b = w('H' + e, `Ebene ${e}`, () => {
-          Verlauf.merke(dok());
-          block.ebene = e; App.aenderung(); zeichne(); zeichneGliederung();
-        });
-        if ((block.ebene || 1) === e) b.style.color = 'var(--akzent)';
-        leiste.append(b);
-      }
-    }
-    if (['absatz', 'blockzitat', 'liste'].includes(block.typ)) {
-      leiste.append(
-        w('❝', 'Quelle zitieren  (Strg+Umschalt+Z)', () => App.zitatEinfuegen()),
-        w('→', 'Querverweis einfügen', () => App.verweisEinfuegen()),
-        w('𝑀', 'Kennwert einfügen', () => App.kennwertEinfuegen()),
-        w('¹', 'Fußnote einfügen', () => App.fussnoteEinfuegen()),
-        w('∑', 'Formel im Satz einfügen', () => App.formelEinfuegen())
-      );
-    }
-    if (block.typ === 'liste') {
-      leiste.append(w(block.ordnung === 'nummern' ? '1.' : '•',
-        'Zwischen Punkten und Nummern wechseln', () => {
-          Verlauf.merke(dok());
-        block.ordnung = block.ordnung === 'nummern' ? 'punkte' : 'nummern';
-          App.aenderung(); zeichne();
-        }));
-    }
-    if (block.typ === 'tabelle') {
-      leiste.append(w('📊', 'Diagramm aus dieser Tabelle', () =>
-        legeDiagrammAnAusTabelle(block)));
-    }
-    if (['tabelle', 'abbildung', 'formel', 'diagramm'].includes(block.typ)) {
-      leiste.append(w('⚙', 'Einstellungen', async () => {
-        const f = { tabelle: Dialoge.tabelle, abbildung: Dialoge.abbildung,
-                    formel: Dialoge.formel,
-                    diagramm: Diagrammdialog.einrichten }[block.typ];
-        Verlauf.merke(dok());
-        if (await f(block, dok())) { App.aenderung(); zeichne(); }
-        else Verlauf.verwerfeLetzten();
-      }));
-    }
-    if (block.typ === 'blockzitat') {
-      leiste.append(w('§', 'Quelle des Zitats festlegen', async () => {
-        const z = await Dialoge.zitatEinfuegen(dok(), { einzeln: true });
-        if (z) {
-          Verlauf.merke(dok());
-          block.quelle = z.zitat; block.seite = z.seite;
-          App.aenderung(); zeichne();
-        }
-      }));
-    }
-
     leiste.append(
       w('↑', 'Nach oben', () => verschiebe(block.id, -1)),
       w('↓', 'Nach unten', () => verschiebe(block.id, +1)),
@@ -722,7 +671,7 @@ const Editor = (() => {
         box.append(el('div', 'karte-anm',
           q ? `Quelle: ${escHtml(Zitate.imText(q, 'klammer', block.seite,
                                               (dok().einstellungen || {}).sprache))}`
-            : '<i>Noch keine Quelle festgelegt — auf § in der Werkzeugleiste klicken.</i>'));
+            : '<i>Noch keine Quelle festgelegt — oben in der Objektleiste auf „§ Quelle“ klicken.</i>'));
         return box;
       }
 
@@ -767,7 +716,7 @@ const Editor = (() => {
         const karte = el('div', 'tab-karte');
         karte.append(el('div', 'karte-kopf',
           `<span class="karte-nr">TABELLE ${escHtml(info.nummer || '?')}</span>
-           <span class="karte-titel">${escHtml(block.titel || 'Ohne Titel — auf ⚙ klicken')}</span>`));
+           <span class="karte-titel">${escHtml(block.titel || 'Ohne Titel — oben in der Leiste eintragen')}</span>`));
 
         const neuZeichnenTabelle = () => {
           App.aenderung(); zeichne(); waehle(block.id, false);
@@ -871,32 +820,6 @@ const Editor = (() => {
         tabelle.append(koerper);
         huelle.append(tabelle);
         karte.append(huelle);
-
-        const anbau = el('div', 'tabellenknoepfe');
-        const knopf = (text, titel, aktion) => {
-          const k = el('button', 'knopf knopf-klein', text);
-          k.title = titel;
-          k.addEventListener('click', aktion);
-          return k;
-        };
-        anbau.append(
-          knopf('+ Zeile', 'Zeile unten anfügen (oder Tabulator in der letzten Zelle)', () => {
-            merkeTabelle();
-            block.zeilen.push(block.kopf.map(() => ''));
-            neuZeichnenTabelle();
-          }),
-          knopf('+ Spalte', 'Spalte rechts anfügen', () => {
-            merkeTabelle();
-            block.kopf.push('');
-            block.zeilen.forEach(z => z.push(''));
-            (block.spaltenAusrichtung || []).push('c');
-            neuZeichnenTabelle();
-          }),
-          knopf('📊 Diagramm daraus',
-            'Legt ein Diagramm an, das diese Tabelle darstellt — ' +
-            'ändert sich die Tabelle, ändert sich das Diagramm mit',
-            () => legeDiagrammAnAusTabelle(block)));
-        karte.append(anbau);
         if (block.anmerkung)
           karte.append(el('div', 'karte-anm', `<i>Anmerkung.</i> ${Latex.textMitTokens(block.anmerkung, 'html')}`));
         return karte;
@@ -906,7 +829,7 @@ const Editor = (() => {
         const karte = el('div', 'abb-karte');
         karte.append(el('div', 'karte-kopf',
           `<span class="karte-nr">ABBILDUNG ${escHtml(info.nummer || '?')}</span>
-           <span class="karte-titel">${escHtml(block.titel || 'Ohne Titel — auf ⚙ klicken')}</span>`));
+           <span class="karte-titel">${escHtml(block.titel || 'Ohne Titel — oben in der Leiste eintragen')}</span>`));
         if (block.datenUrl) {
           const bild = el('img', 'abb-vorschau');
           bild.src = block.datenUrl;
@@ -915,7 +838,7 @@ const Editor = (() => {
           karte.append(bild);
         } else {
           const leer = el('div', 'abb-leer',
-            '<div style="font-size:20px">&#128247;</div><div>Noch kein Bild — auf &#9881; klicken</div>');
+            '<div style="font-size:20px">&#128247;</div><div>Noch kein Bild — hier klicken</div>');
           leer.addEventListener('click', async () => {
             if (await Dialoge.abbildung(block)) { App.aenderung(); zeichne(); }
           });
@@ -931,7 +854,7 @@ const Editor = (() => {
         const art = (Diagrammdialog.ARTEN[block.art] || {}).name || block.art;
         karte.append(el('div', 'karte-kopf',
           `<span class="karte-nr">ABBILDUNG ${escHtml(info.nummer || '?')}</span>
-           <span class="karte-titel">${escHtml(block.titel || 'Ohne Titel — auf ⚙ klicken')}</span>`));
+           <span class="karte-titel">${escHtml(block.titel || 'Ohne Titel — oben in der Leiste eintragen')}</span>`));
         const gitter = Diagramm.gitterVon(block, dok());
         const reihen = gitter ? Diagramm.wertSpalten(block, gitter).length : 0;
         const quelle = block.quelle === 'tabelle'
@@ -1028,6 +951,7 @@ const Editor = (() => {
       b.classList.toggle('gewaehlt', b.dataset.id === id));
     document.querySelectorAll('.gl-eintrag').forEach(g =>
       g.classList.toggle('aktiv', g.dataset.id === id));
+    Kontextleiste.zeichne();
     if (scrollen) document.querySelector(`.block[data-id="${id}"]`)
       ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
@@ -1080,11 +1004,14 @@ const Editor = (() => {
       const inhalt = el('div', 'block-inhalt');
       inhalt.append(blockInhalt(block, nummern));
       kasten.append(griff, inhalt, werkzeugleiste(block));
-      kasten.addEventListener('mousedown', () => { gewaehlteId = block.id; });
+      /* waehle statt bloßem Merken: so wechselt auch bei Bausteinen ohne
+         Textfeld (Diagramm, Formel, Umbruch) die Objektleiste oben mit. */
+      kasten.addEventListener('mousedown', () => waehle(block.id, false));
       behaelter.append(kasten);
     }
     verdrahteDateiablage();
     verdrahteChipKlick();
+    Kontextleiste.zeichne();
   }
 
   /* ---------------- Gliederung ---------------- */
@@ -1172,5 +1099,6 @@ const Editor = (() => {
   return { zeichne, zeichneGliederung, baueEinfuegeleiste, waehle, fokussiere,
            fokussiereAn, fuegeAmCursorEin, chipHtml, fuegeBlockEin,
            legeBildAn, legeTabelleAn,
+           diagrammAusTabelle: legeDiagrammAnAusTabelle,
            gewaehlteId: () => gewaehlteId };
 })();

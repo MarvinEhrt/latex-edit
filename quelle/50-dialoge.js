@@ -959,17 +959,21 @@ const Dialoge = (() => {
         Links steht deine <b>Gliederung</b> — ein Klick springt zur Stelle. In der Mitte
         schreibst du. Rechts siehst du, wie es aussehen wird.</p>
         <p style="margin:0;font-size:13.5px;line-height:1.6">
-        Jeder Abschnitt ist ein <b>Baustein</b>. Fahr mit der Maus darüber: links erscheint
-        ein Griff zum Verschieben, oben rechts die Werkzeuge. Am unteren Rand der
-        Textspalte liegt immer die Leiste <b>Einfügen</b> — Absatz, Tabelle, Diagramm,
-        Formel und so weiter; Neues erscheint nach dem gerade gewählten Baustein.</p>
+        Jeder Abschnitt ist ein <b>Baustein</b>. Klickst du einen an, zeigt die
+        <b>Objektleiste</b> oben seine Werkzeuge — bei einer Tabelle den
+        <b>Tabellenentwurf</b>, bei einem Bild das <b>Bildformat</b>, samt Titel
+        zum direkten Tippen. Fahr mit der Maus über einen Baustein: links erscheint
+        ein Griff zum Verschieben, oben rechts Verschieben und Löschen. Am unteren
+        Rand der Textspalte liegt immer die Leiste <b>Einfügen</b> — Absatz, Tabelle,
+        Diagramm, Formel und so weiter; Neues erscheint nach dem gerade gewählten
+        Baustein.</p>
       </div>
       <div class="gruppe"><h3>Tabellen und Diagramme</h3>
         <p style="margin:0;font-size:13.5px;line-height:1.6">
         Zahlen aus <b>Excel, SPSS oder JASP</b> kopierst du einfach in den Text
-        (Strg+V) — daraus wird eine Tabelle. Unter jeder Tabelle sitzt
-        <b>📊 Diagramm daraus</b>: das Diagramm zeigt auf die Tabelle, ändert sich
-        die Tabelle, ändert sich das Diagramm mit. Ein <b>Bildschirmfoto</b> in der
+        (Strg+V) — daraus wird eine Tabelle. Ist sie gewählt, bietet die
+        Objektleiste oben <b>📊 Diagramm daraus</b>: das Diagramm zeigt auf die
+        Tabelle, ändert sich die Tabelle, ändert sich das Diagramm mit. Ein <b>Bildschirmfoto</b> in der
         Zwischenablage wird mit Strg+V direkt zur Abbildung.</p>
       </div>
       <div class="gruppe"><h3>Formeln</h3>
@@ -979,7 +983,7 @@ const Dialoge = (() => {
         die gängigen Statistik-Formeln stehen zum Anklicken bereit, fehlende Klammern
         werden sofort gemeldet. <b>Nummerierte</b> Formeln bekommen eine (1) und
         lassen sich per Querverweis ansprechen. Für ein <b>η²</b> mitten im Satz:
-        Text markieren oder Schreibmarke setzen und in der Werkzeugleiste auf ∑
+        Schreibmarke setzen und oben in der Objektleiste auf <b>∑ Formel</b>
         klicken.</p>
       </div>
       <div class="gruppe"><h3>Tastatur</h3>

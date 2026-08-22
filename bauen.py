@@ -29,6 +29,7 @@ JS_DATEIEN = [
     "50-dialoge.js",
     "60-editor.js",
     "62-auswahlleiste.js",
+    "63-kontextleiste.js",
     "64-suche.js",
     "70-zip.js",
     "72-import.js",

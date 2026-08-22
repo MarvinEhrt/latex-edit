@@ -182,12 +182,17 @@ const typen = await s.evaluate(()=>App.dok.bloecke.map(b=>b.typ));
 p('gezogenes Bild landet an der Ablagestelle',
   typen.join(',')==='absatz,abbildung,absatz', typen.join(','));
 
-// K) Tabellenwerkzeuge
+// K) Tabellenwerkzeuge — wohnen jetzt oben in der Objektleiste
 await setze(()=>{App.dok.bloecke=[Modell.neuerBlock('tabelle',
   {kopf:['A','B'],zeilen:[['1','2']],spaltenAusrichtung:['l','c']})];Editor.zeichne();});
-await s.locator('.tabellenknoepfe .knopf', {hasText:'+ Zeile'}).click();
+await s.locator('.block tbody td').first().click();
+await s.waitForTimeout(250);
+p('ein Klick in die Tabelle zeigt oben den Tabellenentwurf',
+  /tabellenentwurf/i.test(await s.locator('#kontextleiste .ktx-art').innerText()),
+  await s.locator('#kontextleiste').innerText());
+await s.locator('#kontextleiste button', {hasText:'+ Zeile'}).click();
 await s.waitForTimeout(350);
-await s.locator('.tabellenknoepfe .knopf', {hasText:'+ Spalte'}).click();
+await s.locator('#kontextleiste button', {hasText:'+ Spalte'}).click();
 await s.waitForTimeout(350);
 const t2 = await s.evaluate(()=>App.dok.bloecke[0]);
 p('Zeile und Spalte lassen sich anfügen',
@@ -309,7 +314,7 @@ await frisch(()=>{
   Editor.zeichne();});
 await s.locator('.block .tx').first().click();
 await s.keyboard.press('End');
-await s.locator('.blockleiste button[title^="Quelle zitieren"]').first().click();
+await s.locator('#kontextleiste button[title^="Quelle zitieren"]').first().click();
 await s.waitForSelector('.dialog', {timeout:5000});
 await s.locator('.dialog .quelle-zeile').nth(0).click();
 await s.waitForTimeout(150);
@@ -545,12 +550,14 @@ p('Escape schließt die Suchleiste',
 
 // ---------------------------------------------- Diagramm aus Tabelle
 
-// Z) „Diagramm daraus“ unter der Tabelle: Dialog vorbelegt, Diagramm zeigt auf die Tabelle
+// Z) „Diagramm daraus“ in der Objektleiste: Dialog vorbelegt, Diagramm zeigt auf die Tabelle
 await frisch(()=>{App.dok.bloecke=[Modell.neuerBlock('tabelle',
   {titel:'Kennwerte',kopf:['Skala','M','SD'],
    zeilen:[['Realistic','89,4','12,1'],['Investigative','97,2','11,8']],
    spaltenAusrichtung:['l','c','c']})];Editor.zeichne();});
-await s.locator('.tabellenknoepfe .knopf', {hasText:'Diagramm daraus'}).click();
+await s.locator('.block tbody td').first().click();
+await s.waitForTimeout(250);
+await s.locator('#kontextleiste button', {hasText:'Diagramm daraus'}).click();
 await s.waitForSelector('.dialog', {timeout:5000});
 p('der Dialog steht auf „Aus einer Tabelle im Dokument“',
   (await s.evaluate(()=>document.getElementById('f_quelle').value))==='tabelle',
@@ -577,9 +584,10 @@ p('Strg+Z nimmt das Diagramm zurück',
   (await s.evaluate(()=>App.dok.bloecke.map(b=>b.typ))).join(',')==='tabelle',
   JSON.stringify(await s.evaluate(()=>App.dok.bloecke.map(b=>b.typ))));
 
-// Z2) auch über die Werkzeugleiste der Tabelle erreichbar
-await s.locator('.block').first().hover();
-await s.locator('.blockleiste button[title="Diagramm aus dieser Tabelle"]').click();
+// Z2) Abbrechen im Dialog legt kein Diagramm an
+await s.locator('.block tbody td').first().click();
+await s.waitForTimeout(250);
+await s.locator('#kontextleiste button', {hasText:'Diagramm daraus'}).click();
 await s.waitForSelector('.dialog', {timeout:5000});
 await s.locator('.dialog .knopf-still', {hasText:'Abbrechen'}).click();
 await s.waitForTimeout(300);
