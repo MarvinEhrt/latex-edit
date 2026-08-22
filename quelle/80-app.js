@@ -558,6 +558,10 @@ const App = (() => {
     }));
 
     document.addEventListener('keydown', (ev) => {
+      /* Was ein Textfeld schon behandelt hat (Fett, Zitieren, die
+         @-Liste), darf hier nicht noch einmal wirken -- sonst tut
+         eine Taste zwei Dinge zugleich. */
+      if (ev.defaultPrevented) return;
       const strg = ev.ctrlKey || ev.metaKey;
       if (strg && ev.key.toLowerCase() === 's') { ev.preventDefault(); sichere(false); }
       /* Die Browsersuche fände nur, was gerade im DOM steht -- unsere

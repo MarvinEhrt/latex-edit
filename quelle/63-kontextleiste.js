@@ -59,14 +59,17 @@ const Kontextleiste = (() => {
   function titelEingabe(block, leertext) {
     const eingabe = el('input', 'ktx-eingabe');
     eingabe.type = 'text';
+    eingabe.dataset.feld = 'titel';
     eingabe.value = block.titel || '';
     eingabe.placeholder = leertext || 'Titel …';
     eingabe.addEventListener('input', () => {
       Verlauf.merke(dok(), 'titel:' + block.id);
       block.titel = eingabe.value;
+      /* Der Titel an der Karte ist selbst editierbar -- nur nachziehen,
+         wenn dort nicht gerade getippt wird. */
       const zeile = document.querySelector(
         `.block[data-id="${block.id}"] .karte-titel`);
-      if (zeile) zeile.textContent = block.titel || 'Ohne Titel';
+      if (zeile && zeile !== document.activeElement) zeile.textContent = block.titel;
       App.aenderung({ nurVorschau: true });
     });
     eingabe.addEventListener('change', () => App.aenderung());
@@ -109,7 +112,7 @@ const Kontextleiste = (() => {
     knopf('<b>B</b>', 'Fett (Strg+B)', () => befehl('bold')),
     knopf('<i>I</i>', 'Kursiv (Strg+I)', () => befehl('italic')),
     trenner(),
-    knopf('❝ Zitat', 'Quelle zitieren  (Strg+Umschalt+Z)', () => App.zitatEinfuegen()),
+    knopf('❝ Zitat', 'Quelle zitieren  (Strg+Umschalt+L)', () => App.zitatEinfuegen()),
     knopf('→ Verweis', 'Querverweis einfügen', () => App.verweisEinfuegen()),
     knopf('𝑀 Kennwert', 'Kennwert einfügen', () => App.kennwertEinfuegen()),
     knopf('¹ Fußnote', 'Fußnote einfügen', () => App.fussnoteEinfuegen()),

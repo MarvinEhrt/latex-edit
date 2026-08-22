@@ -961,8 +961,9 @@ const Dialoge = (() => {
         <p style="margin:0;font-size:13.5px;line-height:1.6">
         Jeder Abschnitt ist ein <b>Baustein</b>. Klickst du einen an, zeigt die
         <b>Objektleiste</b> oben seine Werkzeuge — bei einer Tabelle den
-        <b>Tabellenentwurf</b>, bei einem Bild das <b>Bildformat</b>, samt Titel
-        zum direkten Tippen. Fahr mit der Maus über einen Baustein: links erscheint
+        <b>Tabellenentwurf</b>, bei einem Bild das <b>Bildformat</b>. Den Titel
+        einer Tabelle oder Abbildung tippst du direkt an der Karte (oder oben in
+        der Leiste). Fahr mit der Maus über einen Baustein: links erscheint
         ein Griff zum Verschieben, oben rechts Verschieben und Löschen. Am unteren
         Rand der Textspalte liegt immer die Leiste <b>Einfügen</b> — Absatz, Tabelle,
         Diagramm, Formel und so weiter; Neues erscheint nach dem gerade gewählten
@@ -999,8 +1000,10 @@ const Dialoge = (() => {
         <b>Rücktaste</b> am Absatzanfang führt mit dem darüber zusammen,
         im leeren Absatz löscht sie ihn<br>
         <b>Strg</b>+<b>Enter</b> baut das PDF sofort<br>
-        <b>Strg</b>+<b>Umschalt</b>+<b>Z</b> Quelle zitieren &nbsp;·&nbsp;
+        <b>Strg</b>+<b>Umschalt</b>+<b>L</b> Quelle zitieren &nbsp;·&nbsp;
         <b>@</b>+Anfangsbuchstaben tippen zitiert direkt beim Schreiben<br>
+        Die <b>Pfeiltasten</b> laufen über Bausteingrenzen hinweg &nbsp;·&nbsp;
+        <b>Enter</b> im leeren letzten Listenpunkt beendet die Liste<br>
         Text auswählen zeigt eine kleine Leiste: fett, kursiv, zitieren — ohne Umweg
         </div>
       </div>

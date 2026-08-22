@@ -64,8 +64,10 @@ Verschieben, oben rechts die Werkzeuge.
 
 **Schreiben wie gewohnt:** Enter teilt den Absatz an der Schreibmarke,
 Rücktaste am Anfang führt ihn mit dem darüber zusammen, Umschalt+Enter setzt
-einen Zeilenumbruch innerhalb des Absatzes. Zitate und Querverweise werden
-dabei nie zerrissen.
+einen Zeilenumbruch innerhalb des Absatzes. Die Pfeiltasten laufen über
+Bausteingrenzen hinweg, Enter im leeren letzten Listenpunkt beendet die
+Liste. Zitate und Querverweise werden dabei nie zerrissen. Den Titel einer
+Tabelle oder Abbildung tippt man direkt an ihrer Karte.
 
 **Strg+Z nimmt alles zurück**, nicht nur Getipptes: ein gelöschter Baustein,
 eine verschobene Überschrift, eine eingefügte Tabelle, ein Zahnrad-Dialog.
@@ -296,6 +298,8 @@ node     pruefungen/pruefe_formeln.mjs   # 31 Prüfungen: MathML-Vorschau,
 npm install                              # einmalig, holt playwright-core
 node     pruefungen/pruefe_bausteine.mjs # Absätze, Einfügen, Tabellen, Dialoge,
                                          #   Literaturschlüssel, Export
+node     pruefungen/pruefe_bedienung.mjs # 19 Prüfungen: Pfeile über Blockgrenzen,
+                                         #   Listenverhalten, Tastenkürzel, Kartentitel
 node     pruefungen/pruefe_ganz.mjs      # 16 Schritte: Browser bis fertiges PDF
 ```
 
