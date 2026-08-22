@@ -308,7 +308,10 @@ const Editor = (() => {
       if (ev.key === 'Escape') { ev.preventDefault(); atSchliesse(); return; }
     }
 
-    if (strg && ev.shiftKey && ev.key.toLowerCase() === 'z') {
+    /* Strg+Umschalt+L wie "Literatur". Das frühere Strg+Umschalt+Z
+       kollidierte mit der Wiederholen-Konvention (Word, Docs,
+       Browser) -- und löste beides zugleich aus. */
+    if (strg && ev.shiftKey && ev.key.toLowerCase() === 'l') {
       ev.preventDefault(); App.zitatEinfuegen(); return;
     }
     /* execCommand feuert kein beforeinput -- ohne eigenen Schnappschuss
@@ -320,10 +323,35 @@ const Editor = (() => {
       document.execCommand('italic');
       feld.dispatchEvent(new Event('input', { bubbles: true })); return; }
 
+    /* Pfeile über die Blockgrenze: am Rand des Felds geht es im
+       nächsten (oder vorigen) Textfeld weiter -- wie in Word.
+       Bausteine ohne Textfeld (Tabelle, Diagramm) werden übersprungen. */
+    if (!strg && !ev.shiftKey && !ev.altKey &&
+        ['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].includes(ev.key)) {
+      const lage = randlage(feld);
+      if (lage) {
+        const vorwaerts = ev.key === 'ArrowDown' ? lage.letzte
+                        : ev.key === 'ArrowRight' ? lage.ende : false;
+        const zurueck   = ev.key === 'ArrowUp'   ? lage.erste
+                        : ev.key === 'ArrowLeft' ? lage.anfang : false;
+        if (vorwaerts || zurueck) {
+          const felder = alleFelder();
+          const p = felder.indexOf(feld);
+          const ziel = p >= 0 ? felder[p + (vorwaerts ? 1 : -1)] : null;
+          if (ziel) {
+            ev.preventDefault();
+            fokusFeld(ziel, zurueck);        // rückwärts: ans Ende
+          }
+        }
+      }
+      return;
+    }
+
     /* Enter teilt an der Schreibmarke -- wie in Word. Steht sie am Ende,
        ist der abgeschnittene Teil leer und es entsteht schlicht ein
-       neuer, leerer Absatz.                                          */
-    if (ev.key === 'Enter' && !ev.shiftKey) {
+       neuer, leerer Absatz. Mit Strg gehört die Taste dem Bauen
+       (80-app.js) und darf hier nichts anrichten.                    */
+    if (ev.key === 'Enter' && !ev.shiftKey && !strg) {
       ev.preventDefault();
       if (block.typ === 'liste') return;                 // Listen regeln das selbst
 
@@ -343,6 +371,7 @@ const Editor = (() => {
     }
 
     if (ev.key === 'Backspace') {
+      if (block.typ === 'liste') return;               // Listen regeln das selbst
       const auswahl = window.getSelection();
       const amAnfang = auswahl.isCollapsed && auswahl.anchorOffset === 0 &&
                        (feld.firstChild === auswahl.anchorNode ||
@@ -409,7 +438,7 @@ const Editor = (() => {
       App.aenderung();
       zeichne(); zeichneGliederung();
       waehle(block.id);
-      App.melde('Abbildung eingefügt — Titel oben in der Objektleiste eintragen.');
+      App.melde('Abbildung eingefügt — den Titel tippst du direkt an der Karte.');
     };
     leser.onerror = () => App.melde('Das Bild ließ sich nicht lesen.', true);
     leser.readAsDataURL(datei);
@@ -431,8 +460,8 @@ const Editor = (() => {
     App.aenderung();
     zeichne(); zeichneGliederung();
     waehle(block.id);
-    App.melde(`Tabelle mit ${gitter.zeilen.length} Zeilen eingefügt — ` +
-              'Titel und „📊 Diagramm daraus“ oben in der Objektleiste.');
+    App.melde(`Tabelle mit ${gitter.zeilen.length} Zeilen eingefügt — Titel direkt ` +
+              'an der Karte, „📊 Diagramm daraus“ oben in der Objektleiste.');
   }
 
   /* Der kurze Weg von den Zahlen zum Bild: ein Diagramm, das auf die
@@ -599,6 +628,54 @@ const Editor = (() => {
     auswahl.addRange(bereich);
   }
 
+  /* ---------------- Schreibmarke am Feldrand ----------------
+     Für die Pfeilnavigation über Blockgrenzen: Steht die Marke am
+     Anfang/Ende bzw. in der ersten/letzten Zeile ihres Felds?      */
+
+  const UNSICHTBARE = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF\u00AD]/g;
+
+  function randlage(feld) {
+    const auswahl = window.getSelection();
+    if (!auswahl || !auswahl.rangeCount || !auswahl.isCollapsed) return null;
+    const marke = auswahl.getRangeAt(0);
+    if (!feld.contains(marke.startContainer)) return null;
+
+    const vor = document.createRange();
+    vor.selectNodeContents(feld);
+    vor.setEnd(marke.startContainer, marke.startOffset);
+    const nach = document.createRange();
+    nach.selectNodeContents(feld);
+    nach.setStart(marke.startContainer, marke.startOffset);
+    const anfang = !vor.toString().replace(UNSICHTBARE, '').length;
+    const ende = !nach.toString().replace(UNSICHTBARE, '').length;
+
+    /* Erste/letzte Zeile über die Cursor-Rechtecke; ein leeres Feld
+       hat keine, dann zählt Anfang/Ende. */
+    let erste = anfang, letzte = ende;
+    const cr = marke.getClientRects()[0];
+    if (cr && (cr.height || cr.width)) {
+      const fr = feld.getBoundingClientRect();
+      const zeile = parseFloat(getComputedStyle(feld).lineHeight) || 24;
+      erste = cr.top - fr.top < zeile * 0.9;
+      letzte = fr.bottom - cr.bottom < zeile * 0.9;
+    }
+    return { anfang, ende, erste, letzte };
+  }
+
+  /* Alle Textfelder in Leserichtung -- auch die einzelnen Punkte
+     einer Liste. */
+  const alleFelder = () => [...document.querySelectorAll('#blockliste .tx')];
+
+  function fokusFeld(feld, ansEnde) {
+    feld.focus();
+    const bereich = document.createRange();
+    bereich.selectNodeContents(feld);
+    bereich.collapse(!ansEnde);
+    const auswahl = window.getSelection();
+    auswahl.removeAllRanges();
+    auswahl.addRange(bereich);
+  }
+
   const TEXTBLOECKE = ['absatz', 'blockzitat'];
 
   function fokussiereAn(id, position, feldname) {
@@ -649,6 +726,38 @@ const Editor = (() => {
     return leiste;
   }
 
+  /* Der Titel einer Karte (Tabelle, Abbildung, Diagramm): direkt an
+     der Karte tippbar. Die Objektleiste oben bleibt der Zweitweg;
+     beide halten sich gegenseitig aktuell -- nie aber das Feld, in
+     dem gerade getippt wird, sonst spränge die Schreibmarke. */
+  function kartenTitel(block, leertext) {
+    const t = el('span', 'karte-titel');
+    t.contentEditable = 'true';
+    t.spellcheck = true;
+    t.dataset.leer = leertext;
+    t.textContent = block.titel || '';
+    t.addEventListener('beforeinput', () => Verlauf.merke(dok(), 'titel:' + block.id));
+    t.addEventListener('input', () => {
+      block.titel = t.textContent.replace(/\n/g, ' ');
+      const eingabe = document.querySelector(
+        '#kontextleiste .ktx-eingabe[data-feld="titel"]');
+      if (eingabe && eingabe !== document.activeElement) eingabe.value = block.titel;
+      App.aenderung({ nurVorschau: true });
+    });
+    t.addEventListener('blur', () => App.aenderung());
+    t.addEventListener('keydown', (ev) => {
+      /* Ein Titel ist einzeilig: Enter beendet die Eingabe. */
+      if (ev.key === 'Enter') { ev.preventDefault(); t.blur(); }
+    });
+    t.addEventListener('paste', (ev) => {
+      /* immer reiner Text, einzeilig */
+      ev.preventDefault();
+      const roh = (ev.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, roh.replace(/\s+/g, ' ').trim());
+    });
+    return t;
+  }
+
   function blockInhalt(block, nummern) {
     const info = nummern.get(block.id) || {};
     switch (block.typ) {
@@ -687,23 +796,84 @@ const Editor = (() => {
               if (neu === undefined) return block.punkte[i] || [];
               block.punkte[i] = neu;
             });
+          /* Marke nach dem Neuzeichnen in einen bestimmten Punkt setzen. */
+          const fokusPunkt = (nr, stelle) => setTimeout(() => {
+            const felder = document.querySelectorAll(
+              `.block[data-id="${block.id}"] .tx`);
+            const ziel = felder[nr];
+            if (!ziel) return;
+            if (stelle == null) fokusFeld(ziel, true);
+            else { ziel.focus(); setzeMarke(ziel, stelle); }
+          }, 10);
+
           feld.addEventListener('keydown', (ev) => {
-            if (ev.key === 'Enter' && !ev.shiftKey) {
+            const strg = ev.ctrlKey || ev.metaKey;
+            const leerer = !feld.textContent.trim();
+
+            if (ev.key === 'Enter' && !ev.shiftKey && !strg) {
               ev.preventDefault();
+              /* Enter im leeren letzten Punkt verlässt die Liste --
+                 der Punkt verschwindet, darunter beginnt ein Absatz.
+                 War es der einzige, verschwindet die Liste ganz. */
+              if (leerer && i === block.punkte.length - 1) {
+                Verlauf.merke(dok());
+                const stelle = indexVon(block.id);
+                const neu = Modell.neuerBlock('absatz');
+                if (block.punkte.length === 1) {
+                  dok().bloecke.splice(stelle, 1, neu);
+                } else {
+                  block.punkte.splice(i, 1);
+                  dok().bloecke.splice(stelle + 1, 0, neu);
+                }
+                App.aenderung(); zeichne(); zeichneGliederung();
+                fokussiere(neu.id);
+                return;
+              }
               Verlauf.merke(dok());
               block.punkte.splice(i + 1, 0, []);
               App.aenderung(); zeichne();
-              setTimeout(() => {
-                const felder = document.querySelectorAll(
-                  `.block[data-id="${block.id}"] .tx`);
-                if (felder[i + 1]) felder[i + 1].focus();
-              }, 10);
+              fokusPunkt(i + 1);
+              return;
             }
-            if (ev.key === 'Backspace' && !feld.textContent.trim() && block.punkte.length > 1) {
+
+            if (ev.key !== 'Backspace') return;
+            const auswahl = window.getSelection();
+            const amAnfang = auswahl && auswahl.isCollapsed && auswahl.anchorOffset === 0 &&
+                             (feld.firstChild === auswahl.anchorNode ||
+                              feld === auswahl.anchorNode || !feld.textContent);
+            if (!amAnfang) return;
+
+            if (leerer && block.punkte.length === 1) {
+              /* der letzte leere Punkt: die Liste verschwindet wie ein
+                 leerer Absatz */
+              if (dok().bloecke.length <= 1) return;
+              ev.preventDefault();
+              Verlauf.merke(dok());
+              const stelle = indexVon(block.id);
+              dok().bloecke.splice(stelle, 1);
+              App.aenderung(); zeichne(); zeichneGliederung();
+              const vorher = dok().bloecke[Math.max(0, stelle - 1)];
+              if (vorher) fokussiere(vorher.id, true);
+              return;
+            }
+            if (leerer) {
               ev.preventDefault();
               Verlauf.merke(dok());
               block.punkte.splice(i, 1);
               App.aenderung(); zeichne();
+              fokusPunkt(Math.max(0, i - 1));
+              return;
+            }
+            if (i > 0) {
+              /* voller Punkt am Anfang: mit dem darüber verschmelzen */
+              ev.preventDefault();
+              Verlauf.merke(dok());
+              const kopf = block.punkte[i - 1] || [];
+              const naht = Richtext.zuText(kopf, ctx()).length;
+              block.punkte[i - 1] = [...kopf, ...Richtext.vonHtml(feld)];
+              block.punkte.splice(i, 1);
+              App.aenderung(); zeichne();
+              fokusPunkt(i - 1, naht);
             }
           });
           li.append(feld);
@@ -714,9 +884,10 @@ const Editor = (() => {
 
       case 'tabelle': {
         const karte = el('div', 'tab-karte');
-        karte.append(el('div', 'karte-kopf',
-          `<span class="karte-nr">TABELLE ${escHtml(info.nummer || '?')}</span>
-           <span class="karte-titel">${escHtml(block.titel || 'Ohne Titel — oben in der Leiste eintragen')}</span>`));
+        const kartenkopf = el('div', 'karte-kopf',
+          `<span class="karte-nr">TABELLE ${escHtml(info.nummer || '?')}</span>`);
+        kartenkopf.append(kartenTitel(block, 'Titel der Tabelle eintragen …'));
+        karte.append(kartenkopf);
 
         const neuZeichnenTabelle = () => {
           App.aenderung(); zeichne(); waehle(block.id, false);
@@ -827,9 +998,10 @@ const Editor = (() => {
 
       case 'abbildung': {
         const karte = el('div', 'abb-karte');
-        karte.append(el('div', 'karte-kopf',
-          `<span class="karte-nr">ABBILDUNG ${escHtml(info.nummer || '?')}</span>
-           <span class="karte-titel">${escHtml(block.titel || 'Ohne Titel — oben in der Leiste eintragen')}</span>`));
+        const kartenkopf = el('div', 'karte-kopf',
+          `<span class="karte-nr">ABBILDUNG ${escHtml(info.nummer || '?')}</span>`);
+        kartenkopf.append(kartenTitel(block, 'Titel der Abbildung eintragen …'));
+        karte.append(kartenkopf);
         if (block.datenUrl) {
           const bild = el('img', 'abb-vorschau');
           bild.src = block.datenUrl;
@@ -852,9 +1024,10 @@ const Editor = (() => {
       case 'diagramm': {
         const karte = el('div', 'abb-karte');
         const art = (Diagrammdialog.ARTEN[block.art] || {}).name || block.art;
-        karte.append(el('div', 'karte-kopf',
-          `<span class="karte-nr">ABBILDUNG ${escHtml(info.nummer || '?')}</span>
-           <span class="karte-titel">${escHtml(block.titel || 'Ohne Titel — oben in der Leiste eintragen')}</span>`));
+        const kartenkopf = el('div', 'karte-kopf',
+          `<span class="karte-nr">ABBILDUNG ${escHtml(info.nummer || '?')}</span>`);
+        kartenkopf.append(kartenTitel(block, 'Titel des Diagramms eintragen …'));
+        karte.append(kartenkopf);
         const gitter = Diagramm.gitterVon(block, dok());
         const reihen = gitter ? Diagramm.wertSpalten(block, gitter).length : 0;
         const quelle = block.quelle === 'tabelle'

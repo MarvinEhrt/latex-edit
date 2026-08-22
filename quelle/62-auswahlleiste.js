@@ -50,7 +50,7 @@ const Auswahlleiste = (() => {
     k('<b>B</b>', 'Fett (Strg+B)', () => befehl('bold'));
     k('<i>I</i>', 'Kursiv (Strg+I)', () => befehl('italic'));
     leiste.append(Object.assign(document.createElement('span'), { className: 'trenner' }));
-    k('❝', 'Quelle zitieren (Strg+Umschalt+Z)', () => { verstecke(); App.zitatEinfuegen(); });
+    k('❝', 'Quelle zitieren (Strg+Umschalt+L)', () => { verstecke(); App.zitatEinfuegen(); });
     k('→', 'Querverweis einfügen', () => { verstecke(); App.verweisEinfuegen(); });
     k('𝑀', 'Kennwert einfügen', () => { verstecke(); App.kennwertEinfuegen(); });
     k('¹', 'Fußnote einfügen', () => { verstecke(); App.fussnoteEinfuegen(); });
