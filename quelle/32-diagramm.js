@@ -57,22 +57,49 @@ const Diagramm = (() => {
      Wichtig: alles ausdrücklich setzen. \\addplot+ erbt sonst Farbe und
      Symbol aus dem Standardzyklus von pgfplots, und dann steht ein rotes
      Quadrat in einer Reihe, die ocker sein sollte. */
+  /* pgfplots trennt symbolic x coords mit Komma -- ein Name wie
+     "1,5 Jahre" oder "Gruppe A, B" zerfiele in zwei Koordinaten, und
+     die Punkte verwiesen danach auf ein Symbol, das es nicht gibt.
+     Geschweifte Klammern halten den Namen zusammen; für die Tick-
+     Beschriftungen macht kategorienachse das längst. Auch = und ]
+     brauchen den Schutz. */
+  const koordinate = (name) => `{${esc(name)}}`;
+
+  /* Die Fehlerspalte wird -- anders als wertSpalten -- nirgends gegen
+     die aktuelle Spaltenzahl geprüft. Bei einem Diagramm, das auf eine
+     Tabelle im Dokument zeigt, veraltet der Index, sobald dort eine
+     Spalte verschwindet. */
+  function fehlerSpalteGilt(block, gitter) {
+    const s = block.fehlerSpalte;
+    if (s == null) return false;
+    if (!gitter || !gitter.kopf || s >= gitter.kopf.length || s < 0) return false;
+    return (gitter.zeilen || []).some(r => Daten.zahl(r[s]) != null);
+  }
+
   function stil(block, nr, art) {
     const i = nr % 4;
-    const grau = ['black!85', 'black!55', 'black!70', 'black!40'][i];
-    const farbe = block.graustufen ? grau : `reihe${i}`;
+    /* Linien und Symbole tragen die Graustufe direkt, Flächen bekommen
+       sie unten aus GRAUSTUFEN samt Muster. */
+    const farbe = block.graustufen
+      ? ['black!85', 'black!55', 'black!70', 'black!40'][i]
+      : `reihe${i}`;
 
     if (art === 'flaeche') {
+      /* pattern ERSETZT die Füllung, es legt sich nicht darüber -- die
+         vier Helligkeitsstufen waren damit wirkungslos, obwohl README
+         und Kommentar beides versprachen. postaction malt das Muster
+         nachträglich auf die gefüllte Fläche. */
       return block.graustufen
-        ? `draw=black!70, fill=${GRAUSTUFEN[i]}, pattern=${MUSTER[i]}, ` +
-          'pattern color=black!45, mark=none'
+        ? `draw=black!70, fill=${GRAUSTUFEN[i]}, mark=none, ` +
+          `postaction={pattern=${MUSTER[i]}, pattern color=black!45}`
         : `draw=${farbe}!70!black, fill=${farbe}, mark=none`;
     }
     if (art === 'box') {
       /* Ausreißer immer schlicht und einheitlich -- sie sind Datenpunkte,
          keine eigene Reihe. */
       const fuellung = block.graustufen
-        ? `fill=${GRAUSTUFEN[i]}, pattern=${MUSTER[i]}, pattern color=black!45`
+        ? `fill=${GRAUSTUFEN[i]}, ` +
+          `postaction={pattern=${MUSTER[i]}, pattern color=black!45}`
         : `fill=${farbe}!30`;
       return `draw=${block.graustufen ? 'black!70' : farbe + '!70!black'}, ${fuellung}, ` +
              'mark=*, mark size=1.6pt, mark options={fill=black!60, draw=black!60}';
@@ -178,7 +205,7 @@ const Diagramm = (() => {
        beim Betrachten zu einer.                                        */
     zeilen.push(spalten.length > 1 ? '  ybar=2.5pt,' : '  ybar,');
     zeilen.push(`  bar width=${spalten.length > 1 ? '10pt' : '18pt'},`);
-    zeilen.push(`  symbolic x coords={${namen.map(esc).join(', ')}},`);
+    zeilen.push(`  symbolic x coords={${namen.map(koordinate).join(', ')}},`);
     zeilen.push(...kategorienachse(block, namen, namen.map(esc), 0.15));
     zeilen.push('  enlarge x limits=0.15,');
     zeilen.push('  ymin=0,');
@@ -186,13 +213,17 @@ const Diagramm = (() => {
     const koerper = [];
     spalten.forEach((s, nr) => {
       const werte = gitter.zeilen.map(r => Daten.zahl(r[s]));
-      const fehler = block.fehlerSpalte != null
+      /* Zeigt die Fehlerspalte ins Leere -- weil die verknüpfte Tabelle
+         inzwischen weniger Spalten hat --, gäbe es keine Fehlerbalken,
+         aber die APA-Pflichtanmerkung behauptete weiter, es gäbe
+         welche. Also hier UND dort dieselbe Prüfung. */
+      const fehler = fehlerSpalteGilt(block, gitter)
         ? gitter.zeilen.map(r => Daten.zahl(r[block.fehlerSpalte])) : null;
       const punkte = namen.map((n, i) => {
         const w = werte[i];
         if (w == null) return null;
         const e = fehler && fehler[i] != null ? fehler[i] : null;
-        return `(${esc(n)}, ${z(w)})` +
+        return `(${koordinate(n)}, ${z(w)})` +
                (e != null ? ` +- (0, ${z(e)})` : '');
       }).filter(Boolean);
       const fehlerstil = fehler
@@ -218,7 +249,7 @@ const Diagramm = (() => {
     if (zahlenAchse) {
       zeilen.push('  xtick=data,');
     } else {
-      zeilen.push(`  symbolic x coords={${namen.map(esc).join(', ')}},`);
+      zeilen.push(`  symbolic x coords={${namen.map(koordinate).join(', ')}},`);
       zeilen.push(...kategorienachse(block, namen, namen.map(esc), 0.08));
       zeilen.push('  enlarge x limits=0.08,');
     }
@@ -383,7 +414,10 @@ const Diagramm = (() => {
     const en = ((dok && dok.einstellungen) || {}).sprache === 'en';
     const T = ANMERKUNGSTEXTE[en ? 'en' : 'de'];
     const teile = [];
-    if (block.art === 'balken' && block.fehlerSpalte != null)
+    /* Nur behaupten, was auch gezeichnet wird: zeigt die Fehlerspalte
+       ins Leere, stünde sonst "Fehlerbalken zeigen den Standardfehler"
+       unter einem Diagramm ganz ohne Fehlerbalken. */
+    if (block.art === 'balken' && fehlerSpalteGilt(block, gitterVon(block, dok)))
       teile.push(T[block.fehlerArt || 'se']);
     if (block.art === 'box') teile.push(T.box);
     if (block.art === 'streu' && block.regression !== false) {

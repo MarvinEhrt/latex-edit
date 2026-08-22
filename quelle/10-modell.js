@@ -372,6 +372,7 @@ const Modell = (() => {
     /* Inhalt der Vorspannseiten. Stand früher fest verdrahtet in der
        Stildatei -- dort war er unerreichbar und obendrein falsch. */
     abstract: '',
+    schlagwoerter: '',        // APA 7: "Schlüsselwörter: a, b, c" unter dem Abstract
     abkuerzungen: []          // [{kurz, lang}]
   };
 
@@ -411,7 +412,14 @@ const Modell = (() => {
   function nummeriere(dok) {
     const zaehl = [0, 0, 0];
     let tab = 0, abb = 0, imAnhang = false, anhangBuchstabe = 0;
+    /* Im Anhang zählen Tabellen und Abbildungen je Anhang von vorn und
+       tragen dessen Buchstaben: A1, A2, B1. APA 7 verlangt das, und
+       durchlaufende Nummern ("Tabelle 7" mitten in Anhang A) sind der
+       Grund, aus dem Betreuende die Arbeit zurückgeben. */
+    let anhangTab = 0, anhangAbb = 0;
     const karte = new Map();
+    const buchstabeJetzt = () =>
+      String.fromCharCode(64 + Math.max(1, anhangBuchstabe));
 
     for (const b of dok.bloecke) {
       if (b.typ === 'anhangstart') {
@@ -425,8 +433,11 @@ const Modell = (() => {
         for (let i = e; i < 3; i++) zaehl[i] = 0;
         let nummer;
         if (imAnhang) {
-          if (e === 1) anhangBuchstabe = zaehl[0];
-          const buchstabe = String.fromCharCode(64 + Math.max(1, anhangBuchstabe));
+          if (e === 1) {
+            anhangBuchstabe = zaehl[0];
+            anhangTab = anhangAbb = 0;      // neuer Anhang, neue Zählung
+          }
+          const buchstabe = buchstabeJetzt();
           nummer = e === 1 ? buchstabe
                  : buchstabe + '.' + zaehl.slice(1, e).join('.');
         } else {
@@ -435,9 +446,12 @@ const Modell = (() => {
         karte.set(b.id, { nummer, ebene: e, imAnhang });
         continue;
       }
-      if (b.typ === 'tabelle')   karte.set(b.id, { nummer: String(++tab), imAnhang });
+      if (b.typ === 'tabelle')
+        karte.set(b.id, { nummer: imAnhang
+          ? buchstabeJetzt() + (++anhangTab) : String(++tab), imAnhang });
       if (b.typ === 'abbildung' || b.typ === 'diagramm')
-        karte.set(b.id, { nummer: String(++abb), imAnhang });
+        karte.set(b.id, { nummer: imAnhang
+          ? buchstabeJetzt() + (++anhangAbb) : String(++abb), imAnhang });
     }
     return karte;
   }
@@ -479,10 +493,13 @@ const Modell = (() => {
       verweisText: (ziel) => {
         const b = dok.bloecke.find(x => x.id === ziel);
         if (!b) return w['gelöscht'];
-        const n = (nummern.get(ziel) || {}).nummer || '?';
+        const info = nummern.get(ziel) || {};
+        const n = info.nummer || '?';
         return b.typ === 'tabelle' ? `${w.tabelle} ${n}`
              : (b.typ === 'abbildung' || b.typ === 'diagramm') ? `${w.abbildung} ${n}`
-             : `${w.abschnitt} ${n}`;
+             /* Ein Anhang heißt Anhang, nicht Abschnitt -- "siehe
+                Abschnitt A" stimmt in keiner der beiden Sprachen. */
+             : `${info.imAnhang && (info.ebene || 1) === 1 ? w.anhang : w.abschnitt} ${n}`;
       }
     };
 

@@ -125,7 +125,14 @@ const Latex = (() => {
   function tabelleZuLatex(b, nummer) {
     const spalten = b.spaltenAusrichtung || b.kopf.map(() => 'l');
     const hatText = spalten.includes('l');
-    const spec = spalten.map(a => (a === 'l' ? 'Z' : a)).join(' ');
+    /* xltabular braucht mindestens eine dehnbare Spalte, sonst kann es
+       die Tabelle nicht auf \textwidth bringen. Eine lange Tabelle aus
+       lauter zentrierten Spalten -- der Standard ab Spalte zwei --
+       hatte keine einzige. Die erste Spalte wird dann dehnbar; sie
+       trägt bei APA-Tabellen ohnehin die Beschriftung. */
+    const dehnbar = spalten.map((a, i) =>
+      (a === 'l' || (braucht_umbruch(b) && !hatText && i === 0)) ? 'Z' : a);
+    const spec = dehnbar.join(' ');
     const zelle = (t) => textMitTokens(t, 'latex');
     const kopfzeile = b.kopf.map(h => `\\textbf{${zelle(h)}}`).join(' & ') + ' \\\\';
     const datenzeilen = b.zeilen.map(r => r.map(zelle).join(' & ') + ' \\\\');
@@ -207,10 +214,16 @@ const Latex = (() => {
       verweisLatex: (ziel) => {
         const b = dok.bloecke.find(x => x.id === ziel);
         if (!b) return '\\textbf{??}';
+        const info = nummern.get(ziel) || {};
+        const w = Zitate.wort(e.sprache);
         return b.typ === 'tabelle' ? `\\tablename~\\ref{tab:${ziel}}`
              : (b.typ === 'abbildung' || b.typ === 'diagramm')
                ? `\\figurename~\\ref{abb:${ziel}}`
-             : `${Zitate.wort(e.sprache).abschnitt}~\\ref{sec:${ziel}}`;
+             /* \appendixname statt "Abschnitt", wenn das Ziel ein
+                Anhang ist -- babel setzt es in der Sprache der Arbeit. */
+             : info.imAnhang && (info.ebene || 1) === 1
+               ? `\\appendixname~\\ref{sec:${ziel}}`
+             : `${w.abschnitt}~\\ref{sec:${ziel}}`;
       }
     };
 
@@ -261,7 +274,8 @@ const Latex = (() => {
     // Eine leere Zusammenfassung wird gar nicht erst gesetzt -- lieber
     // keine Seite als eine mit Platzhaltertext im abgegebenen Dokument.
     if (e.abstract && (m.abstract || '').trim())
-      vorspann.push(`\\abstractseite{${esc(m.abstract.trim())}}`);
+      vorspann.push(`\\abstractseite{${esc(m.abstract.trim())}}`
+                    + `{${esc((m.schlagwoerter || '').trim())}}`);
     if (e.inhaltsverzeichnis)      vorspann.push('\\inhaltsverzeichnis');
     if (e.abbildungsverzeichnis)   vorspann.push('\\abbildungsverzeichnis');
     if (e.tabellenverzeichnis)     vorspann.push('\\tabellenverzeichnis');
@@ -303,7 +317,12 @@ const Latex = (() => {
       // Zeilenbereich mitschreiben, damit eine LaTeX-Fehlermeldung
       // später auf genau den Baustein zurückgeführt werden kann, der
       // sie verursacht hat. Ohne diese Karte bliebe "l.234" nutzlos.
-      const beginnZeile = zeilenstand() + 1;
+      /* Erst die Trennzeile, dann die Marke: die Bausteine schieben
+         alle ein '' voran, und LaTeX meldet \par-Fehler (Fußnote,
+         offene Gruppe) an genau dieser Leerzeile NACH dem Absatz.
+         Zählte sie zum folgenden Baustein, zeigte der Fehler auf den
+         falschen. */
+      const beginnZeile = zeilenstand() + 2;
       switch (b.typ) {
         case 'ueberschrift': {
           const befehl = ['section', 'subsection', 'subsubsection'][Math.min(2, (b.ebene || 1) - 1)];
@@ -368,8 +387,13 @@ const Latex = (() => {
         case 'anhangstart':   /* wird oben als Trenner behandelt */ break;
       }
       const endeZeile = zeilenstand();
+      /* Bis EINSCHLIESSLICH der Leerzeile, die der nächste Baustein
+         voranstellt: LaTeX meldet Fehler, die den Absatz beenden
+         (offene Gruppe, Fußnote mit Absatzwechsel), an genau dieser
+         Zeile nach dem Absatz -- und die gehört noch hierher. */
       if (endeZeile >= beginnZeile)
-        zeilenkarte.push({ id: b.id, typ: b.typ, von: beginnZeile, bis: endeZeile });
+        zeilenkarte.push({ id: b.id, typ: b.typ, von: beginnZeile,
+                           bis: endeZeile + 1 });
     }
     };
 
@@ -422,6 +446,17 @@ const Latex = (() => {
         anmerkungen.push({ id: b.id, meldung:
           `Die Abbildung „${(b.titel || '').trim() || 'ohne Titel'}“ hat kein Bild `
           + '— sie erscheint nicht im PDF. Über ⚙ ein Bild auswählen.' });
+      /* Dasselbe für Diagramme: fehlen die Zahlen -- weil die
+         verknüpfte Tabelle gelöscht oder geleert wurde --, verschwand
+         das Diagramm bisher wortlos aus dem PDF, und ein Querverweis
+         darauf zeigte danach "??". Der Generator wusste es längst, sein
+         `hinweis` wurde nur nie gelesen. */
+      if (b.typ === 'diagramm') {
+        const h = (Diagramm.zuLatex(b, dok) || {}).hinweis;
+        if (h) anmerkungen.push({ id: b.id, meldung:
+          `Das Diagramm „${(b.titel || '').trim() || 'ohne Titel'}“: ${h} `
+          + 'Es erscheint nicht im PDF.' });
+      }
     }
 
     for (const b of dok.bloecke) {
@@ -758,10 +793,17 @@ $clean_ext  = 'bbl run.xml synctex.gz fdb_latexmk fls';
 % Argument = erste Seitenzahl des Vorspanns (2 mit Deckblatt, sonst 1)
 \newcommand{\vorspannbeginn}[1]{\pagenumbering{roman}\setcounter{page}{#1}\pagestyle{plain}}
 
-\newcommand{\abstractseite}[1]{%
+%% APA 7: unter dem Abstract eine Schlagwortzeile, kursiv eingeleitet
+%% und eingerückt. Ohne Schlagwörter entfällt sie ganz.
+\newcommand{\abstractseite}[2]{%
   \clearpage\pagestyle{plain}%
   \section*{\abstractname}\addcontentsline{toc}{section}{\protect\abstractname}%
-  \begingroup\setstretch{1.15}#1\par\endgroup\clearpage}
+  \begingroup\setstretch{1.15}#1\par\endgroup
+  \if\relax\detokenize{#2}\relax\else
+    \vspace{\baselineskip}%
+    \noindent\hspace{1.27cm}\textit{\asW{Schlüsselwörter}{Keywords}:} #2\par
+  \fi
+  \clearpage}
 
 \newcommand{\inhaltsverzeichnis}{%
   \clearpage\pagestyle{plain}%
@@ -804,6 +846,13 @@ $clean_ext  = 'bbl run.xml synctex.gz fdb_latexmk fls';
   \clearpage
   \setcounter{section}{0}%
   \renewcommand{\thesection}{\Alph{section}}%
+  %% APA 7: Tabellen und Abbildungen im Anhang heißen A1, A2, B1 --
+  %% je Anhang von vorn und mit dessen Buchstaben. Ohne das liefen die
+  %% Zähler durch, und in Anhang A stand "Tabelle 7".
+  \@addtoreset{table}{section}%
+  \@addtoreset{figure}{section}%
+  \renewcommand{\thetable}{\Alph{section}\arabic{table}}%
+  \renewcommand{\thefigure}{\Alph{section}\arabic{figure}}%
   \renewcommand{\as@secprefix}{\appendixname~}%
   \renewcommand{\thesubsection}{\Alph{section}.\arabic{subsection}}%
   \renewcommand{\theHsection}{anhang.\Alph{section}}%

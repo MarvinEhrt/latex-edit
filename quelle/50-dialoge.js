@@ -260,7 +260,8 @@ const Dialoge = (() => {
       /* Inhalt der Vorspannseiten wird hier mitbearbeitet -- der Schalter
          allein nützt nichts, wenn man den Text nirgends eintragen kann.
          Auf Kopien, damit Abbrechen wirklich abbricht. */
-      const abstract = { text: dok.meta.abstract || '' };
+      const abstract = { text: dok.meta.abstract || '',
+                         schlagwoerter: dok.meta.schlagwoerter || '' };
       const abk = (dok.meta.abkuerzungen || []).map(a => ({ ...a }));
 
       const auswahl = (name, beschriftung, optionen, hilfe) => {
@@ -300,7 +301,16 @@ const Dialoge = (() => {
         zaehler.style.color = n ? '' : 'var(--kennwert)';
       };
       zaehleWoerter();
-      abstractfeld.append(ta, zaehler);
+      /* APA 7 verlangt unter dem Abstract eine Schlagwortzeile. Sie
+         fehlte ganz -- und ist eine der Kleinigkeiten, die beim
+         Gegenlesen zuverlässig angestrichen werden. */
+      const schlag = el('input');
+      schlag.type = 'text';
+      schlag.placeholder = 'Schlüsselwörter, mit Komma getrennt — z. B. '
+                         + 'Interessen, Studienzufriedenheit, RIASEC';
+      schlag.value = abstract.schlagwoerter;
+      schlag.addEventListener('input', () => { abstract.schlagwoerter = schlag.value; });
+      abstractfeld.append(ta, zaehler, schlag);
 
       /* --- Abkürzungsverzeichnis --- */
       const abkfeld = el('div', 'schalterzusatz');
@@ -397,6 +407,7 @@ const Dialoge = (() => {
           e.schriftgroesse = +e.schriftgroesse;
           e.zeilenabstand = String(e.zeilenabstand);
           dok.meta.abstract = abstract.text.trim();
+          dok.meta.schlagwoerter = abstract.schlagwoerter.trim();
           dok.meta.abkuerzungen = abk
             .filter(a => (a.kurz || '').trim())
             .sort((x, y) => x.kurz.localeCompare(y.kurz, 'de'));

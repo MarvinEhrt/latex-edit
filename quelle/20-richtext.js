@@ -29,9 +29,11 @@ const Zitate = (() => {
   const WORT = {
     de: { und: 'und', hrsg: 'Hrsg.', seiten: 'S.', auflage: 'Aufl.',
           tabelle: 'Tabelle', abbildung: 'Abbildung', abschnitt: 'Abschnitt',
+          anhang: 'Anhang',
           gelöscht: '?? gelöscht' },
     en: { und: 'and', hrsg: 'Eds.', seiten: 'pp.', auflage: 'ed.',
           tabelle: 'Table', abbildung: 'Figure', abschnitt: 'Section',
+          anhang: 'Appendix',
           gelöscht: '?? deleted' }
   };
   const wort = (sprache) => WORT[sprache === 'en' ? 'en' : 'de'];
@@ -213,18 +215,35 @@ const Richtext = (() => {
     'Γ': '\\Gamma', 'Δ': '\\Delta', 'Θ': '\\Theta', 'Λ': '\\Lambda',
     'Ξ': '\\Xi', 'Π': '\\Pi', 'Σ': '\\Sigma', 'Φ': '\\Phi',
     'Ψ': '\\Psi', 'Ω': '\\Omega',
-    '²': '^{2}', '³': '^{3}', '¹': '^{1}', '⁴': '^{4}',
-    '₀': '_{0}', '₁': '_{1}', '₂': '_{2}', '₃': '_{3}',
+    /* Hoch- und Tiefstellung vollständig: die Tabelle hörte bei ⁴ und ₃
+       auf, und ein ⁵ oder ₇ war damit ein harter Übersetzungsfehler --
+       "Unicode character not set up for use with LaTeX", für den es
+       nicht einmal eine deutsche Erklärung gab. */
+    '⁰': '^{0}', '¹': '^{1}', '²': '^{2}', '³': '^{3}', '⁴': '^{4}',
+    '⁵': '^{5}', '⁶': '^{6}', '⁷': '^{7}', '⁸': '^{8}', '⁹': '^{9}',
+    '⁺': '^{+}', '⁻': '^{-}', '⁼': '^{=}', 'ⁿ': '^{n}',
+    '₀': '_{0}', '₁': '_{1}', '₂': '_{2}', '₃': '_{3}', '₄': '_{4}',
+    '₅': '_{5}', '₆': '_{6}', '₇': '_{7}', '₈': '_{8}', '₉': '_{9}',
+    '₊': '_{+}', '₋': '_{-}',
     '±': '\\pm', '×': '\\times', '÷': '\\div', '·': '\\cdot',
     '≤': '\\leq', '≥': '\\geq', '≠': '\\neq', '≈': '\\approx',
+    '≡': '\\equiv', '∝': '\\propto', '∼': '\\sim',
     '∞': '\\infty', '√': '\\surd', '∑': '\\sum', '∏': '\\prod',
-    '∈': '\\in', '∅': '\\emptyset', '→': '\\rightarrow',
-    '←': '\\leftarrow', '↔': '\\leftrightarrow', '∆': '\\Delta'
+    '∫': '\\int', '∂': '\\partial', '∇': '\\nabla',
+    '∈': '\\in', '∉': '\\notin', '⊂': '\\subset', '⊆': '\\subseteq',
+    '∪': '\\cup', '∩': '\\cap', '∅': '\\emptyset',
+    '∀': '\\forall', '∃': '\\exists', '¬': '\\neg',
+    '∧': '\\wedge', '∨': '\\vee',
+    '′': '\\prime', '″': '\\prime\\prime',
+    '→': '\\rightarrow', '←': '\\leftarrow', '↔': '\\leftrightarrow',
+    '↑': '\\uparrow', '↓': '\\downarrow',
+    '⇒': '\\Rightarrow', '⇐': '\\Leftarrow', '⇔': '\\Leftrightarrow',
+    '∆': '\\Delta'
   };
 
   /* Zeichen, die im Textmodus bleiben */
   const TEXTZEICHEN = {
-    '–': '--', '—': '---', '…': '\\dots{}', '°': '\\textdegree{}',
+    '–': '--', '—': '---', '‑': '-', '…': '\\dots{}', '°': '\\textdegree{}',
     '‰': '\\textperthousand{}', '§': '\\S{}', '€': '\\texteuro{}',
     '½': '\\textonehalf{}', '¼': '\\textonequarter{}', '©': '\\textcopyright{}',
     '®': '\\textregistered{}', '™': '\\texttrademark{}',
@@ -240,13 +259,25 @@ const Richtext = (() => {
      hier raus, bevor irgendetwas anderes passiert.                  */
   const UNSICHTBAR = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF\u00AD]/g;
 
+  /* Was nach allen Ersetzungen übrig bleibt und jenseits von Latin-1
+     liegt. Zeilenumbruch und Tabulator bleiben ausgenommen. */
+  const UNBEKANNT = /[^\u0000-\u00FF]/g;
+
   const escLatex = (s) =>
     String(s == null ? '' : s)
       .replace(UNSICHTBAR, '')
       .replace(/[\\{}$&#_%~^]/g, c => LATEX_ERSATZ[c])
       .replace(textMuster, c => TEXTZEICHEN[c])
       // zusammenhängende Mathe-Zeichen in EINE Formel packen: χ² -> $\chi^{2}$
-      .replace(mathMuster, m => '$' + [...m].map(c => MATHZEICHEN[c]).join('') + '$');
+      .replace(mathMuster, m => '$' + [...m].map(c => MATHZEICHEN[c]).join('') + '$')
+      /* Auffangnetz. Jedes Zeichen, das weder Latin-1 noch in einer der
+         Tabellen oben steht, ist für pdflatex mit T1-Kodierung ein
+         harter Fehler ("Unicode character ... not set up"). Eine
+         vollständige Tabelle gibt es nicht -- Emoji, seltene Symbole,
+         fremde Schriften kommen über die Zwischenablage jederzeit
+         herein. Lieber ein sichtbares Kästchen im PDF als ein Bau, der
+         abbricht und dessen Meldung niemand versteht. */
+      .replace(UNBEKANNT, '\\mbox{?}');
 
   /* ---------- Runs -> reiner Text (für Gliederung, Titel) ---------- */
   function zuText(runs, ctx = {}) {

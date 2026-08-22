@@ -876,6 +876,121 @@ const gefunden = await s.evaluate(()=>{
 });
 p('die Suche findet Text in einer Fußnote', /1/.test(gefunden), gefunden);
 
+// P) Sonderzeichen brechen den Bau nicht mehr ab
+const zeichen = await s.evaluate(()=>({
+  hoch:   Richtext.zuLatex([{text:'R\u2075 und x\u2087'}], {}),
+  pfeile: Richtext.zuLatex([{text:'a \u2191 b \u21d2 c'}], {}),
+  integral: Richtext.zuLatex([{text:'\u222b und \u2202'}], {}),
+  emoji:  Richtext.zuLatex([{text:'Ergebnis \ud83c\udf89 gut'}], {}),
+  normal: Richtext.zuLatex([{text:'Müller & Söhne 50 %'}], {})
+}));
+p('hochgestellte Ziffern jenseits von vier gehen durch',
+  zeichen.hoch.includes('^{5}') && zeichen.hoch.includes('_{7}'), zeichen.hoch);
+p('Pfeile nach oben und Doppelpfeile ebenso',
+  zeichen.pfeile.includes('uparrow') && zeichen.pfeile.includes('Rightarrow'), zeichen.pfeile);
+p('Integral und partielle Ableitung ebenso',
+  zeichen.integral.includes('\\int') && zeichen.integral.includes('partial'), zeichen.integral);
+p('ein unbekanntes Zeichen wird ersetzt statt den Bau abzubrechen',
+  !/[^\u0000-\u00ff]/.test(zeichen.emoji) && zeichen.emoji.includes('mbox{?}'), zeichen.emoji);
+p('gewöhnlicher Text bleibt unangetastet',
+  zeichen.normal === 'Müller \\& Söhne 50 \\%', zeichen.normal);
+
+// O) Die Zeilenkarte zeigt auf den richtigen Baustein
+const karte = await s.evaluate(()=>{
+  App.dok.bloecke=[
+    Modell.neuerBlock('absatz',{runs:[{text:'Erster'}]}),
+    Modell.neuerBlock('absatz',{runs:[{text:'Zweiter'}]})];
+  const e = Latex.erzeuge(App.dok);
+  const zeilen = e.dateien['arbeit.tex'].split('\n');
+  const k = e.zeilenkarte.filter(x=>x.typ==='absatz');
+  return {k, erste: zeilen[k[0].von-1], zweite: zeilen[k[1].von-1],
+          leerVorZwei: zeilen[k[1].von-2]};
+});
+p('der Bereich beginnt bei der Textzeile, nicht bei der Leerzeile davor',
+  karte.erste.includes('Erster') && karte.zweite.includes('Zweiter'),
+  JSON.stringify(karte));
+p('die Leerzeile nach einem Absatz gehört noch zu ihm',
+  karte.leerVorZwei.trim()==='' && karte.k[0].bis === karte.k[1].von-1,
+  JSON.stringify(karte.k));
+p('die Bereiche überschneiden sich nicht', karte.k[0].bis < karte.k[1].von,
+  JSON.stringify(karte.k));
+
+// N) Ein Diagramm ohne Zahlen verschwindet nicht mehr stumm
+const stumm = await s.evaluate(()=>{
+  App.dok.bloecke=[
+    Modell.neuerBlock('diagramm',{titel:'Verwaist', quelle:'tabelle',
+      tabelleId:'gibtsnicht'})];
+  return Latex.pruefe(App.dok).map(x=>x.meldung);
+});
+p('ein Diagramm ohne Zahlen wird vor dem Bau gemeldet',
+  stumm.some(m=>m.includes('Verwaist')), JSON.stringify(stumm));
+
+// M) Komma im Kategorienamen zerlegt die Achse nicht
+const komma = await s.evaluate(()=>{
+  const b = Modell.neuerBlock('diagramm',{art:'balken', quelle:'eigen',
+    titel:'K', daten:{kopf:['Gruppe','Wert'],
+      zeilen:[['1,5 Jahre','3'],['Gruppe A, B','4']]}});
+  App.dok.bloecke=[b];
+  return Diagramm.zuLatex(b, App.dok).tex;
+});
+p('Kategorienamen mit Komma werden geklammert',
+  komma.includes('{1,5 Jahre}') && komma.includes('{Gruppe A, B}'),
+  komma.split('\n').find(z=>z.includes('symbolic')) || komma.slice(0,200));
+
+// L) Graustufen: Helligkeit UND Muster
+const grau = await s.evaluate(()=>{
+  const b = Modell.neuerBlock('diagramm',{art:'balken', quelle:'eigen', graustufen:true,
+    titel:'G', wertSpalten:[1,2],
+    daten:{kopf:['A','x','y'], zeilen:[['p','1','2'],['q','3','4']]}});
+  App.dok.bloecke=[b];
+  return Diagramm.zuLatex(b, App.dok).tex;
+});
+p('im Graustufendruck wirken Helligkeit und Muster zusammen',
+  /fill=black!\d+/.test(grau) && grau.includes('postaction={pattern'),
+  grau.split('\n').find(z=>z.includes('addplot')) || grau.slice(0,200));
+
+// K) Anhang: Tabellen und Abbildungen heißen A1, A2, B1 (APA 7)
+const anhang = await s.evaluate(()=>{
+  App.dok.bloecke=[
+    Modell.neuerBlock('ueberschrift',{text:'Methode', ebene:1}),
+    Modell.neuerBlock('tabelle',{titel:'Im Text', kopf:['a'], zeilen:[['1']]}),
+    Modell.neuerBlock('anhangstart',{}),
+    Modell.neuerBlock('ueberschrift',{text:'Fragebogen', ebene:1}),
+    Modell.neuerBlock('tabelle',{titel:'Items', kopf:['a'], zeilen:[['1']]}),
+    Modell.neuerBlock('abbildung',{titel:'Bogen', datenUrl:'data:image/png;base64,AA'}),
+    Modell.neuerBlock('tabelle',{titel:'Mehr Items', kopf:['a'], zeilen:[['1']]}),
+    Modell.neuerBlock('ueberschrift',{text:'Rohdaten', ebene:1}),
+    Modell.neuerBlock('tabelle',{titel:'Werte', kopf:['a'], zeilen:[['1']]})];
+  const n = Modell.nummeriere(App.dok);
+  const id = (i)=>App.dok.bloecke[i].id;
+  return {imText:n.get(id(1)).nummer, anhangA1:n.get(id(4)).nummer,
+          abbA1:n.get(id(5)).nummer, anhangA2:n.get(id(6)).nummer,
+          anhangB1:n.get(id(8)).nummer,
+          stil:Latex.erzeuge(App.dok).dateien['arbeit-stil.sty']};
+});
+p('im Text zählen Tabellen wie bisher', anhang.imText==='1', anhang.imText);
+p('im Anhang A heißt die erste Tabelle A1', anhang.anhangA1==='A1', anhang.anhangA1);
+p('die Abbildung im Anhang A heißt A1', anhang.abbA1==='A1', anhang.abbA1);
+p('die zweite Tabelle in A heißt A2', anhang.anhangA2==='A2', anhang.anhangA2);
+p('in Anhang B fängt die Zählung neu an: B1', anhang.anhangB1==='B1', anhang.anhangB1);
+p('die Stildatei stellt die LaTeX-Zähler passend um',
+  anhang.stil.includes('\\thetable}{\\Alph{section}\\arabic{table}')
+  && anhang.stil.includes('@addtoreset{table}{section}'),
+  anhang.stil.split('\n').filter(z=>z.includes('thetable')).join(' | '));
+
+// Ein Verweis auf einen Anhang heißt "Anhang A", nicht "Abschnitt A"
+const verweis = await s.evaluate(()=>{
+  App.dok.bloecke.push(Modell.neuerBlock('absatz',{runs:[
+    {text:'siehe '}, {verweis: App.dok.bloecke[3].id}]}));
+  Editor.zeichne();
+  return {tex: Latex.erzeuge(App.dok).dateien['arbeit.tex'],
+          chip: document.querySelector('.chip-verweis')?.textContent || ''};
+});
+p('der Verweis auf einen Anhang nennt ihn im PDF Anhang',
+  verweis.tex.includes('\\appendixname~\\ref{sec:'),
+  verweis.tex.split('\n').filter(z=>z.includes('ref{sec:')).join(' | '));
+p('und schon im Editor steht "Anhang A"', verweis.chip==='Anhang A', verweis.chip);
+
 console.log(`\n  ${ok} bestanden, ${fehl} durchgefallen`);
 await b.close(); d.kill();
 rmSync(ABLAGE,{recursive:true,force:true});

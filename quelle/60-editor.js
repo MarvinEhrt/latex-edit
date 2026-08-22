@@ -33,10 +33,13 @@ const Editor = (() => {
       verweisText: (ziel) => {
         const b = findeBlock(ziel);
         if (!b) return w['gelöscht'];
-        const n = (nummern.get(ziel) || {}).nummer || '?';
+        const info = nummern.get(ziel) || {};
+        const n = info.nummer || '?';
         return b.typ === 'tabelle' ? `${w.tabelle} ${n}`
              : (b.typ === 'abbildung' || b.typ === 'diagramm') ? `${w.abbildung} ${n}`
-             : `${w.abschnitt} ${n}`;
+             /* Ein Anhang heißt Anhang, nicht Abschnitt -- "siehe
+                Abschnitt A" stimmt in keiner der beiden Sprachen. */
+             : `${info.imAnhang && (info.ebene || 1) === 1 ? w.anhang : w.abschnitt} ${n}`;
       }
     };
   }
