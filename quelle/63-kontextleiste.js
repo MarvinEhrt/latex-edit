@@ -138,16 +138,23 @@ const Kontextleiste = (() => {
     return wahl;
   }
 
-  const textwerkzeuge = () => [
-    knopf('<b>B</b>', 'Fett (Strg+B)', () => befehl('bold')),
-    knopf('<i>I</i>', 'Kursiv (Strg+I)', () => befehl('italic')),
-    trenner(),
-    knopf('❝ Zitat', 'Quelle zitieren  (Strg+Umschalt+L)', () => App.zitatEinfuegen()),
-    knopf('→ Verweis', 'Querverweis einfügen', () => App.verweisEinfuegen()),
-    knopf('𝑀 Kennwert', 'Kennwert einfügen', () => App.kennwertEinfuegen()),
-    knopf('¹ Fußnote', 'Fußnote einfügen', () => App.fussnoteEinfuegen()),
-    knopf('∑ Formel', 'Formel im Satz einfügen', () => App.formelEinfuegen())
-  ];
+  const textwerkzeuge = () => {
+    /* B und I tragen ihren Befehl als Datenattribut -- so können sie
+       laufend anzeigen, was an der Schreibmarke schon gilt. */
+    const fett = knopf('<b>B</b>', 'Fett (Strg+B)', () => befehl('bold'));
+    fett.dataset.befehl = 'bold';
+    const kursiv = knopf('<i>I</i>', 'Kursiv (Strg+I)', () => befehl('italic'));
+    kursiv.dataset.befehl = 'italic';
+    return [
+      fett, kursiv,
+      trenner(),
+      knopf('❝ Zitat', 'Quelle zitieren  (Strg+Umschalt+L)', () => App.zitatEinfuegen()),
+      knopf('→ Verweis', 'Querverweis einfügen', () => App.verweisEinfuegen()),
+      knopf('𝑀 Kennwert', 'Kennwert einfügen', () => App.kennwertEinfuegen()),
+      knopf('¹ Fußnote', 'Fußnote einfügen', () => App.fussnoteEinfuegen()),
+      knopf('∑ Formel', 'Formel im Satz einfügen', () => App.formelEinfuegen())
+    ];
+  };
 
   function werkzeuge(block, info) {
     switch (block.typ) {
@@ -283,6 +290,14 @@ const Kontextleiste = (() => {
          nehmen -- Eingabefelder der Leiste brauchen ihn dagegen. */
       leiste.addEventListener('mousedown', (ev) => {
         if (ev.target.closest('button')) ev.preventDefault();
+      });
+      /* B und I spiegeln laufend, was an der Schreibmarke gilt. */
+      document.addEventListener('selectionchange', () => {
+        for (const b of leiste.querySelectorAll('[data-befehl]')) {
+          let an = false;
+          try { an = document.queryCommandState(b.dataset.befehl); } catch {}
+          b.classList.toggle('aktiv', an);
+        }
       });
     }
     leiste.innerHTML = '';

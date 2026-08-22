@@ -11,7 +11,7 @@ auf die Befunde.
 | 2 · Pfeile und Listen | B1, B3 | **umgesetzt** |
 | 3 · Direkt anfassen | D1 (Titel), F2, G1 | **umgesetzt** |
 | 4 · Struktur per Tastatur | C2, C3, C4, B4 | **umgesetzt** |
-| 5 · Suchen und Sichtbarkeit | E1, E2, H2, H3 | offen |
+| 5 · Suchen und Sichtbarkeit | E1, E2, H2, H3 | **umgesetzt** |
 | 6 · Auswahl und Abschnitte | B2, C1, G2–G4 | offen |
 | 7 · Fläche und Feinschliff | F1, D2–D4, H1, H4–H6 | offen |
 
@@ -124,24 +124,35 @@ geteilt, nicht kopiert.
 
 *Abnahme:* Eine Hausarbeit-Gliederung komplett ohne Maus anlegen.
 
-## Paket 5 — Suchen und Sichtbarkeit *(offen)*
+## Paket 5 — Suchen und Sichtbarkeit *(umgesetzt)*
 
-**E1 · Suchraum vervollständigen.** Fußnotentexte (`run.fussnote`)
-als eigene Stellenart in `alleStellen()`, Ersetzen eingeschlossen;
-danach Abstract (`meta.abstract`). Formel-Quelltext nur finden, nicht
-ersetzen (Springen öffnet den Formeleditor).
+**E1 · Suchraum vervollständigt.** Fußnotentexte (`run.fussnote`)
+sind eigene Stellen in `alleStellen()`, Ersetzen eingeschlossen;
+ebenso die Zusammenfassung (`meta.abstract`). Formel-Quelltext wird
+gefunden, aber nicht ersetzt — geändert wird im Formeleditor, die
+Meldung sagt das.
 
-**E2 · Treffer markieren.** Alle Fundstellen über die CSS Custom
-Highlight API (`CSS.highlights`) einfärben — kein DOM-Umbau nötig,
-die Treffer liegen bereits als (Feld, Position, Länge) vor. Beim
-Schließen der Suche wieder aufheben.
+**E2 · Treffer markiert.** Alle Fundstellen leuchten über die CSS
+Custom Highlight API (`CSS.highlights`) auf — kein DOM-Umbau, die
+Treffer liegen als (Feld, Position, Länge) vor. Beim Schließen der
+Suche verschwindet die Markierung; Browser ohne die API zeigen wie
+bisher nur den angesprungenen Treffer.
+
+Dabei kam ein Altfehler ans Licht: Das Anspringen eines Treffers im
+Fließtext wählte nie etwas aus. `springeZu` verglich das Segment des
+Treffers per Objektidentität mit einer NEU berechneten Segmentliste
+— der Vergleich traf nie, der Versatz war immer um die eigene
+Segmentlänge zu groß. Jetzt zählt der Segment-Index; eine eigene
+Prüfung sichert das Springen ab.
 
 **H2 · B/I-Zustand.** Fett-/Kursiv-Knöpfe in Auswahl- und
 Objektleiste spiegeln `document.queryCommandState`.
 
 **H3 · Einfügen in Tabellenzellen.** Eigener Paste-Handler auf den
-Zellen: tabulatorgetrennte Bereiche zellenweise ab der Zielzelle
-verteilen (Zeilen/Spalten bei Bedarf anfügen), sonst reiner Text.
+Zellen: tabulatorgetrennte Bereiche werden zellenweise ab der
+Zielzelle verteilt, Zeilen und Spalten wachsen bei Bedarf mit; in
+der Kopfzeile beginnt die erste eingefügte Zeile im Kopf. Einzelne
+Werte kommen immer als reiner Text an.
 
 ## Paket 6 — Auswahl und Abschnitte *(offen, größtes Paket)*
 

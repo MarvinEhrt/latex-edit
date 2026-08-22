@@ -357,6 +357,92 @@ p('die Einfügeleiste zeigt beim Überfahren, wo es hinginge',
       document.querySelector(`.block[data-id="${App.dok.bloecke[0].id}"]`);
   }));
 
+/* ---------------- Suche: Fußnoten, Formeln, Markierung ---------------- */
+
+console.log('\nSuche\n');
+await setze(() => {
+  App.dok.bloecke = [
+    Modell.neuerBlock('absatz', { runs: [
+      { text: 'Im Text steht Alpha. ' },
+      { fussnote: 'In der Fussnote steht Beta.' }] }),
+    Modell.neuerBlock('formel', { tex: '\\beta = 1' })];
+  Editor.zeichne();
+});
+await s.keyboard.press('Control+f'); await s.waitForTimeout(300);
+await s.locator('#suche-feld').fill('Beta'); await s.waitForTimeout(250);
+p('die Suche findet Fußnotentext und Formel-Quelltext',
+  await s.evaluate(() => document.getElementById('suche-stand').textContent === '1 von 2'),
+  await s.evaluate(() => document.getElementById('suche-stand').textContent));
+await s.locator('#suche-aufklappen').click();
+await s.locator('#ersetzen-feld').fill('Gamma');
+await s.locator('#knopf-alle-ersetzen').click(); await s.waitForTimeout(400);
+p('Ersetzen wirkt in der Fußnote',
+  await s.evaluate(() => App.dok.bloecke[0].runs[1].fussnote.includes('Gamma')),
+  await s.evaluate(() => App.dok.bloecke[0].runs[1].fussnote));
+p('die Formel bleibt beim Ersetzen unangetastet',
+  await s.evaluate(() => App.dok.bloecke[1].tex === '\\beta = 1'));
+await s.locator('#suche-feld').fill('Alpha'); await s.waitForTimeout(250);
+p('alle Treffer sind markiert (CSS Highlight API)',
+  await s.evaluate(() => {
+    const h = CSS.highlights.get('suchtreffer');
+    return !!h && h.size === 1;
+  }),
+  await s.evaluate(() => String(CSS.highlights.get('suchtreffer')?.size)));
+await s.locator('#suche-feld').focus();
+await s.keyboard.press('Enter'); await s.waitForTimeout(250);
+p('Enter springt zum Treffer und wählt ihn wirklich aus',
+  await s.evaluate(() => window.getSelection().toString() === 'Alpha'),
+  await s.evaluate(() => JSON.stringify(window.getSelection().toString())));
+await s.locator('#suche-feld').focus();
+await s.keyboard.press('Escape'); await s.waitForTimeout(250);
+p('Schließen nimmt die Markierung weg',
+  await s.evaluate(() => !CSS.highlights.get('suchtreffer')));
+
+/* ---------------- B/I zeigen ihren Zustand ---------------- */
+
+console.log('\nFett und kursiv\n');
+await setze(() => {
+  App.dok.bloecke = [Modell.neuerBlock('absatz', { runs: [{ text: 'fett', b: true }] })];
+  Editor.zeichne();
+});
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('Control+a'); await s.waitForTimeout(400);
+p('die Auswahlleiste zeigt Fett als aktiv',
+  await s.evaluate(() => {
+    const b = document.querySelector('#auswahlleiste [data-befehl="bold"]');
+    return b && b.classList.contains('aktiv');
+  }));
+p('die Objektleiste zeigt den Zustand ebenfalls',
+  await s.evaluate(() => {
+    const b = document.querySelector('#kontextleiste [data-befehl="bold"]');
+    return b && b.classList.contains('aktiv');
+  }));
+
+/* ---------------- Einfügen in Tabellenzellen ---------------- */
+
+console.log('\nEinfügen in Zellen\n');
+await setze(() => {
+  App.dok.bloecke = [Modell.neuerBlock('tabelle', {
+    kopf: ['A', 'B'], zeilen: [['1', '2'], ['3', '4']],
+    spaltenAusrichtung: ['l', 'c'] })];
+  Editor.zeichne();
+});
+p('ein Excel-Bereich verteilt sich zellenweise ab der Zielzelle',
+  await s.evaluate(() => {
+    const td = document.querySelectorAll('.block tbody tr')[1].cells[1];
+    td.focus();
+    const dt = new DataTransfer();
+    dt.setData('text/plain', 'x\ty\nz\tw');
+    td.dispatchEvent(new ClipboardEvent('paste',
+      { clipboardData: dt, bubbles: true, cancelable: true }));
+    const b = App.dok.bloecke[0];
+    return b.kopf.length === 3 && b.zeilen.length === 3 &&
+      b.zeilen[1][1] === 'x' && b.zeilen[1][2] === 'y' &&
+      b.zeilen[2][1] === 'z' && b.zeilen[2][2] === 'w' &&
+      b.zeilen[0].length === 3;
+  }),
+  await s.evaluate(() => JSON.stringify(App.dok.bloecke[0].zeilen)));
+
 console.log(`\n${ok} bestanden, ${fehl} durchgefallen`);
 await b.close(); d.kill();
 process.exit(fehl ? 1 : 0);

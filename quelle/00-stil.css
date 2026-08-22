@@ -340,6 +340,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* ---------------- Suchen und Ersetzen ---------------- */
 
+/* Alle Fundstellen auf einmal -- über die CSS Custom Highlight API,
+   ohne das DOM anzufassen. Browser ohne die API zeigen weiter nur
+   den angesprungenen Treffer als Auswahl. */
+::highlight(suchtreffer) {
+  background-color: var(--kennwert-bg);
+  color: var(--kennwert);
+}
+
 .suchleiste {
   flex: none; padding: 8px 12px; border-bottom: 1px solid var(--linie);
   background-color: var(--flaeche); display: flex; flex-direction: column; gap: 6px;
@@ -373,6 +381,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font-size: 13px; cursor: pointer;
 }
 #auswahlleiste button:hover { background-color: var(--akzent-hell); }
+#auswahlleiste button.aktiv { background-color: var(--akzent-hell); color: var(--akzent); }
 #auswahlleiste .trenner { width: 1px; align-self: stretch; background-color: var(--linie); margin: 0 2px; }
 
 /* ---------------- Export-Menü ---------------- */

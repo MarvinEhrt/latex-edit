@@ -39,16 +39,17 @@ const Auswahlleiste = (() => {
     /* mousedown würde die Auswahl kollabieren lassen, bevor der Klick
        ankommt -- dasselbe Muster wie bei den Werkzeugleisten-Knöpfen. */
     leiste.addEventListener('mousedown', (ev) => ev.preventDefault());
-    const k = (html, titel, aktion) => {
+    const k = (html, titel, aktion, name) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.innerHTML = html;
       b.title = titel;
+      if (name) b.dataset.befehl = name;
       b.addEventListener('click', aktion);
       leiste.append(b);
     };
-    k('<b>B</b>', 'Fett (Strg+B)', () => befehl('bold'));
-    k('<i>I</i>', 'Kursiv (Strg+I)', () => befehl('italic'));
+    k('<b>B</b>', 'Fett (Strg+B)', () => befehl('bold'), 'bold');
+    k('<i>I</i>', 'Kursiv (Strg+I)', () => befehl('italic'), 'italic');
     leiste.append(Object.assign(document.createElement('span'), { className: 'trenner' }));
     k('❝', 'Quelle zitieren (Strg+Umschalt+L)', () => { verstecke(); App.zitatEinfuegen(); });
     k('→', 'Querverweis einfügen', () => { verstecke(); App.verweisEinfuegen(); });
@@ -65,6 +66,12 @@ const Auswahlleiste = (() => {
     if (!r || (!r.width && !r.height)) { verstecke(); return; }
     if (!leiste) baue();
     leiste.style.display = 'flex';
+    /* B und I zeigen an, was für die Auswahl schon gilt */
+    for (const knopf of leiste.querySelectorAll('[data-befehl]')) {
+      let an = false;
+      try { an = document.queryCommandState(knopf.dataset.befehl); } catch {}
+      knopf.classList.toggle('aktiv', an);
+    }
     const eigen = leiste.getBoundingClientRect();
     leiste.style.left = Math.max(8, Math.min(
       window.innerWidth - eigen.width - 8,

@@ -996,7 +996,7 @@ const Dialoge = (() => {
         <b>Strg</b>+<b>Z</b> rückgängig &nbsp;·&nbsp; <b>Strg</b>+<b>Y</b> wiederholen —
         auch gelöschte Bausteine kommen damit zurück<br>
         <b>Strg</b>+<b>F</b> suchen &nbsp;·&nbsp; <b>Strg</b>+<b>H</b> suchen und ersetzen —
-        auch in Tabellen und Beschriftungen<br>
+        auch in Tabellen, Beschriftungen und Fußnoten; alle Treffer leuchten auf<br>
         <b>Enter</b> teilt den Absatz an der Schreibmarke &nbsp;·&nbsp;
         <b>Umschalt</b>+<b>Enter</b> nur ein Zeilenumbruch<br>
         <b>Rücktaste</b> am Absatzanfang führt mit dem darüber zusammen,

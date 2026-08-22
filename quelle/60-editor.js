@@ -1036,6 +1036,48 @@ const Editor = (() => {
         };
         const merkeTabelle = () => Verlauf.merke(dok());
 
+        /* Einfügen IN eine Zelle: ein aus Excel kopierter Bereich wird
+           zellenweise ab der Zielzelle verteilt -- Zeilen und Spalten
+           wachsen bei Bedarf mit. Einzelne Werte kommen als reiner
+           Text, damit Word keine Formatierung einschleppt. */
+        const sichereSpalte = (sp) => {
+          while (block.kopf.length <= sp) {
+            block.kopf.push('');
+            (block.spaltenAusrichtung = block.spaltenAusrichtung || []).push('c');
+            block.zeilen.forEach(r => { while (r.length < block.kopf.length) r.push(''); });
+          }
+        };
+        const verteileAb = (z0, s0, gitter) => {
+          merkeTabelle();
+          gitter.forEach((zeile, i) => {
+            const z = z0 + i;
+            zeile.forEach((wert, j) => {
+              const sp = s0 + j;
+              sichereSpalte(sp);
+              if (z < 0) { block.kopf[sp] = wert.trim(); return; }
+              while (block.zeilen.length <= z) block.zeilen.push(block.kopf.map(() => ''));
+              block.zeilen[z][sp] = wert.trim();
+            });
+          });
+          neuZeichnenTabelle();
+        };
+        /* z0 = -1 heißt: die erste eingefügte Zeile landet im Kopf. */
+        const zellenPaste = (ev, z0, s0) => {
+          const ablage = ev.clipboardData || window.clipboardData;
+          const roh = String((ablage && ablage.getData('text/plain')) || '');
+          ev.preventDefault();
+          const zeilenRoh = roh.replace(/\r\n?/g, '\n').split('\n');
+          while (zeilenRoh.length && zeilenRoh[zeilenRoh.length - 1].trim() === '')
+            zeilenRoh.pop();
+          const gitter = zeilenRoh.map(z => z.split('\t'));
+          if (gitter.length > 1 || (gitter[0] || []).length > 1) {
+            verteileAb(z0, s0, gitter);
+          } else {
+            merkeTabelle();
+            document.execCommand('insertText', false, roh.replace(/\s+/g, ' ').trim());
+          }
+        };
+
         const huelle = el('div', 'tabgitter');
         const tabelle = el('table');
 
@@ -1084,6 +1126,7 @@ const Editor = (() => {
           th.addEventListener('beforeinput', () => Verlauf.merke(dok(), 'kopf:' + block.id + ':' + s));
           th.addEventListener('input', () => { block.kopf[s] = th.textContent; App.aenderung({ nurVorschau: true }); });
           th.addEventListener('blur', () => App.aenderung());
+          th.addEventListener('paste', (ev) => zellenPaste(ev, -1, s));
           kopfzeile.append(th);
         });
         kopfzeile.append(el('th', 'randspalte'));
@@ -1100,6 +1143,7 @@ const Editor = (() => {
             td.addEventListener('beforeinput', () => Verlauf.merke(dok(), 'zelle:' + block.id + ':' + z + ':' + s));
             td.addEventListener('input', () => { block.zeilen[z][s] = td.textContent; App.aenderung({ nurVorschau: true }); });
             td.addEventListener('blur', () => App.aenderung());
+            td.addEventListener('paste', (ev) => zellenPaste(ev, z, s));
             /* Tabulator am Ende der letzten Zelle hängt eine Zeile an --
                so tippt man eine Tabelle durch, ohne zur Maus zu greifen. */
             td.addEventListener('keydown', (ev) => {

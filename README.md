@@ -305,9 +305,10 @@ node     pruefungen/pruefe_formeln.mjs   # 31 Prüfungen: MathML-Vorschau,
 npm install                              # einmalig, holt playwright-core
 node     pruefungen/pruefe_bausteine.mjs # Absätze, Einfügen, Tabellen, Dialoge,
                                          #   Literaturschlüssel, Export
-node     pruefungen/pruefe_bedienung.mjs # 34 Prüfungen: Pfeile über Blockgrenzen,
+node     pruefungen/pruefe_bedienung.mjs # 43 Prüfungen: Pfeile über Blockgrenzen,
                                          #   Listenverhalten, Tastenkürzel, Kartentitel,
-                                         #   Markdown-Kürzel, /-Menü, Umwandeln, Duplizieren
+                                         #   Markdown-Kürzel, /-Menü, Umwandeln, Duplizieren,
+                                         #   Suche samt Markierung, Einfügen in Zellen
 node     pruefungen/pruefe_ganz.mjs      # 16 Schritte: Browser bis fertiges PDF
 ```
 
