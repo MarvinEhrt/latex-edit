@@ -12,7 +12,7 @@ auf die Befunde.
 | 3 · Direkt anfassen | D1 (Titel), F2, G1 | **umgesetzt** |
 | 4 · Struktur per Tastatur | C2, C3, C4, B4 | **umgesetzt** |
 | 5 · Suchen und Sichtbarkeit | E1, E2, H2, H3 | **umgesetzt** |
-| 6 · Auswahl und Abschnitte | B2, C1, G2–G4 | offen |
+| 6 · Auswahl und Abschnitte | B2, C1, G2–G4 | **umgesetzt** |
 | 7 · Fläche und Feinschliff | F1, D2–D4, H1, H4–H6 | offen |
 
 ---
@@ -154,24 +154,34 @@ Zielzelle verteilt, Zeilen und Spalten wachsen bei Bedarf mit; in
 der Kopfzeile beginnt die erste eingefügte Zeile im Kopf. Einzelne
 Werte kommen immer als reiner Text an.
 
-## Paket 6 — Auswahl und Abschnitte *(offen, größtes Paket)*
+## Paket 6 — Auswahl und Abschnitte *(umgesetzt)*
 
 **B2 · Auswahlmodus.** Escape im Text wählt den Baustein als Ganzes
-(sichtbarer Rahmen, Fokus auf dem Kasten), Umschalt+↑/↓ erweitert die
-Auswahl auf Nachbarn, Entf löscht (ein Verlaufsschritt), Strg+C legt
-die Bausteine als JSON in die Zwischenablage (Strg+V fügt sie wieder
-ein), ↑/↓ wandert, Enter kehrt in den Text zurück. Damit werden auch
-Diagramm, Formel und Umbruch per Tastatur erreichbar (G4).
+(sichtbarer Rahmen), Umschalt+↑/↓ erweitert die Auswahl auf Nachbarn,
+Entf löscht (ein Verlaufsschritt), Strg+C legt die Bausteine als
+JSON in die Zwischenablage — Strg+V fügt sie wieder ein, im
+Auswahlmodus wie mitten im Text, und damit auch zwischen zwei
+Fenstern. Strg+X schneidet aus, Strg+D dupliziert, ↑/↓ wandert,
+Enter kehrt in den Text zurück (bei Tabelle, Abbildung, Diagramm und
+Formel öffnet es den Dialog). Damit sind auch Bausteine ohne
+Textfeld per Tastatur erreichbar (G4). Die Tasten greifen nur, wenn
+kein Eingabefeld den Fokus hat; die Suche behält ihren Vorrang bei
+Escape.
 
 **C1 · Abschnitte verschieben.** Bei Überschriften bedeuten ↑/↓ und
 Ziehen: der Abschnitt bis zur nächsten Überschrift gleicher oder
-höherer Ebene wandert mit. Dieselbe Funktion macht die Gliederung
-links zum Ziehziel (bekannte Grenze aus der README).
+höherer Ebene wandert mit; der Anhangbeginn ist eine harte Grenze.
+Die Gliederung links ist jetzt selbst Ziehziel — ein Kapitel auf
+einen Eintrag ziehen sortiert es davor ein, unter die Liste ziehen
+ans Dokumentende. Die bekannte Grenze aus der README ist damit
+gefallen.
 
 **G2/G3 · Dialog- und Listensemantik.** Zentral in `Dialoge.basis()`:
-`role="dialog"`, `aria-modal`, Fokusfalle, Fokusrückgabe an den
-Auslöser. @-Liste und /-Menü bekommen `role="listbox"` mit
-`aria-activedescendant`.
+`role="dialog"`, `aria-modal`, `aria-labelledby`, Fokusfalle (Tab
+läuft im Kreis), Fokusrückgabe an den Auslöser, Ersatzfokus auf den
+Dialog, wenn kein Feld ihn holt. @-Liste und /-Menü tragen
+`role="listbox"`/`role="option"` mit `aria-activedescendant` am
+Textfeld.
 
 ## Paket 7 — Fläche und Feinschliff *(offen)*
 

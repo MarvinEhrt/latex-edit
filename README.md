@@ -76,6 +76,13 @@ Objektleiste wechselt die Art eines Bausteins nachträglich, Strg+D
 dupliziert ihn — eine fertig eingerichtete Tabelle wird so zur Vorlage für
 die nächste.
 
+**Bausteine als Ganzes:** Escape wählt den Baustein, in dem die
+Schreibmarke steht; Umschalt+Pfeil erweitert auf Nachbarn, Entf löscht,
+Strg+C/X/V kopiert ganze Bausteine (auch zwischen zwei Fenstern), Enter
+kehrt in den Text zurück. Eine **Überschrift verschieben** — mit den
+Pfeilknöpfen, per Ziehen im Text oder in der Gliederung — nimmt ihr ganzes
+Kapitel mit.
+
 **Strg+Z nimmt alles zurück**, nicht nur Getipptes: ein gelöschter Baustein,
 eine verschobene Überschrift, eine eingefügte Tabelle, ein Zahnrad-Dialog.
 Strg+Y stellt es wieder her. Ein Tippfluss zählt als ein Schritt, nicht als
@@ -305,10 +312,11 @@ node     pruefungen/pruefe_formeln.mjs   # 31 Prüfungen: MathML-Vorschau,
 npm install                              # einmalig, holt playwright-core
 node     pruefungen/pruefe_bausteine.mjs # Absätze, Einfügen, Tabellen, Dialoge,
                                          #   Literaturschlüssel, Export
-node     pruefungen/pruefe_bedienung.mjs # 43 Prüfungen: Pfeile über Blockgrenzen,
+node     pruefungen/pruefe_bedienung.mjs # 56 Prüfungen: Pfeile über Blockgrenzen,
                                          #   Listenverhalten, Tastenkürzel, Kartentitel,
                                          #   Markdown-Kürzel, /-Menü, Umwandeln, Duplizieren,
-                                         #   Suche samt Markierung, Einfügen in Zellen
+                                         #   Suche samt Markierung, Einfügen in Zellen,
+                                         #   Abschnitte, Auswahlmodus, Dialog-Semantik
 node     pruefungen/pruefe_ganz.mjs      # 16 Schritte: Browser bis fertiges PDF
 ```
 
@@ -347,7 +355,6 @@ passiert, muss überall nachprüfbar sein.
 - Kein gleichzeitiges Bearbeiten zu zweit, keine Änderungsverfolgung. Zwei
   Fenster auf derselben Arbeit merken einander aber: wer den älteren Stand
   sichern will, wird gefragt statt wortlos überschrieben.
-- Noch nicht da: Kapitel in der Gliederung per Ziehen umsortieren,
-  verschachtelte Listen, mehrabsätzige Fußnoten, Word-Export, der Sprung
-  vom Text an die passende PDF-Stelle (SyncTeX). Ein Absatzwechsel in
+- Noch nicht da: verschachtelte Listen, mehrabsätzige Fußnoten,
+  Word-Export, der Sprung vom Text an die passende PDF-Stelle (SyncTeX). Ein Absatzwechsel in
   einer Fußnote wird zum Zeilenumbruch, statt den Bau abzubrechen.

@@ -443,6 +443,131 @@ p('ein Excel-Bereich verteilt sich zellenweise ab der Zielzelle',
   }),
   await s.evaluate(() => JSON.stringify(App.dok.bloecke[0].zeilen)));
 
+/* ---------------- Abschnitte wandern mit ---------------- */
+
+console.log('\nAbschnitte\n');
+const reihenfolge = () => s.evaluate(() => App.dok.bloecke.map(x => x.text ||
+  Richtext.zuText(x.runs || [], {})).join(' | '));
+await setze(() => {
+  App.dok.bloecke = [
+    Modell.neuerBlock('ueberschrift', { ebene: 1, text: 'Kapitel A' }),
+    Modell.neuerBlock('absatz', { runs: [{ text: 'Text zu A' }] }),
+    Modell.neuerBlock('ueberschrift', { ebene: 1, text: 'Kapitel B' }),
+    Modell.neuerBlock('absatz', { runs: [{ text: 'Text zu B' }] })];
+  Editor.zeichne();
+});
+await s.evaluate(() => {
+  const id = App.dok.bloecke[2].id;
+  document.querySelector(`.block[data-id="${id}"] .blockleiste button`).click();
+});
+await s.waitForTimeout(300);
+p('↑ auf einer Überschrift verschiebt ihr ganzes Kapitel',
+  await reihenfolge() === 'Kapitel B | Text zu B | Kapitel A | Text zu A',
+  await reihenfolge());
+await s.evaluate(() => {
+  const id = App.dok.bloecke[0].id;
+  document.querySelectorAll(`.block[data-id="${id}"] .blockleiste button`)[1].click();
+});
+await s.waitForTimeout(300);
+p('↓ stellt die Reihenfolge wieder her',
+  await reihenfolge() === 'Kapitel A | Text zu A | Kapitel B | Text zu B',
+  await reihenfolge());
+p('Ziehen in der Gliederung ordnet Kapitel samt Inhalt um',
+  await s.evaluate(() => {
+    const eintraege = document.querySelectorAll('.gl-eintrag');
+    const dt = new DataTransfer();
+    eintraege[1].dispatchEvent(new DragEvent('dragstart',
+      { dataTransfer: dt, bubbles: true }));
+    eintraege[0].dispatchEvent(new DragEvent('dragover',
+      { dataTransfer: dt, bubbles: true, cancelable: true }));
+    eintraege[0].dispatchEvent(new DragEvent('drop',
+      { dataTransfer: dt, bubbles: true, cancelable: true }));
+    return App.dok.bloecke.map(x => x.text ||
+      Richtext.zuText(x.runs || [], {})).join(' | ');
+  }) === 'Kapitel B | Text zu B | Kapitel A | Text zu A');
+
+/* ---------------- Auswahlmodus ---------------- */
+
+console.log('\nAuswahlmodus\n');
+await setze(() => {
+  App.dok.bloecke = [
+    Modell.neuerBlock('absatz', { runs: [{ text: 'eins' }] }),
+    Modell.neuerBlock('absatz', { runs: [{ text: 'zwei' }] }),
+    Modell.neuerBlock('absatz', { runs: [{ text: 'drei' }] })];
+  Editor.zeichne();
+});
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('Escape'); await s.waitForTimeout(200);
+p('Escape wählt den Baustein als Ganzes',
+  await s.evaluate(() => document.querySelectorAll('.block.markiert').length === 1));
+await s.keyboard.press('Shift+ArrowDown'); await s.waitForTimeout(200);
+p('Umschalt+Pfeil erweitert die Auswahl',
+  await s.evaluate(() => document.querySelectorAll('.block.markiert').length === 2));
+await s.keyboard.press('Delete'); await s.waitForTimeout(300);
+p('Entf löscht die markierten Bausteine',
+  await s.evaluate(() => App.dok.bloecke.length === 1 &&
+    Richtext.zuText(App.dok.bloecke[0].runs, {}) === 'drei'),
+  await reihenfolge());
+await s.keyboard.press('Control+z'); await s.waitForTimeout(300);
+p('EIN Strg+Z holt beide zurück',
+  await s.evaluate(() => App.dok.bloecke.length === 3));
+p('Strg+V fügt kopierte Bausteine ein (JSON aus der Zwischenablage)',
+  await s.evaluate(() => {
+    const dt = new DataTransfer();
+    dt.setData('text/plain', JSON.stringify({ schreibtisch: 'bausteine',
+      bloecke: [{ typ: 'absatz', runs: [{ text: 'vier' }] }] }));
+    document.dispatchEvent(new ClipboardEvent('paste',
+      { clipboardData: dt, bubbles: true, cancelable: true }));
+    return App.dok.bloecke.length === 4 &&
+      App.dok.bloecke.some(b => Richtext.zuText(b.runs || [], {}) === 'vier');
+  }),
+  await reihenfolge());
+await s.keyboard.press('Escape'); await s.waitForTimeout(200);
+p('Escape verlässt den Auswahlmodus wieder',
+  await s.evaluate(() => document.querySelectorAll('.block.markiert').length === 0));
+
+await setze(() => {
+  App.dok.bloecke = [Modell.neuerBlock('tabelle', { titel: 'T' })];
+  Editor.zeichne();
+  Editor.waehle(App.dok.bloecke[0].id, false);
+});
+await s.keyboard.press('Escape'); await s.waitForTimeout(200);
+await s.keyboard.press('Enter'); await s.waitForTimeout(400);
+p('Enter auf einer Tabelle im Auswahlmodus öffnet ihren Dialog',
+  await s.evaluate(() => !!document.querySelector('.schleier')));
+
+/* ---------------- Dialog- und Listensemantik ---------------- */
+
+console.log('\nZugänglichkeit\n');
+p('der Dialog trägt role="dialog" samt Titelverweis',
+  await s.evaluate(() => {
+    const d = document.querySelector('.dialog');
+    return d && d.getAttribute('role') === 'dialog' &&
+      d.getAttribute('aria-modal') === 'true' &&
+      !!d.getAttribute('aria-labelledby');
+  }));
+await s.keyboard.press('Escape'); await s.waitForTimeout(300);
+p('Escape schließt den Dialog weiterhin',
+  await s.evaluate(() => !document.querySelector('.schleier')));
+
+await setze(() => {
+  App.dok.quellen = [{ key: 'holland1997', typ: 'buch',
+    felder: { autoren: 'Holland, John L.', jahr: '1997', titel: 'T', verlag: 'P' } }];
+  App.dok.bloecke = [Modell.neuerBlock('absatz')];
+  Editor.zeichne();
+});
+await s.locator('.block .tx').first().click();
+await s.keyboard.type('@hol'); await s.waitForTimeout(300);
+p('die @-Liste ist eine Listbox, das Feld nennt die aktive Option',
+  await s.evaluate(() => {
+    const l = document.getElementById('atliste');
+    const feld = document.activeElement.closest('.tx');
+    return !!l && l.getAttribute('role') === 'listbox' &&
+      !!l.querySelector('[role="option"][aria-selected="true"]') &&
+      feld.getAttribute('aria-activedescendant') === 'at-wahl-0';
+  }));
+await s.keyboard.press('Escape'); await s.waitForTimeout(200);
+
 console.log(`\n${ok} bestanden, ${fehl} durchgefallen`);
 await b.close(); d.kill();
 process.exit(fehl ? 1 : 0);

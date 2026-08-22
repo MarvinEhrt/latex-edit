@@ -28,6 +28,8 @@ const Dialoge = (() => {
      Knöpfe schreiben `schliessen(); fertig(wert)`, und dieser Wert
      soll gewinnen. Ein Promise nimmt nur die erste Auflösung an --
      der nachgereichte Abbruchwert verfällt dann von selbst.       */
+  let dialogZaehler = 0;
+
   function basis({ titel, unter, breit, beimSchliessen }) {
     const schleier = el('div', 'schleier');
     const dialog = el('div', 'dialog' + (breit ? ' dialog-breit' : ''));
@@ -39,12 +41,51 @@ const Dialoge = (() => {
     schleier.append(dialog);
     document.body.append(schleier);
 
+    /* Für Screenreader: ein Dialog IST ein Dialog, mit seinem Titel
+       als Namen. Der Fokus bleibt drin (Tab läuft im Kreis) und kehrt
+       beim Schließen zum Auslöser zurück.                            */
+    const ausloeser = document.activeElement;
+    const titelZeile = kopf.querySelector('h2');
+    titelZeile.id = 'dialogtitel-' + (++dialogZaehler);
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('aria-labelledby', titelZeile.id);
+
+    const FOKUSSIERBAR =
+      'button, input, select, textarea, [href], [contenteditable="true"], ' +
+      '[tabindex]:not([tabindex="-1"])';
+    schleier.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Tab') return;
+      const teile = [...dialog.querySelectorAll(FOKUSSIERBAR)]
+        .filter(e => !e.disabled && e.offsetParent !== null);
+      if (!teile.length) return;
+      const erster = teile[0], letzter = teile[teile.length - 1];
+      if (ev.shiftKey && document.activeElement === erster) {
+        ev.preventDefault(); letzter.focus();
+      } else if (!ev.shiftKey && document.activeElement === letzter) {
+        ev.preventDefault(); erster.focus();
+      }
+    });
+    /* Hat nach dem Aufbau niemand den Fokus geholt, nimmt ihn der
+       Dialog selbst -- sonst tippt man unbemerkt in den Text dahinter. */
+    setTimeout(() => {
+      if (!zu && !schleier.contains(document.activeElement)) {
+        dialog.tabIndex = -1;
+        dialog.focus();
+      }
+    }, 80);
+
     let zu = false;
     const schliessen = () => {
       if (zu) return;                 // zweimal schließen ist kein Schließen
       zu = true;
       schleier.remove();
       document.removeEventListener('keydown', taste);
+      /* Textfelder stellt stelleAuswahlHer (80-app.js) genauer wieder
+         her -- für alle anderen Auslöser reicht schlichtes focus(). */
+      if (ausloeser && ausloeser.focus && document.contains(ausloeser)) {
+        try { ausloeser.focus(); } catch { /* dann eben nicht */ }
+      }
       if (beimSchliessen) queueMicrotask(beimSchliessen);
     };
     const taste = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); schliessen(); } };
@@ -956,8 +997,10 @@ const Dialoge = (() => {
     koerper.innerHTML = `
       <div class="gruppe"><h3>So arbeitest du</h3>
         <p style="margin:0 0 8px;font-size:13.5px;line-height:1.6">
-        Links steht deine <b>Gliederung</b> — ein Klick springt zur Stelle. In der Mitte
-        schreibst du. Rechts siehst du, wie es aussehen wird.</p>
+        Links steht deine <b>Gliederung</b> — ein Klick springt zur Stelle, ein
+        Ziehen ordnet die Kapitel um. In der Mitte schreibst du. Rechts siehst du,
+        wie es aussehen wird. Verschiebst du eine <b>Überschrift</b> (Pfeile oder
+        Ziehen), wandert ihr ganzes Kapitel mit.</p>
         <p style="margin:0;font-size:13.5px;line-height:1.6">
         Jeder Abschnitt ist ein <b>Baustein</b>. Klickst du einen an, zeigt die
         <b>Objektleiste</b> oben seine Werkzeuge — bei einer Tabelle den
@@ -1010,6 +1053,9 @@ const Dialoge = (() => {
         <b>Strg</b>+<b>D</b> dupliziert den gewählten Baustein<br>
         <b>##&nbsp;</b>, <b>-&nbsp;</b>, <b>1.&nbsp;</b> oder <b>&gt;&nbsp;</b> am
         Absatzanfang machen Überschrift, Liste oder Blockzitat<br>
+        <b>Escape</b> wählt den Baustein als Ganzes: Umschalt+Pfeil erweitert,
+        Entf löscht, Strg+C/X/V kopiert ganze Bausteine, Enter kehrt in den
+        Text zurück<br>
         Text auswählen zeigt eine kleine Leiste: fett, kursiv, zitieren — ohne Umweg
         </div>
       </div>

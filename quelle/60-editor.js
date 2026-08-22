@@ -11,6 +11,7 @@ const Editor = (() => {
 
   let gewaehlteId = null;
   let ziehtId = null;
+  let glZiehtId = null;      // Ziehen in der Gliederung (Kapitel umsortieren)
 
   const dok = () => App.dok;
   const el = (tag, klasse, html) => {
@@ -83,6 +84,7 @@ const Editor = (() => {
 
   function atSchliesse() {
     if (atListe) atListe.remove();
+    if (atFeld) atFeld.removeAttribute('aria-activedescendant');
     atListe = null; atTreffer = []; atFeld = null;
   }
 
@@ -114,6 +116,9 @@ const Editor = (() => {
     atListe.innerHTML = '';
     atTreffer.forEach((t, i) => {
       const zeile = el('div', 'at-eintrag' + (i === atIndex ? ' aktiv' : ''));
+      zeile.id = 'at-wahl-' + i;
+      zeile.setAttribute('role', 'option');
+      zeile.setAttribute('aria-selected', i === atIndex ? 'true' : 'false');
       if (t.neu) {
         zeile.innerHTML = '<b>Neue Quelle anlegen …</b>';
       } else {
@@ -125,6 +130,7 @@ const Editor = (() => {
       zeile.addEventListener('click', () => { atIndex = i; atUebernehmen(); });
       atListe.append(zeile);
     });
+    if (atFeld) atFeld.setAttribute('aria-activedescendant', 'at-wahl-' + atIndex);
   }
 
   function atZeige(feld, fund) {
@@ -135,6 +141,7 @@ const Editor = (() => {
     if (!atListe) {
       atListe = el('div');
       atListe.id = 'atliste';
+      atListe.setAttribute('role', 'listbox');
       document.body.append(atListe);
     }
     atZeichne();
@@ -223,6 +230,7 @@ const Editor = (() => {
 
   function slashSchliesse() {
     if (slashListe) slashListe.remove();
+    if (slashFeld) slashFeld.removeAttribute('aria-activedescendant');
     slashListe = null; slashTreffer = []; slashFeld = null;
   }
 
@@ -247,16 +255,21 @@ const Editor = (() => {
     if (!slashListe) {
       slashListe = el('div');
       slashListe.id = 'slashliste';
+      slashListe.setAttribute('role', 'listbox');
       document.body.append(slashListe);
     }
     slashListe.innerHTML = '';
     slashTreffer.forEach(([typ, zeichen, name], i) => {
       const zeile = el('div', 'at-eintrag' + (i === slashIndex ? ' aktiv' : ''),
         `<b>${escHtml(zeichen)}&nbsp; ${escHtml(name)}</b>`);
+      zeile.id = 'slash-wahl-' + i;
+      zeile.setAttribute('role', 'option');
+      zeile.setAttribute('aria-selected', i === slashIndex ? 'true' : 'false');
       zeile.addEventListener('mousedown', (ev) => ev.preventDefault());
       zeile.addEventListener('click', () => { slashIndex = i; slashUebernehmen(); });
       slashListe.append(zeile);
     });
+    slashFeld.setAttribute('aria-activedescendant', 'slash-wahl-' + slashIndex);
     const r = window.getSelection().getRangeAt(0).getBoundingClientRect();
     const eigen = slashListe.getBoundingClientRect();
     slashListe.style.left = Math.max(8, Math.min(
@@ -350,6 +363,20 @@ const Editor = (() => {
 
       const rohtext = ablage.getData('text/plain');
 
+      /* Kopierte Bausteine (Strg+C im Auswahlmodus) landen als ganze
+         Bausteine hinter dem aktuellen -- nicht als JSON-Text. */
+      const kopierte = bloeckeAusText(rohtext);
+      if (kopierte && kopierte.length) {
+        ev.preventDefault();
+        Verlauf.merke(dok());
+        dok().bloecke.splice(indexVon(block.id) + 1, 0, ...kopierte);
+        App.aenderung(); zeichne(); zeichneGliederung();
+        waehle(kopierte[0].id);
+        App.melde(kopierte.length === 1 ? 'Baustein eingefügt.'
+                                        : kopierte.length + ' Bausteine eingefügt.');
+        return;
+      }
+
       /* Ein aus Excel kopierter Bereich wird eine Tabelle, kein Textbrei */
       if (Daten.istTabellarisch(rohtext)) {
         ev.preventDefault();
@@ -413,6 +440,16 @@ const Editor = (() => {
         return;
       }
       if (ev.key === 'Escape') { ev.preventDefault(); atSchliesse(); return; }
+    }
+
+    /* Escape ohne offene Liste: den Baustein als Ganzes wählen --
+       außer die Suche ist offen, dann gehört ihr die Taste (80-app.js). */
+    if (ev.key === 'Escape') {
+      if (window.Suche && Suche.offen()) return;
+      ev.preventDefault();
+      feld.blur();
+      modusStart(block.id);
+      return;
     }
 
     /* Strg+Umschalt+L wie "Literatur". Das frühere Strg+Umschalt+Z
@@ -1367,16 +1404,92 @@ const Editor = (() => {
     return true;
   }
 
+  /* Der Abschnitt einer Überschrift: von ihr bis zur nächsten
+     Überschrift gleicher oder höherer Ebene. Der Anhangbeginn ist
+     eine harte Grenze -- über ihn hinweg gehört nichts zusammen. */
+  function abschnittVon(id) {
+    const bloecke = dok().bloecke;
+    const a = indexVon(id);
+    const kopf = bloecke[a];
+    if (!kopf || kopf.typ !== 'ueberschrift') return [a, a + 1];
+    const ebene = kopf.ebene || 1;
+    let b = a + 1;
+    while (b < bloecke.length) {
+      const x = bloecke[b];
+      if (x.typ === 'anhangstart') break;
+      if (x.typ === 'ueberschrift' && (x.ebene || 1) <= ebene) break;
+      b++;
+    }
+    return [a, b];
+  }
+
+  /* Eine Überschrift verschieben heißt: ihr Kapitel verschieben --
+     die Zeile allein über fremden Text zu schieben will niemand.
+     Einzelne Bausteine tauschen wie bisher mit dem Nachbarn.        */
   function verschiebe(id, richtung) {
-    const i = indexVon(id);
-    const j = i + richtung;
-    if (i < 0 || j < 0 || j >= dok().bloecke.length) return;
-    Verlauf.merke(dok());
-    const [b] = dok().bloecke.splice(i, 1);
-    dok().bloecke.splice(j, 0, b);
+    const bloecke = dok().bloecke;
+    const block = findeBlock(id);
+    if (!block) return;
+
+    if (block.typ !== 'ueberschrift') {
+      const i = indexVon(id);
+      const j = i + richtung;
+      if (i < 0 || j < 0 || j >= bloecke.length) return;
+      Verlauf.merke(dok());
+      const [b] = bloecke.splice(i, 1);
+      bloecke.splice(j, 0, b);
+    } else {
+      const [a, b] = abschnittVon(id);
+      let ziel;
+      if (richtung < 0) {
+        if (a <= 0) return;
+        /* Die Einheit davor: ein ganzer Abschnitt, wenn direkt vor
+           uns einer endet -- sonst der einzelne Baustein. */
+        ziel = a - 1;
+        for (let h = a - 1; h >= 0; h--) {
+          const x = bloecke[h];
+          if (x.typ === 'anhangstart') break;
+          if (x.typ === 'ueberschrift') {
+            const [ha, hb] = abschnittVon(x.id);
+            if (hb === a) ziel = ha;
+            break;
+          }
+        }
+      } else {
+        if (b >= bloecke.length) return;
+        const nach = bloecke[b];
+        const ende = nach.typ === 'ueberschrift' ? abschnittVon(nach.id)[1] : b + 1;
+        ziel = a + (ende - b);
+      }
+      Verlauf.merke(dok());
+      const stueck = bloecke.splice(a, b - a);
+      bloecke.splice(ziel, 0, ...stueck);
+    }
     App.aenderung(); zeichne(); zeichneGliederung();
     document.querySelector(`.block[data-id="${id}"]`)
       ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  /* Zieht einen Baustein (bei Überschriften: seinen Abschnitt) vor
+     den Zielbaustein -- `null` heißt ans Dokumentende. */
+  function verschiebeVor(id, zielId) {
+    const bloecke = dok().bloecke;
+    const block = findeBlock(id);
+    if (!block || id === zielId) return false;
+    const [a, b] = block.typ === 'ueberschrift'
+      ? abschnittVon(id) : [indexVon(id), indexVon(id) + 1];
+    if (zielId != null) {
+      const z = indexVon(zielId);
+      if (z < 0) return false;
+      if (z >= a && z < b) return false;       // ins eigene Innere geht nicht
+    }
+    Verlauf.merke(dok());
+    const stueck = bloecke.splice(a, b - a);
+    const einsatz = zielId == null ? bloecke.length
+      : (indexVon(zielId) < 0 ? bloecke.length : indexVon(zielId));
+    bloecke.splice(einsatz, 0, ...stueck);
+    App.aenderung(); zeichne(); zeichneGliederung();
+    return true;
   }
 
   async function loesche(id) {
@@ -1409,6 +1522,189 @@ const Editor = (() => {
     if (scrollen) document.querySelector(`.block[data-id="${id}"]`)
       ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
+
+  /* ---------------- Auswahlmodus ----------------
+     Escape im Text wählt den Baustein als Ganzes: Umschalt+Pfeil
+     erweitert auf Nachbarn, Entf löscht, Strg+C kopiert (Strg+X
+     schneidet aus), Strg+V fügt Kopiertes ein, Strg+D dupliziert,
+     Enter kehrt in den Text zurück. So sind auch Bausteine ohne
+     Textfeld (Tabelle, Diagramm, Formel) ohne Maus erreichbar.     */
+
+  let modus = null;               // { anker, kopf } als Indizes, sonst null
+
+  const modusBereich = () => [Math.min(modus.anker, modus.kopf),
+                              Math.max(modus.anker, modus.kopf)];
+
+  function modusStart(id) {
+    const i = indexVon(id);
+    if (i < 0) return;
+    modus = { anker: i, kopf: i };
+    const aktiv = document.activeElement;
+    if (aktiv && aktiv.blur && aktiv.closest && aktiv.closest('#blockliste')) aktiv.blur();
+    window.getSelection().removeAllRanges();
+    Auswahlleiste.verstecke();
+    modusZeichne();
+  }
+
+  function modusEnde() {
+    modus = null;
+    document.querySelectorAll('.block.markiert').forEach(x => x.classList.remove('markiert'));
+  }
+
+  function modusZeichne() {
+    if (!modus) return;
+    const n = dok().bloecke.length;
+    if (!n) { modusEnde(); return; }
+    modus.anker = Math.max(0, Math.min(n - 1, modus.anker));
+    modus.kopf = Math.max(0, Math.min(n - 1, modus.kopf));
+    const [a, b] = modusBereich();
+    const kaesten = [...document.querySelectorAll('#blockliste .block')];
+    kaesten.forEach((k, i) => k.classList.toggle('markiert', i >= a && i <= b));
+    const kopfBlock = dok().bloecke[modus.kopf];
+    if (kopfBlock) waehle(kopfBlock.id, false);
+    if (kaesten[modus.kopf]) kaesten[modus.kopf].scrollIntoView({ block: 'nearest' });
+  }
+
+  /* Enter auf einem Baustein ohne Textfeld öffnet seinen Dialog. */
+  async function oeffneBaustein(block) {
+    const f = { tabelle: (x) => Dialoge.tabelle(x, dok()),
+                abbildung: (x) => Dialoge.abbildung(x),
+                formel: (x) => Dialoge.formel(x),
+                diagramm: (x) => Diagrammdialog.einrichten(x, dok()) }[block.typ];
+    if (!f) return;
+    Verlauf.merke(dok());
+    if (await f(block)) { App.aenderung(); zeichne(); zeichneGliederung(); }
+    else Verlauf.verwerfeLetzten();
+  }
+
+  function modusLoesche() {
+    const [a, b] = modusBereich();
+    Verlauf.merke(dok());
+    dok().bloecke.splice(a, b - a + 1);
+    if (!dok().bloecke.length) dok().bloecke.push(Modell.neuerBlock('absatz'));
+    modus.anker = modus.kopf = Math.min(a, dok().bloecke.length - 1);
+    App.aenderung(); zeichne(); zeichneGliederung();
+  }
+
+  function modusKopiere() {
+    const [a, b] = modusBereich();
+    const stueck = dok().bloecke.slice(a, b + 1).map(Verlauf.klone);
+    const text = JSON.stringify({ schreibtisch: 'bausteine', bloecke: stueck });
+    const n = stueck.length;
+    if (!(navigator.clipboard && navigator.clipboard.writeText)) {
+      App.melde('Die Zwischenablage ist hier nicht erreichbar.', true);
+      return;
+    }
+    navigator.clipboard.writeText(text).then(
+      () => App.melde(n === 1 ? 'Baustein kopiert — Strg+V fügt ihn wieder ein.'
+                              : n + ' Bausteine kopiert — Strg+V fügt sie wieder ein.'),
+      () => App.melde('Kopieren hat nicht geklappt.', true));
+  }
+
+  function modusDupliziere() {
+    const [a, b] = modusBereich();
+    const kopien = dok().bloecke.slice(a, b + 1).map((x) => {
+      const k = Verlauf.klone(x);
+      k.id = Modell.neueId();
+      return k;
+    }).filter(x => x.typ !== 'anhangstart');
+    if (!kopien.length) return;
+    Verlauf.merke(dok());
+    dok().bloecke.splice(b + 1, 0, ...kopien);
+    modus.anker = b + 1;
+    modus.kopf = b + kopien.length;
+    App.aenderung(); zeichne(); zeichneGliederung();
+  }
+
+  function modusTasten(ev) {
+    /* Was ein Textfeld schon behandelt hat, zählt hier nicht mehr --
+       sonst beendete DASSELBE Escape den Modus, das ihn eben begann. */
+    if (ev.defaultPrevented) return;
+    if (!modus || document.querySelector('.schleier')) return;
+    /* Steht der Fokus in einem Eingabefeld (Suche, Objektleiste),
+       gehören ihm die Tasten -- nicht der Auswahl. */
+    const aktiv = document.activeElement;
+    if (aktiv && (aktiv.tagName === 'INPUT' || aktiv.tagName === 'TEXTAREA' ||
+                  aktiv.tagName === 'SELECT' || aktiv.isContentEditable)) return;
+    const strg = ev.ctrlKey || ev.metaKey;
+    const t = ev.key;
+
+    if (t === 'Escape') { ev.preventDefault(); modusEnde(); return; }
+    if (t === 'Enter') {
+      ev.preventDefault();
+      const block = dok().bloecke[modus.kopf];
+      modusEnde();
+      if (!block) return;
+      waehle(block.id, false);
+      const feld = document.querySelector(`.tx[data-block-id="${block.id}"]`);
+      if (feld) fokusFeld(feld, false);
+      else oeffneBaustein(block);
+      return;
+    }
+    if (t === 'ArrowDown' || t === 'ArrowUp') {
+      ev.preventDefault();
+      modus.kopf += t === 'ArrowDown' ? 1 : -1;
+      if (!ev.shiftKey) modus.anker = modus.kopf;
+      modusZeichne();
+      return;
+    }
+    if (t === 'Delete' || t === 'Backspace') { ev.preventDefault(); modusLoesche(); return; }
+    if (strg && !ev.shiftKey && t.toLowerCase() === 'c') { modusKopiere(); return; }
+    if (strg && !ev.shiftKey && t.toLowerCase() === 'x') {
+      ev.preventDefault(); modusKopiere(); modusLoesche(); return;
+    }
+    if (strg && !ev.shiftKey && t.toLowerCase() === 'd') {
+      ev.preventDefault(); modusDupliziere();
+    }
+  }
+
+  function modusEinfuegen(ev) {
+    if (!modus || document.querySelector('.schleier')) return;
+    const text = (ev.clipboardData || window.clipboardData)?.getData('text/plain');
+    const neu = bloeckeAusText(text);
+    if (!neu || !neu.length) return;
+    ev.preventDefault();
+    Verlauf.merke(dok());
+    const [, b] = modusBereich();
+    dok().bloecke.splice(b + 1, 0, ...neu);
+    modus.anker = b + 1;
+    modus.kopf = b + neu.length;
+    App.aenderung(); zeichne(); zeichneGliederung();
+  }
+
+  /* Bausteine aus der Zwischenablage: das JSON, das modusKopiere
+     schreibt. Alles andere gibt null -- dann läuft das Einfügen den
+     gewohnten Weg. */
+  function bloeckeAusText(text) {
+    const t = String(text || '').trim();
+    if (!t.startsWith('{') || !t.includes('"schreibtisch"')) return null;
+    try {
+      const p = JSON.parse(t);
+      if (p.schreibtisch !== 'bausteine' || !Array.isArray(p.bloecke)) return null;
+      const raus = [];
+      for (const x of p.bloecke) {
+        if (!x || typeof x !== 'object' || typeof x.typ !== 'string') return null;
+        const k = Verlauf.klone(x);
+        k.id = Modell.neueId();
+        raus.push(k);
+      }
+      /* höchstens EIN Anhangbeginn je Dokument */
+      return raus.filter(x => x.typ !== 'anhangstart' ||
+                              !dok().bloecke.some(y => y.typ === 'anhangstart'));
+    } catch { return null; }
+  }
+
+  /* Escape außerhalb eines Textfelds: Auswahlmodus betreten oder
+     verlassen. 80-app.js ruft das, wenn sonst niemand zuständig war. */
+  function auswahlEscape() {
+    if (modus) { modusEnde(); return true; }
+    if (gewaehlteId) { modusStart(gewaehlteId); return true; }
+    return false;
+  }
+
+  document.addEventListener('keydown', modusTasten);
+  document.addEventListener('paste', modusEinfuegen);
+  document.addEventListener('mousedown', () => { if (modus) modusEnde(); });
 
   /* ---------------- Ganze Liste zeichnen ---------------- */
 
@@ -1447,12 +1743,9 @@ const Editor = (() => {
       kasten.addEventListener('drop', (ev) => {
         if (!ziehtId || ziehtId === block.id) return;
         ev.preventDefault();
-        Verlauf.merke(dok());
-        const von = indexVon(ziehtId);
-        const [b] = dok().bloecke.splice(von, 1);
-        dok().bloecke.splice(indexVon(block.id), 0, b);
+        /* Überschriften nehmen ihren Abschnitt mit */
+        verschiebeVor(ziehtId, block.id);
         ziehtId = null;
-        App.aenderung(); zeichne(); zeichneGliederung();
       });
 
       const inhalt = el('div', 'block-inhalt');
@@ -1466,6 +1759,7 @@ const Editor = (() => {
     verdrahteDateiablage();
     verdrahteChipKlick();
     Kontextleiste.zeichne();
+    if (modus) modusZeichne();       // die Markierung überlebt das Neuzeichnen
   }
 
   /* ---------------- Gliederung ---------------- */
@@ -1499,7 +1793,46 @@ const Editor = (() => {
         (e === 1 ? `<span class="gl-woerter" title="Wörter in diesem Kapitel">${
                      zaehlung.jeKapitel.get(b.id) || 0}</span>` : '');
       eintrag.addEventListener('click', () => { waehle(b.id); fokussiere(b.id); });
+
+      /* Kapitel per Ziehen umsortieren: die Überschrift nimmt ihren
+         Abschnitt mit -- fallen gelassen wird VOR dem Zieleintrag. */
+      eintrag.draggable = true;
+      eintrag.addEventListener('dragstart', (ev) => {
+        glZiehtId = b.id;
+        ev.dataTransfer.effectAllowed = 'move';
+        ev.dataTransfer.setData('text/plain', b.id);
+      });
+      eintrag.addEventListener('dragend', () => {
+        glZiehtId = null;
+        behaelter.querySelectorAll('.gl-eintrag').forEach(x => x.classList.remove('gl-ziel'));
+      });
+      eintrag.addEventListener('dragover', (ev) => {
+        if (!glZiehtId || glZiehtId === b.id) return;
+        ev.preventDefault();
+        behaelter.querySelectorAll('.gl-eintrag').forEach(x => x.classList.remove('gl-ziel'));
+        eintrag.classList.add('gl-ziel');
+      });
+      eintrag.addEventListener('drop', (ev) => {
+        if (!glZiehtId || glZiehtId === b.id) return;
+        ev.preventDefault();
+        verschiebeVor(glZiehtId, b.id);
+        glZiehtId = null;
+      });
       behaelter.append(eintrag);
+    }
+
+    /* Unter dem letzten Eintrag ablegen heißt: ans Dokumentende. */
+    if (!behaelter.dataset.zielBereit) {
+      behaelter.dataset.zielBereit = '1';
+      behaelter.addEventListener('dragover', (ev) => {
+        if (glZiehtId && ev.target === behaelter) ev.preventDefault();
+      });
+      behaelter.addEventListener('drop', (ev) => {
+        if (!glZiehtId || ev.target !== behaelter) return;
+        ev.preventDefault();
+        verschiebeVor(glZiehtId, null);
+        glZiehtId = null;
+      });
     }
   }
 
@@ -1576,7 +1909,7 @@ const Editor = (() => {
 
   return { zeichne, zeichneGliederung, baueEinfuegeleiste, waehle, fokussiere,
            fokussiereAn, fuegeAmCursorEin, chipHtml, fuegeBlockEin,
-           legeBildAn, legeTabelleAn, wandleUm, dupliziere,
+           legeBildAn, legeTabelleAn, wandleUm, dupliziere, auswahlEscape,
            diagrammAusTabelle: legeDiagrammAnAusTabelle,
            gewaehlteId: () => gewaehlteId };
 })();

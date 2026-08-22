@@ -230,6 +230,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .gl-eintrag:hover { background-color: var(--akzent-hell); color: var(--tinte); }
 .gl-eintrag.aktiv { border-left-color: var(--akzent); color: var(--tinte); font-weight: 550; }
+/* Ziehziel beim Umsortieren von Kapiteln */
+.gl-eintrag.gl-ziel { box-shadow: 0 -2px 0 var(--akzent); }
 .gl-nr {
   font-family: var(--schrift-ma); font-size: 11px; font-variant-numeric: tabular-nums;
   color: var(--tinte-3); flex: none; min-width: 2.4em;
@@ -263,6 +265,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .block.gewaehlt { background-color: var(--akzent-hell); }
 .block.zieht { opacity: .4; }
 .block.zielmarke { box-shadow: 0 -2px 0 var(--akzent); }
+/* Auswahlmodus (Escape): der Baustein als Ganzes ist gewählt */
+.block.markiert { background-color: var(--akzent-hell);
+                  box-shadow: inset 0 0 0 2px var(--akzent); }
 
 .block-griff {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
