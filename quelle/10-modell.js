@@ -442,15 +442,34 @@ const Modell = (() => {
     return karte;
   }
 
-  /* ---------------- Wortzahl ----------------
+  /* ---------------- Zählung ----------------
      Was zählt: der Text der Bausteine absatz, blockzitat, liste und
      ueberschrift über Richtext.zuText -- Chips zählen als ihr
      angezeigter Text, Fußnotentext zählt mit. Was NICHT zählt:
      Tabellen, Abbildungs-/Diagrammtitel und -anmerkungen, Formeln,
      Deckblatt, Abstract. Das entspricht dem, was Prüfungsordnungen
-     unter "Fließtext" verstehen.                                     */
+     unter "Fließtext" verstehen.
 
-  function woerter(dok) {
+     Gezählt wird dreierlei, weil Prüfungsordnungen sich nicht einig
+     sind: Wörter, Zeichen mit Leerzeichen und Zeichen ohne. Und zwar
+     für jeden Abschnitt jeder Ebene, nicht nur für Kapitel --
+     einschließlich seiner Unterabschnitte, denn "Kapitel 2 hat 1 200
+     Wörter" meint das ganze Kapitel.                                */
+
+  /* Zahl mit schmalem Leerzeichen: 4 230 */
+  const zahl = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202F');
+
+  const leeresMass = () => ({ woerter: 0, zeichen: 0, zeichenOhneLeer: 0 });
+
+  function messe(mass, text) {
+    const t = String(text || '');
+    mass.woerter += (t.match(/\S+/g) || []).length;
+    mass.zeichen += t.length;
+    mass.zeichenOhneLeer += t.replace(/\s+/g, '').length;
+    return mass;
+  }
+
+  function zaehlung(dok) {
     const nummern = nummeriere(dok);
     const sprache = (dok.einstellungen || {}).sprache;
     const w = Zitate.wort(sprache);
@@ -466,34 +485,69 @@ const Modell = (() => {
              : `${w.abschnitt} ${n}`;
       }
     };
-    const zaehle = (s) => (String(s || '').match(/\S+/g) || []).length;
-    const ausRuns = (runs) => zaehle(Richtext.zuText(runs, ctx)) +
-      (runs || []).reduce((n, r) => n + (r.fussnote != null ? zaehle(r.fussnote) : 0), 0);
 
-    let gesamt = 0;
-    const jeKapitel = new Map();       // Ebene-1-Überschrift -> Wörter des Kapitels
-    let kapitel = null;
+    const gesamt = leeresMass();
+    const jeAbschnitt = new Map();
+    const bausteine = {};
+    let fussnoten = 0;
+
+    /* Offene Überschriften von außen nach innen. Ein Textstück zählt
+       für jede davon -- so enthält Kapitel 2 auch 2.3.1. */
+    const stapel = [];
+
+    const trage = (text) => {
+      messe(gesamt, text);
+      for (const eintrag of stapel) messe(eintrag.mass, text);
+      if (stapel.length) messe(stapel[stapel.length - 1].eigen, text);
+    };
+    const ausRuns = (runs) => {
+      trage(Richtext.zuText(runs, ctx));
+      for (const r of (runs || [])) {
+        if (r.fussnote == null) continue;
+        fussnoten += 1;
+        trage(r.fussnote);
+      }
+    };
+
     for (const b of dok.bloecke) {
-      let n;
+      bausteine[b.typ] = (bausteine[b.typ] || 0) + 1;
       switch (b.typ) {
-        case 'ueberschrift':
-          if ((b.ebene || 1) === 1) { kapitel = b.id; jeKapitel.set(kapitel, 0); }
-          n = zaehle(b.text);
+        case 'ueberschrift': {
+          const ebene = (nummern.get(b.id) || {}).ebene || b.ebene || 1;
+          while (stapel.length && stapel[stapel.length - 1].ebene >= ebene) stapel.pop();
+          const eintrag = { ebene, mass: leeresMass(), eigen: leeresMass() };
+          jeAbschnitt.set(b.id, eintrag);
+          stapel.push(eintrag);
+          trage(b.text);
           break;
+        }
         case 'absatz':
         case 'blockzitat':
-          n = ausRuns(b.runs);
+          ausRuns(b.runs);
           break;
         case 'liste':
-          n = (b.punkte || []).reduce((s, p) => s + ausRuns(p), 0);
+          (b.punkte || []).forEach(ausRuns);
           break;
         default:
-          continue;
+          break;
       }
-      gesamt += n;
-      if (kapitel != null) jeKapitel.set(kapitel, jeKapitel.get(kapitel) + n);
     }
-    return { gesamt, jeKapitel };
+
+    /* Nach außen die flachen Zahlen, nicht die Zwischenstruktur. */
+    const abschnitte = new Map();
+    for (const [id, e] of jeAbschnitt)
+      abschnitte.set(id, { ...e.mass, ebene: e.ebene, eigen: e.eigen });
+
+    return {
+      gesamt,
+      jeAbschnitt: abschnitte,
+      bausteine,
+      fussnoten,
+      quellen: {
+        angelegt: (dok.quellen || []).length,
+        zitiert: zitierteSchluessel(dok).size
+      }
+    };
   }
 
   /* Welche Quellen werden tatsächlich zitiert?
@@ -526,7 +580,8 @@ const Modell = (() => {
     return menge;
   }
 
-  return { neu, normalisiere, neueId, neuerBlock, nummeriere, woerter, zitierteSchluessel,
+  return { neu, normalisiere, neueId, neuerBlock, nummeriere, zaehlung, zahl,
+           zitierteSchluessel,
            ARBEITSTYPEN, QUELLTYPEN, BLOCKTYPEN, GERUESTE,
            STANDARD_EINSTELLUNGEN, STANDARD_META };
 })();

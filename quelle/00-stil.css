@@ -184,6 +184,22 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font-variant-numeric: tabular-nums; color: var(--tinte-2);
 }
 .wortzahl { color: var(--tinte-2); font-weight: normal; text-transform: none; letter-spacing: 0; }
+.knopf-info {
+  background: none; border: 0; cursor: pointer; padding: 0 2px;
+  color: var(--tinte-2); font-size: 13px; line-height: 1; vertical-align: baseline;
+}
+.knopf-info:hover { color: var(--akzent); }
+.knopf-info:focus-visible { outline: 2px solid var(--akzent); outline-offset: 2px; border-radius: 3px; }
+
+/* Umfangstabelle im Info-Dialog */
+.umfang { width: 100%; border-collapse: collapse; font-size: 13px; }
+.umfang th, .umfang td { padding: 4px 8px 4px 0; border-bottom: 1px solid var(--linie); }
+.umfang th { text-align: left; font-weight: 600; color: var(--tinte-2);
+             font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.umfang td.zahl { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.umfang tr.summe td { font-weight: 700; border-bottom: 2px solid var(--tinte-2); }
+.umfang td.e2 { padding-left: 14px; color: var(--tinte-2); }
+.umfang td.e3 { padding-left: 28px; color: var(--tinte-2); }
 .gl-e2 { padding-left: 26px; }
 .gl-e3 { padding-left: 42px; font-size: 12.5px; }
 .gl-trenner {

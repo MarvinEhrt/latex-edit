@@ -946,6 +946,80 @@ const Dialoge = (() => {
     fuss.append(knopf('Schließen', 'knopf-haupt', schliessen));
   }
 
+  /* ---------------- Umfang ----------------
+     Prüfungsordnungen zählen unterschiedlich: mal Wörter, mal Zeichen
+     mit Leerzeichen, mal ohne. Deshalb alle drei, für das ganze
+     Dokument und für jeden Abschnitt jeder Ebene.                  */
+
+  function umfang(dok) {
+    let loese;
+    const geschlossen = new Promise((f) => { loese = f; });
+    const { koerper, fuss, schliessen } = basis({
+      titel: 'Umfang der Arbeit', breit: true,
+      unter: 'Gezählt wird der Fließtext: Absätze, Listen, Blockzitate und '
+           + 'Überschriften, Fußnoten eingerechnet.',
+      beimSchliessen: () => loese()
+    });
+
+    const z = Modell.zaehlung(dok);
+    const nummern = Modell.nummeriere(dok);
+    const n = Modell.zahl;
+
+    const zeilen = [];
+    for (const b of dok.bloecke) {
+      if (b.typ !== 'ueberschrift') continue;
+      const e = z.jeAbschnitt.get(b.id);
+      if (!e) continue;
+      const nr = (nummern.get(b.id) || {}).nummer || '';
+      zeilen.push(`<tr>
+        <td class="e${Math.min(3, e.ebene)}">${escHtml((nr ? nr + '  ' : '') + (b.text || '(ohne Titel)'))}</td>
+        <td class="zahl">${n(e.woerter)}</td>
+        <td class="zahl">${n(e.zeichen)}</td>
+        <td class="zahl">${n(e.zeichenOhneLeer)}</td></tr>`);
+    }
+
+    const teile = [];
+    const zaehlbar = { absatz: 'Absätze', ueberschrift: 'Überschriften',
+                       liste: 'Listen', tabelle: 'Tabellen',
+                       abbildung: 'Abbildungen', diagramm: 'Diagramme',
+                       blockzitat: 'Blockzitate', formel: 'Formeln' };
+    for (const [typ, name] of Object.entries(zaehlbar))
+      if (z.bausteine[typ]) teile.push(`${n(z.bausteine[typ])} ${escHtml(name)}`);
+    if (z.fussnoten) teile.push(`${n(z.fussnoten)} Fußnoten`);
+
+    koerper.innerHTML = `
+      <div class="gruppe">
+        <table class="umfang">
+          <thead><tr><th>Ganze Arbeit</th><th class="zahl">Wörter</th>
+            <th class="zahl">Zeichen</th><th class="zahl">ohne Leerz.</th></tr></thead>
+          <tbody>
+            <tr class="summe"><td>Fließtext insgesamt</td>
+              <td class="zahl">${n(z.gesamt.woerter)}</td>
+              <td class="zahl">${n(z.gesamt.zeichen)}</td>
+              <td class="zahl">${n(z.gesamt.zeichenOhneLeer)}</td></tr>
+            ${zeilen.join('')}
+          </tbody>
+        </table>
+        ${zeilen.length ? '' : '<div class="notiz">Noch keine Überschriften — '
+          + 'sobald welche da sind, steht hier jeder Abschnitt einzeln.</div>'}
+      </div>
+      <div class="gruppe"><h3>Woraus die Arbeit besteht</h3>
+        <div class="notiz">${teile.length ? teile.join(' &nbsp;·&nbsp; ')
+          : 'Noch keine Bausteine.'}</div>
+        <div class="notiz">${n(z.quellen.zitiert)} von ${n(z.quellen.angelegt)}
+          angelegten Quellen sind zitiert — nur zitierte kommen ins
+          Literaturverzeichnis (APA 7).</div>
+      </div>
+      <div class="gruppe"><h3>Was nicht mitgezählt wird</h3>
+        <div class="notiz">Deckblatt, Zusammenfassung, Tabellen und ihre
+          Beschriftungen, Titel und Anmerkungen von Abbildungen und
+          Diagrammen, Formeln, Literaturverzeichnis. Zählt deine
+          Prüfungsordnung anders, ist die Zahl hier die vorsichtigere.</div>
+      </div>`;
+    fuss.append(knopf('Schließen', 'knopf-haupt', schliessen));
+    return geschlossen;
+  }
+
   /* ---------------- Hilfe ---------------- */
 
   /* Gibt ein Promise zurück, das beim Schließen auflöst -- der Start
@@ -1046,5 +1120,5 @@ const Dialoge = (() => {
 
   return { basis, knopf, feldElement, formular, bestaetigen, neuesDokument, deckblatt, layout,
            quellenverwaltung, quelleBearbeiten, zitatEinfuegen, verweisEinfuegen,
-           kennwert, fussnote, tabelle, abbildung, formel, texAnsehen, hilfe };
+           kennwert, fussnote, tabelle, abbildung, formel, texAnsehen, hilfe, umfang };
 })();

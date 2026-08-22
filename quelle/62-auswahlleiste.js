@@ -12,6 +12,7 @@ const Auswahlleiste = (() => {
 
   let leiste = null;
   let timer = null;
+  let knopfB = null, knopfI = null;
 
   /* Das Textfeld, in dem die aktuelle (nicht kollabierte) Auswahl
      liegt -- oder null. */
@@ -46,9 +47,10 @@ const Auswahlleiste = (() => {
       b.title = titel;
       b.addEventListener('click', aktion);
       leiste.append(b);
+      return b;
     };
-    k('<b>B</b>', 'Fett (Strg+B)', () => befehl('bold'));
-    k('<i>I</i>', 'Kursiv (Strg+I)', () => befehl('italic'));
+    knopfB = k('<b>B</b>', 'Fett (Strg+B)', () => befehl('bold'));
+    knopfI = k('<i>I</i>', 'Kursiv (Strg+I)', () => befehl('italic'));
     leiste.append(Object.assign(document.createElement('span'), { className: 'trenner' }));
     k('❝', 'Quelle zitieren (Strg+Umschalt+Z)', () => { verstecke(); App.zitatEinfuegen(); });
     k('→', 'Querverweis einfügen', () => { verstecke(); App.verweisEinfuegen(); });
@@ -63,6 +65,11 @@ const Auswahlleiste = (() => {
     const r = window.getSelection().getRangeAt(0).getBoundingClientRect();
     if (!r || (!r.width && !r.height)) { verstecke(); return; }
     if (!leiste) baue();
+    /* In einer Überschrift speichert das Modell nur Text -- Fett und
+       Kursiv wären dort nach dem nächsten Zeichnen wieder weg. Also
+       gar nicht erst anbieten; die Chip-Knöpfe bleiben. */
+    const format = feld.dataset.feld !== 'text';
+    knopfB.style.display = knopfI.style.display = format ? '' : 'none';
     leiste.style.display = 'flex';
     const eigen = leiste.getBoundingClientRect();
     leiste.style.left = Math.max(8, Math.min(

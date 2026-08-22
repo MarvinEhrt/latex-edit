@@ -465,8 +465,8 @@ await frisch(()=>{
     Modell.neuerBlock('formel',{tex:'a = b'})];
   App.aenderung(); Editor.zeichne(); Editor.zeichneGliederung();});
 // Einleitung: 1 + 3 + 2 + 5 = 11; Methode: 1 + 4 = 5; gesamt 16
-const gezaehlt = await s.evaluate(()=>{ const w=Modell.woerter(App.dok);
-  return {gesamt:w.gesamt, je:[...w.jeKapitel.values()]}; });
+const gezaehlt = await s.evaluate(()=>{ const w=Modell.zaehlung(App.dok);
+  return {gesamt:w.gesamt.woerter, je:[...w.jeAbschnitt.values()].map(x=>x.woerter)}; });
 p('die Zählung stimmt exakt (Chips und Fußnote zählen, Tabelle und Formel nicht)',
   gezaehlt.gesamt===16 && gezaehlt.je.join(',')==='11,5', JSON.stringify(gezaehlt));
 p('der Panelkopf zeigt die Gesamtzahl',
@@ -773,6 +773,108 @@ const meldungen = await s.evaluate(()=>[...document.querySelectorAll('#meldungen
   .map(x=>x.textContent).join(' | '));
 p('ohne gebautes PDF kommt eine ehrliche Meldung statt einer leeren Datei',
   /kein PDF|wird gebaut|fehlgeschlagen/.test(meldungen), meldungen);
+
+// T) Umfang: Zeichen mit und ohne Leerzeichen, Abschnitte jeder Ebene
+const umfang = await s.evaluate(()=>{
+  App.dok.bloecke=[
+    Modell.neuerBlock('ueberschrift',{text:'Eins', ebene:1}),
+    Modell.neuerBlock('absatz',{runs:[{text:'ab cd'}]}),
+    Modell.neuerBlock('ueberschrift',{text:'Eins Punkt Eins', ebene:2}),
+    Modell.neuerBlock('absatz',{runs:[{text:'ef'}]}),
+    Modell.neuerBlock('ueberschrift',{text:'Zwei', ebene:1}),
+    Modell.neuerBlock('absatz',{runs:[{text:'gh ij'}]})];
+  const z = Modell.zaehlung(App.dok);
+  const id = (i)=>App.dok.bloecke[i].id;
+  return {gesamt:z.gesamt, eins:z.jeAbschnitt.get(id(0)),
+          unter:z.jeAbschnitt.get(id(2)), zwei:z.jeAbschnitt.get(id(4)),
+          bausteine:z.bausteine};
+});
+// Wörter: "Eins"1 + "ab cd"2 + "Eins Punkt Eins"3 + "ef"1 + "Zwei"1 + "gh ij"2 = 10
+p('die Gesamtwortzahl stimmt', umfang.gesamt.woerter===10, JSON.stringify(umfang.gesamt));
+// Zeichen: 4+5+15+2+4+5 = 35; ohne Leerzeichen: 4+4+13+2+4+4 = 31
+p('Zeichen mit Leerzeichen werden gezählt', umfang.gesamt.zeichen===35,
+  String(umfang.gesamt.zeichen));
+p('Zeichen ohne Leerzeichen ebenso', umfang.gesamt.zeichenOhneLeer===31,
+  String(umfang.gesamt.zeichenOhneLeer));
+// Kapitel 1 enthält seinen Unterabschnitt: 1+2+3+1 = 7
+p('ein Kapitel zählt seine Unterabschnitte mit', umfang.eins.woerter===7,
+  JSON.stringify(umfang.eins));
+p('der Unterabschnitt zählt für sich', umfang.unter.woerter===4,
+  JSON.stringify(umfang.unter));
+p('das nächste Kapitel fängt wieder bei null an', umfang.zwei.woerter===3,
+  JSON.stringify(umfang.zwei));
+p('der eigene Anteil eines Kapitels ohne Unterabschnitte',
+  umfang.eins.eigen.woerter===3, JSON.stringify(umfang.eins.eigen));
+p('die Bausteine werden gezählt',
+  umfang.bausteine.absatz===3 && umfang.bausteine.ueberschrift===3,
+  JSON.stringify(umfang.bausteine));
+
+// Auch Unterabschnitte zeigen ihre Zahl in der Gliederung
+await setze(()=>{Editor.zeichne(); App.aenderung();});
+p('jede Ebene der Gliederung trägt eine Wortzahl',
+  (await s.evaluate(()=>document.querySelectorAll('.gl-woerter').length))===3,
+  String(await s.evaluate(()=>document.querySelectorAll('.gl-woerter').length)));
+
+// Der Info-Knopf öffnet den Umfang
+await s.locator('#knopf-info').click(); await s.waitForTimeout(350);
+const utext = await s.evaluate(()=>document.querySelector('.dialog')?.textContent||'');
+p('der Info-Knopf zeigt Wörter und Zeichen',
+  utext.includes('Wörter') && utext.includes('ohne Leerz'), utext.slice(0,120));
+p('und listet die Abschnitte einzeln auf', utext.includes('Eins Punkt Eins'),
+  utext.slice(0,200));
+await s.keyboard.press('Escape'); await s.waitForTimeout(250);
+
+// S) Die Gliederung springt beim Tippen nicht mehr an den Anfang
+await setze(()=>{
+  App.dok.bloecke=[];
+  for (let i=1;i<=40;i++){
+    App.dok.bloecke.push(Modell.neuerBlock('ueberschrift',{text:'Kapitel '+i, ebene:1}));
+    App.dok.bloecke.push(Modell.neuerBlock('absatz',{runs:[{text:'Text '+i}]}));
+  }
+  Editor.zeichne(); App.aenderung();});
+await s.waitForTimeout(200);
+await s.evaluate(()=>{
+  const g=document.getElementById('gliederung');
+  (g.closest('.panelkoerper')||g).scrollTop = 300;});
+const vorRoll = await s.evaluate(()=>{
+  const g=document.getElementById('gliederung');
+  return (g.closest('.panelkoerper')||g).scrollTop;});
+await s.evaluate(()=>{ Editor.zeichneGliederung(); });
+await s.waitForTimeout(200);
+const nachRoll = await s.evaluate(()=>{
+  const g=document.getElementById('gliederung');
+  return (g.closest('.panelkoerper')||g).scrollTop;});
+p('die Gliederung behält ihre Rollposition', vorRoll>0 && nachRoll===vorRoll,
+  `vorher ${vorRoll}, nachher ${nachRoll}`);
+
+// R) Fett/kursiv wird nicht mehr lautlos weggeworfen
+await setze(()=>{App.dok.bloecke=[Modell.neuerBlock('ueberschrift',{text:'Titel', ebene:1})];
+                 Editor.zeichne();});
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('Control+a');
+await s.waitForTimeout(250);
+p('in einer Überschrift bietet die Leiste kein Fett an',
+  await s.evaluate(()=>{
+    const l=document.getElementById('auswahlleiste');
+    return !l || l.querySelector('button').style.display==='none';}));
+await s.keyboard.press('Control+b'); await s.waitForTimeout(300);
+p('Strg+B in der Überschrift sagt, dass es dort nicht geht',
+  (await s.evaluate(()=>[...document.querySelectorAll('#meldungen .meldung')]
+    .map(x=>x.textContent).join(' '))).includes('Überschriften'));
+p('und der Text bleibt unformatiert',
+  await s.evaluate(()=>App.dok.bloecke[0].text)==='Titel');
+
+// Q) Die Suche findet Fußnotentext
+await setze(()=>{App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[
+    {text:'Satz'}, {fussnote:'Proband B war krank'}]})];
+  Editor.zeichne();});
+const gefunden = await s.evaluate(()=>{
+  Suche.oeffne(true);
+  document.getElementById('suche-feld').value='Proband';
+  document.getElementById('suche-feld').dispatchEvent(new Event('input',{bubbles:true}));
+  return document.getElementById('suche-stand')?.textContent||'';
+});
+p('die Suche findet Text in einer Fußnote', /1/.test(gefunden), gefunden);
 
 console.log(`\n  ${ok} bestanden, ${fehl} durchgefallen`);
 await b.close(); d.kill();

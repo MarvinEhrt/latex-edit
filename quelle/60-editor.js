@@ -202,6 +202,22 @@ const Editor = (() => {
     fuegeAmCursorEin(chipHtml({ zitat: key, form: 'klammer' }));
   }
 
+  /* Nur Felder, die Runs speichern, können Fett und Kursiv halten.
+     Die Überschrift (`text`) und die Tabellenzellen sind im Modell
+     schlichte Zeichenketten. */
+  const traegtFormatierung = (feld) => !!feld && feld.dataset.feld !== 'text';
+
+  /* Tabellenzellen liegen außerhalb der .tx-Felder und damit außerhalb
+     von `tasten`. Ohne diesen Riegel führte der Browser Strg+B selbst
+     aus: das Fett war kurz zu sehen und beim nächsten Zeichnen weg. */
+  function sperreFormatierung(ev) {
+    if (!(ev.ctrlKey || ev.metaKey)) return;
+    if (!['b', 'i', 'u'].includes(ev.key.toLowerCase())) return;
+    ev.preventDefault();
+    App.melde('In Tabellenzellen gibt es keine Formatierung — '
+              + 'im Fließtext schon.', true);
+  }
+
   /* ---------------- Textfeld ---------------- */
 
   function textfeld(block, feldname, klassen, leertext, runsAus) {
@@ -231,10 +247,10 @@ const Editor = (() => {
       if (feldname === 'text') block.text = feld.textContent;
       else if (runsAus) runsAus(Richtext.vonHtml(feld));
       else block.runs = Richtext.vonHtml(feld);
+      /* aenderung zeichnet die Gliederung gleich mit -- sie zeigt die
+         Wortzahlen und hängt damit an jedem Tastendruck. Ein zweiter
+         Aufruf von hier aus zählte das ganze Dokument ein zweites Mal. */
       App.aenderung({ nurVorschau: true });
-      /* Die Gliederung zeigt auch die Kapitel-Wortzahlen -- sie hängt
-         also an jedem Tastendruck, nicht nur an Überschriften. */
-      zeichneGliederung();
       if (feldname !== 'text') atPruefe(feld, ev);
     });
 
@@ -312,12 +328,21 @@ const Editor = (() => {
     }
     /* execCommand feuert kein beforeinput -- ohne eigenen Schnappschuss
        ließe sich das Fett nicht zurücknehmen. */
-    if (strg && ev.key.toLowerCase() === 'b') { ev.preventDefault(); Verlauf.merke(dok());
-      document.execCommand('bold');
-      feld.dispatchEvent(new Event('input', { bubbles: true })); return; }
-    if (strg && ev.key.toLowerCase() === 'i') { ev.preventDefault(); Verlauf.merke(dok());
-      document.execCommand('italic');
-      feld.dispatchEvent(new Event('input', { bubbles: true })); return; }
+    if (strg && ['b', 'i'].includes(ev.key.toLowerCase())) {
+      ev.preventDefault();
+      /* Überschriften und Tabellenzellen sind schlichter Text im
+         Modell. Das Fett war dort bisher kurz zu sehen und beim
+         nächsten Zeichnen wieder weg -- lieber gleich sagen, dass es
+         nicht geht, als es lautlos wegzuwerfen. */
+      if (!traegtFormatierung(feld)) {
+        App.melde('Fett und kursiv gehen im Fließtext, nicht in '
+                  + 'Überschriften oder Tabellenzellen.', true);
+        return;
+      }
+      Verlauf.merke(dok());
+      document.execCommand(ev.key.toLowerCase() === 'b' ? 'bold' : 'italic');
+      feld.dispatchEvent(new Event('input', { bubbles: true })); return;
+    }
 
     /* Enter teilt an der Schreibmarke -- wie in Word. Steht sie am Ende,
        ist der abgeschnittene Teil leer und es entsteht schlicht ein
@@ -815,6 +840,7 @@ const Editor = (() => {
           const th = el('th');
           th.contentEditable = 'true';
           th.textContent = h;
+          th.addEventListener('keydown', sperreFormatierung);
           th.addEventListener('beforeinput', () => Verlauf.merke(dok(), 'kopf:' + block.id + ':' + s));
           th.addEventListener('input', () => { block.kopf[s] = th.textContent; App.aenderung({ nurVorschau: true }); });
           th.addEventListener('blur', () => App.aenderung());
@@ -836,6 +862,7 @@ const Editor = (() => {
             td.addEventListener('blur', () => App.aenderung());
             /* Tabulator am Ende der letzten Zelle hängt eine Zeile an --
                so tippt man eine Tabelle durch, ohne zur Maus zu greifen. */
+            td.addEventListener('keydown', sperreFormatierung);
             td.addEventListener('keydown', (ev) => {
               if (ev.key !== 'Tab' || ev.shiftKey) return;
               if (s !== zeile.length - 1 || z !== block.zeilen.length - 1) return;
@@ -1067,9 +1094,15 @@ const Editor = (() => {
 
   /* ---------------- Gliederung ---------------- */
 
-  function zeichneGliederung() {
+  function zeichneGliederung(zaehlungVorab) {
     const behaelter = document.getElementById('gliederung');
     if (!behaelter) return;
+    /* Die Liste wird bei jedem Tastendruck neu gebaut; das Leeren
+       lässt den Rollbalken zusammenfallen. Ohne dieses Merken spränge
+       die Gliederung einer Dissertation bei jedem Buchstaben zurück
+       zu Kapitel 1, während man in Kapitel 8 schreibt. */
+    const roller = behaelter.closest('.panelkoerper') || behaelter;
+    const rollstand = roller.scrollTop;
     const nummern = Modell.nummeriere(dok());
     behaelter.innerHTML = '';
 
@@ -1079,7 +1112,10 @@ const Editor = (() => {
         'Noch keine Überschriften. Füge unten im Text eine Überschrift ein — sie erscheint dann hier.'));
       return;
     }
-    const zaehlung = Modell.woerter(dok());
+    /* Die Zählung ist ein Durchlauf über das ganze Dokument. Wer sie
+       schon hat, reicht sie herein -- sonst liefe sie zweimal je
+       Tastendruck. */
+    const zaehlung = zaehlungVorab || Modell.zaehlung(dok());
     let anhangGesetzt = false;
     for (const b of dok().bloecke) {
       if (b.typ !== 'ueberschrift') continue;
@@ -1091,13 +1127,19 @@ const Editor = (() => {
       const e = info.ebene || 1;
       const eintrag = el('div', `gl-eintrag gl-e${e}` + (b.id === gewaehlteId ? ' aktiv' : ''));
       eintrag.dataset.id = b.id;
+      /* Jede Ebene zeigt ihre Wortzahl, nicht nur die Kapitel: beim
+         Schreiben interessiert der Abschnitt, an dem man gerade sitzt.
+         Gezählt wird einschließlich der untergeordneten Abschnitte --
+         "Kapitel 2 hat 1 200 Wörter" meint das ganze Kapitel. */
+      const z = zaehlung.jeAbschnitt.get(b.id);
       eintrag.innerHTML = `<span class="gl-nr">${escHtml(info.nummer || '')}</span>
                            <span class="${e === 1 ? 'gl-e1' : ''}">${escHtml(b.text || '(ohne Titel)')}</span>` +
-        (e === 1 ? `<span class="gl-woerter" title="Wörter in diesem Kapitel">${
-                     zaehlung.jeKapitel.get(b.id) || 0}</span>` : '');
+        (z ? `<span class="gl-woerter" title="${z.woerter} Wörter in diesem Abschnitt, ${
+                 'Unterabschnitte eingerechnet'}">${Modell.zahl(z.woerter)}</span>` : '');
       eintrag.addEventListener('click', () => { waehle(b.id); fokussiere(b.id); });
       behaelter.append(eintrag);
     }
+    roller.scrollTop = rollstand;
   }
 
   /* ---------------- Einfügeleiste ---------------- */

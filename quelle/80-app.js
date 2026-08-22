@@ -92,21 +92,24 @@ const App = (() => {
     sicherTimer = setTimeout(() => sichere(true), 4000);
     ungesichert = true;
     pdfVeraltet = true;
-    if (!optionen.nurBau) aktualisiereKopf();
-    aktualisiereWortzahl();
+    /* Der Kopf ändert sich nur über das Deckblatt -- ihn bei jedem
+       Tastendruck neu zu schreiben war Arbeit für nichts. */
+    if (!optionen.nurVorschau) aktualisiereKopf();
+    /* Einmal zählen, zweimal anzeigen: Kopfzeile und Gliederung. */
+    const zaehlung = Modell.zaehlung(dok);
+    aktualisiereWortzahl(zaehlung);
+    Editor.zeichneGliederung(zaehlung);
     PdfAnsicht.zustand('wartet', 'Änderung erkannt …');
   }
 
-  /* Steht dauerhaft im Panelkopf der Textspalte. Die Zählung läuft
-     über das ganze Dokument, ist aber billig genug für jeden
-     Tastendruck. */
-  function aktualisiereWortzahl() {
+  /* Steht dauerhaft im Panelkopf der Textspalte. Mehr als die Wortzahl
+     passt dort nicht hin -- Zeichen mit und ohne Leerzeichen stehen
+     hinter dem ⓘ daneben. */
+  function aktualisiereWortzahl(zaehlung) {
     const marke = document.getElementById('wortzahl');
     if (!marke) return;
-    const n = Modell.woerter(dok).gesamt;
-    marke.textContent = '· ' +
-      String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202F') +   // schmales Leerzeichen: 4 230
-      (n === 1 ? ' Wort' : ' Wörter');
+    const n = (zaehlung || Modell.zaehlung(dok)).gesamt.woerter;
+    marke.textContent = '· ' + Modell.zahl(n) + (n === 1 ? ' Wort' : ' Wörter');
   }
 
   /* ---------------- Rückgängig ----------------
@@ -477,9 +480,8 @@ const App = (() => {
 
   function neuZeichnen() {
     Editor.zeichne();
-    Editor.zeichneGliederung();
     aktualisiereKopf();
-    aenderung();
+    aenderung();          // zeichnet die Gliederung samt Zählung mit
   }
 
   function verdrahteKopf() {
@@ -527,6 +529,7 @@ const App = (() => {
     }));
     k('knopf-einstellungen', () => DialogeExtra.einstellungen());
     k('knopf-hilfe', () => Dialoge.hilfe());
+    k('knopf-info', () => Dialoge.umfang(dok));
     k('knopf-sichern', () => sichere(false));
     k('knopf-oeffnen', oeffne);
     k('knopf-export', zeigeExportMenue);

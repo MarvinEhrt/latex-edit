@@ -40,6 +40,17 @@ const Suche = (() => {
         lese: () => String(b[eigenschaft] || ''),
         schreibe: (t) => { b[eigenschaft] = t; }
       });
+      /* Fußnotentext ist abgegebene Prosa wie jede andere -- er stand
+         nur im Chip-Attribut und war deshalb weder zu finden noch zu
+         ersetzen. Der Chip zeigt danach den neuen Anfang. */
+      const fussnoten = (runs, dom) => (runs || []).forEach((r, i) => {
+        if (r.fussnote == null) return;
+        raus.push({
+          blockId: b.id, art: 'einfach', dom,
+          lese: () => String(runs[i].fussnote || ''),
+          schreibe: (t) => { runs[i].fussnote = t; }
+        });
+      });
       switch (b.typ) {
         case 'ueberschrift':
           einfach('text', { art: 'tx', feld: 'text' });
@@ -48,11 +59,15 @@ const Suche = (() => {
         case 'blockzitat':
           raus.push({ blockId: b.id, art: 'runs', runs: () => b.runs || [],
                       dom: { art: 'tx', feld: 'runs' } });
+          fussnoten(b.runs, { art: 'tx', feld: 'runs' });
           break;
         case 'liste':
-          (b.punkte || []).forEach((_, i) => raus.push({
-            blockId: b.id, art: 'runs', runs: () => b.punkte[i] || [],
-            dom: { art: 'tx-index', index: i } }));
+          (b.punkte || []).forEach((_, i) => {
+            raus.push({
+              blockId: b.id, art: 'runs', runs: () => b.punkte[i] || [],
+              dom: { art: 'tx-index', index: i } });
+            fussnoten(b.punkte[i], { art: 'tx-index', index: i });
+          });
           break;
         case 'tabelle':
           einfach('titel', null);
