@@ -46,16 +46,8 @@ def baustein_zu(zeile, karte):
             return e
     return None
 
-
-def main():
-    print("\nBegleiterprüfung\n")
-
-    werkzeuge = uebersetzen_modul.pruefe_werkzeuge()
-    pruefe("pdflatex und biber gefunden", werkzeuge["vollstaendig"],
-           str(werkzeuge["programme"]))
-    if not werkzeuge["vollstaendig"]:
-        sys.exit("Ohne LaTeX lässt sich nichts prüfen.")
-
+def pruefe_mit_latex():
+    """Alles, was einen echten pdflatex/biber-Lauf braucht."""
     ordner = tempfile.mkdtemp(prefix="schreibtisch-pruefung-")
     uebersetzer = uebersetzen_modul.Uebersetzer(ordner)
 
@@ -72,10 +64,17 @@ def main():
            and os.path.getsize(uebersetzer.pdf_pfad()) > 5000)
     pruefe("keine Fehler gemeldet", not e1["fehler"], str(e1["fehler"][:2]))
 
-    seiten = subprocess.run(["pdfinfo", uebersetzer.pdf_pfad()],
-                            capture_output=True, text=True).stdout
-    pruefe("mehr als eine Seite", "Pages:" in seiten and
-           int([z for z in seiten.splitlines() if z.startswith("Pages")][0].split()[-1]) > 1)
+    try:
+        seiten = subprocess.run(["pdfinfo", uebersetzer.pdf_pfad()],
+                                capture_output=True, text=True).stdout
+    except FileNotFoundError:
+        # poppler steht in keiner Voraussetzungsliste -- ohne pdfinfo
+        # entfällt diese eine Prüfung, statt die ganze Suite zu killen.
+        seiten = ""
+        print("  – pdfinfo fehlt, Seitenzahl nicht geprüft")
+    if seiten:
+        pruefe("mehr als eine Seite", "Pages:" in seiten and
+               int([z for z in seiten.splitlines() if z.startswith("Pages")][0].split()[-1]) > 1)
 
     # ------------------------------------------------ zweiter Lauf schneller
     e2 = uebersetzer.uebersetze(p["dateien"], bilder)
@@ -192,6 +191,17 @@ console.log(JSON.stringify(Latex.pruefe(d)));
            all(x["art"] == "fehler" for x in
                uebersetzen_modul.werte_log_aus("! Undefined control sequence.\nl.5 \\x\n")))
 
+    for o in (ordner, ordner2):
+        shutil.rmtree(o, ignore_errors=True)
+
+
+def pruefe_ohne_latex():
+    """Abbildungen, Ablage, Sicherungen, Zwei-Fenster-Schutz.
+
+    Steht getrennt, weil nichts davon LaTeX braucht: auf einem Rechner
+    ohne pdflatex soll wenigstens der Teil laufen, der die Arbeiten der
+    Nutzerin auf der Platte betrifft.
+    """
     # ------------------------------------------------ Zotero-Abbildung
     from begleiter import zotero as zotero_modul
     roh = [
@@ -394,6 +404,77 @@ console.log(JSON.stringify(Latex.pruefe(d)));
            len(fa.sicherungen("Fassung")) == 3,
            str([e["datei"] for e in fa.sicherungen("Fassung")]))
 
+    # ---- Aufräumen greift nur die eigenen Fassungen an
+    # "Bachelorarbeit" und "Bachelorarbeit-Entwurf" fangen gleich an; ein
+    # startswith(name) räumte die Fassungen der zweiten mit weg.
+    n_lager = tempfile.mkdtemp(prefix="schreibtisch-nachbarn-")
+    na = ablage_modul.Ablage(os.path.join(n_lager, "Arbeiten"))
+    for titel in ("eins", "zwei", "drei"):
+        na.sichere("Bachelorarbeit-Entwurf", {"meta": {"titel": titel}, "bloecke": []})
+        _zeit.sleep(0.002)
+    entwurf_vorher = len(na.sicherungen("Bachelorarbeit-Entwurf"))
+    for i in range(30):                    # weit über NEUESTE hinaus
+        na.sichere("Bachelorarbeit", {"meta": {"titel": f"Lauf {i}"}, "bloecke": []})
+    pruefe("Aufräumen lässt die Fassungen des Nachbarprojekts stehen",
+           len(na.sicherungen("Bachelorarbeit-Entwurf")) == entwurf_vorher == 2,
+           str(na.sicherungen("Bachelorarbeit-Entwurf")))
+    pruefe("die eigenen Fassungen werden trotzdem ausgedünnt",
+           len(na.sicherungen("Bachelorarbeit")) <= ablage_modul.Ablage.NEUESTE + 2,
+           str(len(na.sicherungen("Bachelorarbeit"))))
+
+    # ---- Gestaffeltes Ausdünnen: Tage überleben, nicht nur Minuten
+    s_lager = tempfile.mkdtemp(prefix="schreibtisch-staffel-")
+    st = ablage_modul.Ablage(os.path.join(s_lager, "Arbeiten"))
+    sordner = os.path.join(s_lager, "Arbeiten", ".sicherungen")
+    os.makedirs(sordner, exist_ok=True)
+    jetzt = _zeit.time()
+
+    def lege_fassung_an(alter_s):
+        """Eine Sicherung mit vorgegebenem Alter. Über die Zeitmarke im
+        Namen findet sie die Liste, über die mtime das Aufräumen."""
+        marke = _zeit.strftime("%Y%m%d-%H%M%S", _zeit.localtime(jetzt - alter_s))
+        pfad = os.path.join(sordner, f"Lang-{marke}.json")
+        with open(pfad, "w", encoding="utf-8") as f:
+            json.dump({"meta": {"titel": f"vor {alter_s} s"}}, f)
+        os.utime(pfad, (jetzt - alter_s, jetzt - alter_s))
+        return os.path.basename(pfad)
+
+    frisch = [lege_fassung_an(i * 60) for i in range(20)]      # letzte 20 Minuten
+    stunden = [lege_fassung_an(h * 3600) for h in (2, 3, 4, 5)]
+    tage = [lege_fassung_an(t * 86400) for t in (2, 3, 10)]
+    uralt = [lege_fassung_an(t * 86400) for t in (40, 60)]
+    ablage_modul.Ablage._raeume_sicherungen(sordner, "Lang")
+    da = set(os.listdir(sordner))
+    pruefe("die jüngsten Fassungen bleiben vollständig",
+           all(d in da for d in frisch[:ablage_modul.Ablage.NEUESTE]),
+           str(sorted(da)))
+    pruefe("je Stunde bleibt eine Fassung",
+           all(d in da for d in stunden), str(sorted(da)))
+    pruefe("die Fassung von vor zehn Tagen überlebt",
+           all(d in da for d in tage), str(sorted(da)))
+    pruefe("Fassungen jenseits des Monats werden weggeräumt",
+           not any(d in da for d in uralt), str(sorted(da)))
+    pruefe("das Ausdünnen begrenzt die Zahl der Fassungen",
+           len(da) < 25, str(len(da)))
+
+    # ---- Ein neuer Titel verdrängt keine bestehende Arbeit
+    k_lager = tempfile.mkdtemp(prefix="schreibtisch-kollision-")
+    ka = ablage_modul.Ablage(os.path.join(k_lager, "Arbeiten"))
+    ka.sichere("Bachelorarbeit", {"meta": {"titel": "Die echte"}, "bloecke": []})
+    e_neu = ka.sichere("Bachelorarbeit",
+                       {"meta": {"titel": "Die neue"}, "bloecke": []}, neu=True)
+    pruefe("eine neue Arbeit weicht dem belegten Namen aus",
+           e_neu["name"] == "Bachelorarbeit 2" and e_neu["ausgewichen"], str(e_neu))
+    pruefe("die bestehende Arbeit bleibt unberührt",
+           ka.lade("Bachelorarbeit")["meta"]["titel"] == "Die echte",
+           str(ka.lade("Bachelorarbeit")["meta"]))
+    e_weiter = ka.sichere("Bachelorarbeit",
+                          {"meta": {"titel": "Fortschritt"}, "bloecke": []})
+    pruefe("Weiterschreiben überschreibt dieselbe Arbeit wie bisher",
+           not e_weiter["ausgewichen"]
+           and ka.lade("Bachelorarbeit")["meta"]["titel"] == "Fortschritt",
+           str(e_weiter))
+
     # ------------------------------------------------ Zwei Fenster
     e1 = fa.sichere("Zwei", {"meta": {"titel": "eins"}, "bloecke": []})
     pruefe("Sichern gibt den Änderungsstand zurück", e1.get("stand", 0) > 0, str(e1))
@@ -424,8 +505,21 @@ console.log(JSON.stringify(Latex.pruefe(d)));
     pruefe("ein Pfad aus dem Ordner heraus wird abgewiesen",
            b["bloecke"][0]["datenUrl"] == "", b["bloecke"][0]["datenUrl"][:60])
 
-    for o in (ordner, ordner2, lager):
-        shutil.rmtree(o, ignore_errors=True)
+    shutil.rmtree(lager, ignore_errors=True)
+
+
+def main():
+    print("\nBegleiterprüfung\n")
+
+    werkzeuge = uebersetzen_modul.pruefe_werkzeuge()
+    if werkzeuge["vollstaendig"]:
+        pruefe("pdflatex und biber gefunden", True)
+        pruefe_mit_latex()
+    else:
+        print("  ⚠ pdflatex/biber fehlen — die Übersetzungsläufe entfallen.\n"
+              f"    Gefunden: {werkzeuge['programme']}\n")
+    pruefe_ohne_latex()
+
 
     print(f"\n  {len(BESTANDEN)} bestanden, {len(DURCHGEFALLEN)} durchgefallen")
     if DURCHGEFALLEN:

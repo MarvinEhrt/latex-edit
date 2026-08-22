@@ -635,6 +635,43 @@ p('Strg+Z nimmt auch den Sprachwechsel zurück',
   await s.evaluate(()=>App.dok.einstellungen.sprache)==='de',
   await s.evaluate(()=>App.dok.einstellungen.sprache));
 
+// Z) Weggeklickte Dialoge lösen ihr Versprechen auf
+// Ohne das wartet der Aufrufer für immer: mitVerlauf käme nie zu
+// verwerfeLetzten und hinterließe genau den leeren Verlaufsschritt,
+// den es vermeiden soll.
+await setze(()=>{App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'Steht da'}]})];
+                 Editor.zeichne(); Verlauf.leeren();});
+const tiefeVorher = await s.evaluate(()=>Verlauf.tiefe());
+await s.locator('#knopf-layout').click(); await s.waitForTimeout(350);
+p('der Layout-Dialog geht auf', await s.locator('.schleier').count()===1);
+await s.keyboard.press('Escape'); await s.waitForTimeout(350);
+p('Escape schließt den Dialog wirklich', await s.locator('.schleier').count()===0);
+p('Escape hinterlässt keinen leeren Verlaufsschritt',
+  await s.evaluate(()=>Verlauf.tiefe())===tiefeVorher,
+  `vorher ${tiefeVorher}, nachher ${await s.evaluate(()=>Verlauf.tiefe())}`);
+
+// dasselbe über den Schleier statt über Escape
+await s.locator('#knopf-deckblatt').click(); await s.waitForTimeout(350);
+await s.locator('.schleier').click({position:{x:5,y:5}}); await s.waitForTimeout(350);
+p('ein Klick neben den Dialog schließt ihn ebenfalls',
+  await s.locator('.schleier').count()===0);
+p('auch das hinterlässt keinen leeren Schritt',
+  await s.evaluate(()=>Verlauf.tiefe())===tiefeVorher,
+  String(await s.evaluate(()=>Verlauf.tiefe())));
+
+// und der Aufrufer läuft weiter, statt am await zu hängen
+p('der Aufrufer wartet nicht ewig auf den weggeklickten Dialog',
+  await s.evaluate(async ()=>{
+    const versprechen = Dialoge.bestaetigen({titel:'Test', text:'Wegklicken'});
+    await new Promise(r=>setTimeout(r,150));
+    document.querySelector('.schleier')
+      .dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));
+    return Promise.race([
+      versprechen.then(w=>w===false ? 'aufgeloest' : 'falscher Wert'),
+      new Promise(r=>setTimeout(()=>r('haengt'),1500))
+    ]);
+  })==='aufgeloest');
+
 console.log(`\n  ${ok} bestanden, ${fehl} durchgefallen`);
 await b.close(); d.kill();
 rmSync(ABLAGE,{recursive:true,force:true});

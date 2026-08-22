@@ -60,6 +60,11 @@ def sauberer_name(roh: str, ersatz: str = "Arbeit") -> str:
 
 
 class Ablage:
+    # Staffelung der Sicherungen, siehe _raeume_sicherungen
+    NEUESTE = 12        # die jüngsten Fassungen, egal wie dicht sie liegen
+    STUNDEN = 24        # davor: je angefangener Stunde eine, einen Tag lang
+    TAGE = 30           # davor: je Tag eine, einen Monat lang
+
     def __init__(self, wurzel: str):
         self.wurzel = wurzel
         os.makedirs(self.wurzel, exist_ok=True)
@@ -146,6 +151,21 @@ class Ablage:
                              + base64.b64encode(roh).decode("ascii"))
         return dokument
 
+    @staticmethod
+    def _eigene_sicherungen(ordner: str, rein: str) -> list[str]:
+        """Die Sicherungen genau dieses Projekts.
+
+        Streng "<Projekt>-<Zeitmarke>": ein bloßes startswith(name) fasste
+        auch "Bachelorarbeit-Entwurf" und "Bachelorarbeit 2" mit -- und das
+        Aufräumen löschte dann reihenweise die Fassungen fremder Projekte,
+        die in deren eigener Liste nie wieder auftauchten."""
+        raus = []
+        for datei in os.listdir(ordner):
+            if datei.startswith(rein + "-") \
+                    and _SICHERUNGSREST.match(datei[len(rein) + 1:]):
+                raus.append(datei)
+        return raus
+
     def _raeume_bilder(self, name: str):
         """Bilddateien wegwerfen, auf die weder das Projekt noch eine
         seiner Sicherungen zeigt. Sonst wächst der Ordner mit jedem
@@ -157,8 +177,8 @@ class Ablage:
         texte = [self._pfad(name)]
         sicherung = os.path.join(self.wurzel, ".sicherungen")
         if os.path.isdir(sicherung):
-            texte += [os.path.join(sicherung, d) for d in os.listdir(sicherung)
-                      if d.startswith(rein) and d.endswith(".json")]
+            texte += [os.path.join(sicherung, d)
+                      for d in self._eigene_sicherungen(sicherung, rein)]
         genutzt = set()
         for pfad in texte:
             try:
@@ -215,8 +235,36 @@ class Ablage:
         except OSError:
             return 0.0
 
+    def freier_name(self, name: str) -> str:
+        """Ein noch unbelegter Projektname, ausgehend von `name`.
+
+        Wer eine neue Arbeit anlegt und ihr den Titel einer bestehenden
+        gibt, überschrieb diese bisher beim ersten automatischen Sichern
+        wortlos. Statt zu fragen -- vier Sekunden nach dem ersten
+        Buchstaben, mitten im Schreiben -- weicht der Begleiter auf den
+        nächsten freien Namen aus und sagt hinterher Bescheid."""
+        rein = sauberer_name(name)
+        if not os.path.exists(os.path.join(self.wurzel, rein + ".json")):
+            return rein
+        # Vor dem Anhängen kürzen, sonst schneidet sauberer_name die
+        # Nummer bei langen Titeln gleich wieder ab.
+        rumpf = rein[:70].strip()
+        for n in range(2, 1000):
+            kandidat = sauberer_name(f"{rumpf} {n}")
+            if not os.path.exists(os.path.join(self.wurzel, kandidat + ".json")):
+                return kandidat
+        return sauberer_name(f"{rumpf} {int(time.time())}")
+
     def sichere(self, name: str, dokument: dict,
-                stand: float | None = None) -> dict:
+                stand: float | None = None, neu: bool = False) -> dict:
+        # Eine Arbeit, die noch nie auf der Platte war, darf keine
+        # bestehende verdrängen -- nur hier, denn beim Weiterschreiben an
+        # einer geladenen Arbeit ist der gleiche Name genau richtig.
+        ausgewichen = False
+        if neu:
+            frei = self.freier_name(name)
+            ausgewichen = frei != sauberer_name(name)
+            name = frei
         pfad = self._pfad(name)
         # Zwei-Fenster-Schutz: kennt das Fenster nur einen älteren Stand
         # als den auf der Platte, hat ein anderes Fenster dazwischen
@@ -248,7 +296,7 @@ class Ablage:
         os.replace(vorlaeufig, pfad)     # atomar, kein halb geschriebenes Projekt
         self._raeume_bilder(name)
         return {"name": sauberer_name(name), "bytes": os.path.getsize(pfad),
-                "stand": os.path.getmtime(pfad)}
+                "stand": os.path.getmtime(pfad), "ausgewichen": ausgewichen}
 
     # ------------------------------------------------------- Sicherungen
 
@@ -266,12 +314,9 @@ class Ablage:
                 return os.path.getmtime(os.path.join(ordner, d))
             except OSError:
                 return 0
-        for datei in sorted(os.listdir(ordner), key=mzeit, reverse=True):
-            if not datei.startswith(rein + "-"):
-                continue
+        for datei in sorted(self._eigene_sicherungen(ordner, rein),
+                            key=mzeit, reverse=True):
             t = _SICHERUNGSREST.match(datei[len(rein) + 1:])
-            if not t:
-                continue
             voll = os.path.join(ordner, datei)
             try:
                 with open(voll, encoding="utf-8") as f:
@@ -300,8 +345,16 @@ class Ablage:
             # das Zurückholen funktioniert also unverändert.
             return self._hole_bilder_zurueck(name, json.load(f))
 
-    @staticmethod
-    def _raeume_sicherungen(ordner: str, praefix: str, behalten: int = 20):
+    @classmethod
+    def _raeume_sicherungen(cls, ordner: str, praefix: str):
+        """Gestaffelt ausdünnen statt flach abschneiden.
+
+        Zwanzig Fassungen klingen nach viel und sind es nicht: gesichert
+        wird vier Sekunden nach der letzten Eingabe, beim Durchschreiben
+        also am laufenden Band -- zwanzig Fassungen deckten keine zwei
+        Minuten ab. Wer "gestern stand das Kapitel noch da" sagt, braucht
+        aber Tage. Also die letzten NEUESTE immer, davor je Stunde eine,
+        davor je Tag eine."""
         # Nach mtime, nicht nach Namen: copy2 übernimmt die Änderungszeit
         # der Projektdatei, und die wächst streng -- Dateinamen dagegen
         # können nach dem Aufräumen wieder frei werden und die
@@ -311,11 +364,32 @@ class Ablage:
                 return os.path.getmtime(os.path.join(ordner, d))
             except OSError:
                 return 0
-        eigene = sorted((d for d in os.listdir(ordner) if d.startswith(praefix)),
-                        key=mzeit)
-        for alt in eigene[:-behalten]:
+        eigene = sorted(cls._eigene_sicherungen(ordner, praefix),
+                        key=mzeit, reverse=True)          # neueste zuerst
+        jetzt = time.time()
+        behalten, belegt = set(), set()
+        for rang, datei in enumerate(eigene):
+            if rang < cls.NEUESTE:
+                behalten.add(datei)
+                continue
+            zeit = mzeit(datei)
+            alter = jetzt - zeit
+            if alter <= cls.STUNDEN * 3600:
+                fach = ("h", int(zeit // 3600))
+            elif alter <= cls.TAGE * 86400:
+                fach = ("t", int(zeit // 86400))
+            else:
+                continue                      # älter als TAGE Tage: weg
+            # Die Liste läuft von neu nach alt, die erste Fassung eines
+            # Fachs ist also dessen jüngste -- die bleibt.
+            if fach not in belegt:
+                belegt.add(fach)
+                behalten.add(datei)
+        for datei in eigene:
+            if datei in behalten:
+                continue
             try:
-                os.remove(os.path.join(ordner, alt))
+                os.remove(os.path.join(ordner, datei))
             except OSError:
                 pass
 

@@ -34,6 +34,10 @@ from begleiter import uebersetzen as uebersetzen_modul  # noqa: E402
 from begleiter import zotero as zotero_modul          # noqa: E402
 
 OBERFLAECHE = os.path.join(HIER, "oberflaeche.html")
+# Die Beispielarbeit ist eine Vorlage, keine Arbeit: sie liegt neben dem
+# Programm, nicht in Arbeiten/. Sonst wäre sie beim ersten Start die
+# "zuletzt bearbeitete" Arbeit -- und vier Sekunden später überschrieben.
+BEISPIEL = os.path.join(HIER, "beispiel", "Beispielarbeit.json")
 # Wo die Arbeiten liegen. Wer sie lieber in der Cloud-Ablage hätte,
 # setzt SCHREIBTISCH_ARBEITEN -- die Prüfungen tun genau das, damit sie
 # nicht in den echten Arbeiten herumschreiben.
@@ -113,6 +117,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
             if weg == "/projekte":
                 return _json_antwort(self, {"projekte": ABLAGE.liste()})
+
+            if weg == "/beispiel":
+                with open(BEISPIEL, encoding="utf-8") as f:
+                    return _json_antwort(self, {"dokument": json.load(f)})
 
             if weg == "/projekt":
                 name = teile.get("name", [""])[0]
@@ -201,7 +209,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return _json_antwort(self, ABLAGE.sichere(
                         daten.get("name") or "Arbeit",
                         daten.get("dokument") or {},
-                        daten.get("stand")))
+                        daten.get("stand"),
+                        bool(daten.get("neu"))))
                 except ablage_modul.VeralteterStand as f:
                     return _json_antwort(self, {"fehler": str(f)}, 409)
 

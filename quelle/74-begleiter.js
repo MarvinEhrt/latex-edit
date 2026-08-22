@@ -64,9 +64,13 @@ const Begleiter = (() => {
     uebersetze,
     pdfAdresse,
     projekte:        () => hole('/projekte'),
+    beispiel:        () => hole('/beispiel'),
     ladeProjekt:     (name) => hole('/projekt', { name }),
-    sichereProjekt:  (name, dokument, stand) =>
-                       sende('/projekt', { name, dokument, stand }),
+    /* `neu` heißt: diese Arbeit war noch nie auf der Platte. Der
+       Begleiter weicht dann einem belegten Namen aus, statt die
+       fremde Arbeit zu überschreiben. */
+    sichereProjekt:  (name, dokument, stand, neu) =>
+                       sende('/projekt', { name, dokument, stand, neu: !!neu }),
     loescheProjekt:  (name) => sende('/projekt/loeschen', { name }),
     sicherungen:     (name) => hole('/sicherungen', { name }),
     ladeSicherung:   (name, datei) => hole('/sicherung', { name, datei }),
