@@ -36,6 +36,7 @@ const Editor = (() => {
         const n = (nummern.get(ziel) || {}).nummer || '?';
         return b.typ === 'tabelle' ? `${w.tabelle} ${n}`
              : (b.typ === 'abbildung' || b.typ === 'diagramm') ? `${w.abbildung} ${n}`
+             : b.typ === 'formel' ? `${w.formel} (${n})`
              : `${w.abschnitt} ${n}`;
       }
     };
@@ -536,6 +537,8 @@ const Editor = (() => {
       neu = await Dialoge.kennwert({ kennwert: d.sym, wert: d.wert }, { bearbeiten: true });
     } else if (d.typ === 'verweis') {
       neu = await Dialoge.verweisEinfuegen(dok(), { bearbeiten: true, vorbelegung: d.ziel });
+    } else if (d.typ === 'formel') {
+      neu = await Formeldialog.inline({ formel: d.tex }, { bearbeiten: true });
     }
     if (!neu || !feld || !document.contains(chip)) return;
 
@@ -652,7 +655,8 @@ const Editor = (() => {
         w('❝', 'Quelle zitieren  (Strg+Umschalt+Z)', () => App.zitatEinfuegen()),
         w('→', 'Querverweis einfügen', () => App.verweisEinfuegen()),
         w('𝑀', 'Kennwert einfügen', () => App.kennwertEinfuegen()),
-        w('¹', 'Fußnote einfügen', () => App.fussnoteEinfuegen())
+        w('¹', 'Fußnote einfügen', () => App.fussnoteEinfuegen()),
+        w('∑', 'Formel im Satz einfügen', () => App.formelEinfuegen())
       );
     }
     if (block.typ === 'liste') {
@@ -948,9 +952,27 @@ const Editor = (() => {
 
       case 'formel': {
         const karte = el('div', 'formel-karte');
-        karte.innerHTML = block.tex
-          ? `<code>${escHtml(block.tex)}</code>`
-          : '<span style="color:var(--tinte-3)">Leere Formel — auf &#9881; klicken</span>';
+        if (block.tex) {
+          /* Gesetzt statt Quelltext. Was die Vorschau nicht lesen
+             kann, bleibt als Quelltext stehen -- das PDF entscheidet. */
+          const v = Mathe.vorschauHtml(block.tex, true);
+          karte.innerHTML =
+            `<div class="formel-satz">${v.html}</div>` +
+            (block.nummeriert
+              ? `<span class="formel-nr" title="Nummerierte Formel — per Querverweis ansprechbar">(${
+                  escHtml(info.nummer || '?')})</span>`
+              : '');
+          karte.title = 'Doppelklick zum Bearbeiten';
+        } else {
+          karte.innerHTML = '<span style="color:var(--tinte-3)">Leere Formel — anklicken</span>';
+        }
+        const bearbeiten = async () => {
+          Verlauf.merke(dok());
+          if (await Dialoge.formel(block)) { App.aenderung(); zeichne(); }
+          else Verlauf.verwerfeLetzten();
+        };
+        if (block.tex) karte.addEventListener('dblclick', bearbeiten);
+        else karte.addEventListener('click', bearbeiten);
         return karte;
       }
 

@@ -24,6 +24,7 @@ JS_DATEIEN = [
     "20-richtext.js",
     "30-latex.js",
     "32-diagramm.js",
+    "34-mathe.js",
     "40-pdfansicht.js",
     "50-dialoge.js",
     "60-editor.js",
@@ -34,6 +35,7 @@ JS_DATEIEN = [
     "73-daten.js",
     "74-begleiter.js",
     "76-dialoge-extra.js",
+    "77-formeldialog.js",
     "78-diagrammdialog.js",
     "80-app.js",
 ]

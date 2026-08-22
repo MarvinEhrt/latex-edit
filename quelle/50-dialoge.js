@@ -700,8 +700,11 @@ const Dialoge = (() => {
   function verweisEinfuegen(dok, optionen = {}) {
     return new Promise((fertig) => {
       const nummern = Modell.nummeriere(dok);
+      /* Formeln nur, wenn sie nummeriert sind -- auf eine Formel ohne
+         Nummer kann das PDF nicht zeigen. */
       const ziele = dok.bloecke.filter(
-        b => ['tabelle', 'abbildung', 'diagramm', 'ueberschrift'].includes(b.typ));
+        b => ['tabelle', 'abbildung', 'diagramm', 'ueberschrift'].includes(b.typ) ||
+             (b.typ === 'formel' && b.nummeriert));
       const { koerper, fuss, schliessen } = basis({
         titel: optionen.bearbeiten ? 'Querverweis bearbeiten' : 'Querverweis einfügen',
         beimSchliessen: () => fertig(null),
@@ -715,8 +718,11 @@ const Dialoge = (() => {
           const n = (nummern.get(b.id) || {}).nummer || '?';
           const beschriftung = b.typ === 'tabelle' ? `Tabelle ${n}`
                              : (b.typ === 'abbildung' || b.typ === 'diagramm')
-                               ? `Abbildung ${n}` : `Abschnitt ${n}`;
-          const titel = b.typ === 'ueberschrift' ? b.text : b.titel;
+                               ? `Abbildung ${n}`
+                             : b.typ === 'formel' ? `Formel (${n})`
+                             : `Abschnitt ${n}`;
+          const titel = b.typ === 'ueberschrift' ? b.text
+                      : b.typ === 'formel' ? b.tex : b.titel;
           const zeile = el('div', 'quelle-zeile' +
             (optionen.vorbelegung === b.id ? ' gewaehlt' : ''));
           zeile.innerHTML = `<span class="quelle-art">${escHtml(b.typ)}</span>
@@ -904,20 +910,11 @@ const Dialoge = (() => {
     });
   }
 
-  /* ---------------- Formel ---------------- */
+  /* ---------------- Formel ----------------
+     Der eigentliche Editor (Vorschau, Symbolleiste, Vorlagen) wohnt
+     in 77-formeldialog.js -- hier bleibt nur die gewohnte Anlaufstelle. */
 
-  async function formel(block) {
-    const aus = await formular({
-      titel: 'Formel',
-      unter: 'In LaTeX-Schreibweise. Beispiele: <code>\\frac{a}{b}</code>, <code>\\sum_{i=1}^{n} x_i</code>, ' +
-             '<code>\\bar{x}</code>, <code>\\alpha</code>',
-      felder: [{ n: 'tex', l: 'Formel', typ: 'text-mehrzeilig', pflicht: true, breit: true }],
-      werte: { tex: block.tex }, okText: 'Übernehmen'
-    });
-    if (!aus) return null;
-    block.tex = aus.tex;
-    return block;
-  }
+  const formel = (block) => Formeldialog.block(block);
 
   /* ---------------- LaTeX ansehen ---------------- */
 
@@ -975,6 +972,16 @@ const Dialoge = (() => {
         die Tabelle, ändert sich das Diagramm mit. Ein <b>Bildschirmfoto</b> in der
         Zwischenablage wird mit Strg+V direkt zur Abbildung.</p>
       </div>
+      <div class="gruppe"><h3>Formeln</h3>
+        <p style="margin:0;font-size:13.5px;line-height:1.6">
+        <b>Einfügen → ∑ Formel</b> öffnet den Formeleditor: links tippen, rechts
+        entsteht die gesetzte Formel — Brüche, Wurzeln, griechische Buchstaben und
+        die gängigen Statistik-Formeln stehen zum Anklicken bereit, fehlende Klammern
+        werden sofort gemeldet. <b>Nummerierte</b> Formeln bekommen eine (1) und
+        lassen sich per Querverweis ansprechen. Für ein <b>η²</b> mitten im Satz:
+        Text markieren oder Schreibmarke setzen und in der Werkzeugleiste auf ∑
+        klicken.</p>
+      </div>
       <div class="gruppe"><h3>Tastatur</h3>
         <div style="font-size:13.5px;line-height:1.9">
         <b>Strg</b>+<b>B</b> fett &nbsp;·&nbsp; <b>Strg</b>+<b>I</b> kursiv &nbsp;·&nbsp;
@@ -1004,6 +1011,8 @@ const Dialoge = (() => {
         ihres Textes steht im Chip, ein Klick öffnet sie ganz<br>
         <span class="chip chip-kennwert"><i>SW</i>&nbsp;=&nbsp;104</span> &nbsp;ein statistischer Kennwert —
         Symbol kursiv, wie APA 7 es will<br>
+        <span class="chip chip-formel">η²&nbsp;=&nbsp;.14</span> &nbsp;eine Formel im Satz —
+        gesetzt wie im PDF, ein Klick öffnet den Formeleditor<br>
         <b>Klick auf einen Chip</b> öffnet ihn zum Bearbeiten — dort lässt er
         sich auch entfernen, der Text drumherum bleibt stehen
         </div>

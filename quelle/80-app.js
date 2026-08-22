@@ -82,6 +82,7 @@ const App = (() => {
     const t = await Dialoge.fussnote();
     return t ? { fussnote: t } : null;
   });
+  const formelEinfuegen   = () => einfuegenMitDialog(() => Formeldialog.inline());
 
   /* ---------------- Änderungen ---------------- */
 
@@ -679,7 +680,8 @@ const App = (() => {
     set dok(d) { dok = d; },
     start, aenderung, melde, sichere, exportiere, baue, pdfHerunterladen,
     nimmZurueck, wiederhole,
-    zitatEinfuegen, verweisEinfuegen, kennwertEinfuegen, fussnoteEinfuegen
+    zitatEinfuegen, verweisEinfuegen, kennwertEinfuegen, fussnoteEinfuegen,
+    formelEinfuegen
   };
 })();
 

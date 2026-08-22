@@ -196,6 +196,26 @@ const Latex = (() => {
     return zeilen.join('\n');
   }
 
+  /* ---------- Formeln ---------- */
+
+  /* Ein \\ auf oberster Ebene (außerhalb von \begin…\end) bricht in
+     \[…\] den Bau -- dann muss eine gathered-Umgebung darum.        */
+  const formelMehrzeilig = (tex) =>
+    /\\\\/.test(String(tex).replace(/\\begin\{[^}]*\}[\s\S]*?\\end\{[^}]*\}/g, ''));
+
+  function formelZuLatex(b) {
+    const inhalt = b.tex.trim();
+    const rumpf = formelMehrzeilig(inhalt)
+      ? ['\\begin{gathered}', '  ' + inhalt, '\\end{gathered}'].join('\n')
+      : '  ' + inhalt;
+    /* Nummeriert wird über equation: LaTeX zählt selbst, und die
+       Nummer stimmt mit Modell.nummeriere überein, weil beide nur
+       nummerierte Formeln zählen. */
+    if (b.nummeriert)
+      return [`\\begin{equation}\\label{form:${b.id}}`, rumpf, '\\end{equation}'].join('\n');
+    return ['\\[', rumpf, '\\]'].join('\n');
+  }
+
   /* ---------- Hauptdokument ---------- */
 
   function erzeugeTex(dok, bilddateien, zeilenkarte) {
@@ -210,6 +230,8 @@ const Latex = (() => {
         return b.typ === 'tabelle' ? `\\tablename~\\ref{tab:${ziel}}`
              : (b.typ === 'abbildung' || b.typ === 'diagramm')
                ? `\\figurename~\\ref{abb:${ziel}}`
+             : b.typ === 'formel'
+               ? `${Zitate.wort(e.sprache).formel}~\\eqref{form:${ziel}}`
              : `${Zitate.wort(e.sprache).abschnitt}~\\ref{sec:${ziel}}`;
       }
     };
@@ -362,7 +384,7 @@ const Latex = (() => {
           break;
         }
         case 'formel':
-          if (b.tex && b.tex.trim()) K.push('', '\\[', '  ' + b.tex.trim(), '\\]');
+          if (b.tex && b.tex.trim()) K.push('', formelZuLatex(b));
           break;
         case 'seitenumbruch': K.push('', '\\clearpage'); break;
         case 'anhangstart':   /* wird oben als Trenner behandelt */ break;
@@ -424,24 +446,42 @@ const Latex = (() => {
           + '— sie erscheint nicht im PDF. Über ⚙ ein Bild auswählen.' });
     }
 
-    for (const b of dok.bloecke) {
-      if (b.typ !== 'formel' || !b.tex) continue;
+    const formelMaengel = (tex, wo) => {
       let tiefe = 0, dollar = 0;
-      for (let i = 0; i < b.tex.length; i++) {
-        const c = b.tex[i];
+      for (let i = 0; i < tex.length; i++) {
+        const c = tex[i];
         if (c === '\\') { i++; continue; }        // \{ und \} überspringen
         if (c === '{') tiefe++;
         else if (c === '}') tiefe--;
         else if (c === '$') dollar++;
         if (tiefe < 0) break;
       }
-      if (tiefe > 0) anmerkungen.push({ id: b.id, meldung:
-        `In der Formel fehlt ${tiefe === 1 ? 'eine schließende Klammer }' :
-         tiefe + ' schließende Klammern }'}.` });
-      else if (tiefe < 0) anmerkungen.push({ id: b.id, meldung:
-        'In der Formel steht eine schließende Klammer } zu viel.' });
-      if (dollar % 2) anmerkungen.push({ id: b.id, meldung:
-        'In der Formel steht ein einzelnes $. Sie stehen immer paarweise.' });
+      const raus = [];
+      if (tiefe > 0) raus.push(
+        `In ${wo} fehlt ${tiefe === 1 ? 'eine schließende Klammer }' :
+         tiefe + ' schließende Klammern }'}.`);
+      else if (tiefe < 0) raus.push(
+        `In ${wo} steht eine schließende Klammer } zu viel.`);
+      if (dollar % 2) raus.push(
+        `In ${wo} steht ein einzelnes $. Sie stehen immer paarweise.`);
+      return raus;
+    };
+
+    for (const b of dok.bloecke) {
+      if (b.typ === 'formel' && b.tex) {
+        for (const m of formelMaengel(b.tex, 'der Formel'))
+          anmerkungen.push({ id: b.id, meldung: m });
+      }
+      /* Auch Formeln im Fließtext sind rohes LaTeX -- dieselbe
+         Prüfung, derselbe Klick zum richtigen Baustein. */
+      const punkte = b.punkte || (b.runs ? [b.runs] : []);
+      for (const runs of punkte) {
+        for (const r of runs || []) {
+          if (!r.formel) continue;
+          for (const m of formelMaengel(String(r.formel), 'der Formel im Satz'))
+            anmerkungen.push({ id: b.id, meldung: m });
+        }
+      }
     }
     return anmerkungen;
   }
@@ -548,7 +588,7 @@ $clean_ext  = 'bbl run.xml synctex.gz fdb_latexmk fls';
 %%  Vom LaTeX-Editor erzeugt. Du musst hier nichts ändern.
 %% ==================================================================
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{arbeit-stil}[2026/08/19 v1.1 Wissenschaftliche Arbeit, APA 7 (de/en)]
+\ProvidesPackage{arbeit-stil}[2026/08/22 v1.2 Wissenschaftliche Arbeit, APA 7 (de/en)]
 
 \newif\ifas@arial \as@arialfalse
 \DeclareOption{times}{\as@arialfalse}
@@ -581,6 +621,9 @@ $clean_ext  = 'bbl run.xml synctex.gz fdb_latexmk fls';
   \RequirePackage{tgtermes}
   \RequirePackage{tgheros}
 \fi
+% amsmath VOR mathastext (so will es mathastext): nummerierte Formeln
+% (equation), mehrzeilige (gathered), \text und \eqref fuer Verweise.
+\RequirePackage{amsmath}
 \RequirePackage[italic]{mathastext}
 
 \RequirePackage[a4paper,top=2.54cm,bottom=2.54cm,left=2.54cm,right=2.54cm]{geometry}
