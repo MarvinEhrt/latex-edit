@@ -10,7 +10,7 @@ auf die Befunde.
 | 1 · Fehler beheben | A1, A2, dazu neu: Strg+Enter | **umgesetzt** |
 | 2 · Pfeile und Listen | B1, B3 | **umgesetzt** |
 | 3 · Direkt anfassen | D1 (Titel), F2, G1 | **umgesetzt** |
-| 4 · Struktur per Tastatur | C2, C3, C4, B4 | offen |
+| 4 · Struktur per Tastatur | C2, C3, C4, B4 | **umgesetzt** |
 | 5 · Suchen und Sichtbarkeit | E1, E2, H2, H3 | offen |
 | 6 · Auswahl und Abschnitte | B2, C1, G2–G4 | offen |
 | 7 · Fläche und Feinschliff | F1, D2–D4, H1, H4–H6 | offen |
@@ -95,26 +95,32 @@ Fehlermeldungen jetzt vor.
 Titel in der Leiste tippen → Karte zieht mit. Tabelle antippen (ohne
 Hover) → Spalten-/Zeilenwerkzeuge sichtbar.
 
-## Paket 4 — Struktur per Tastatur *(offen)*
+## Paket 4 — Struktur per Tastatur *(umgesetzt)*
 
-**C2 · Umwandeln.** In der Objektleiste „Umwandeln in …“ für
-Textbausteine (Absatz ↔ Überschrift 1–3 ↔ Liste ↔ Blockzitat); im
-Modell ist das nur ein Typwechsel, die Runs bleiben. Dazu
-Markdown-Kürzel am Zeilenanfang: `# `–`### ` → Überschrift, `- ` →
-Liste, `1. ` → nummerierte Liste, `> ` → Blockzitat.
+**C2 · Umwandeln.** In der Objektleiste ein „Umwandeln“-Auswahlfeld
+für die Textbausteine (Absatz ↔ Überschrift 1–3 ↔ Liste ↔
+Blockzitat); es ersetzt die früheren H1–H3-Knöpfe und den
+Listen-Umschalter. Eine Liste wird zu Absätzen — je Punkt einer, wie
+in Word. In eine Überschrift (reiner Text) wandelt der Editor nur,
+wenn keine Chips im Absatz stehen — ein Zitat würde sonst zu totem
+Text; stattdessen kommt eine Meldung. Dazu die Markdown-Kürzel am
+Absatzanfang: `# `–`### ` → Überschrift, `- ` → Liste, `1. ` →
+nummerierte Liste, `> ` → Blockzitat.
 
 **C3 · Schrägstrich-Menü.** `/` am Wortanfang öffnet die Baustein-
-Auswahl — dieselbe Mechanik wie die @-Liste (`atZeige`), gleiche
-Tasten (Pfeile, Enter, Escape), Weitertippen filtert. Eingefügt wird
-nach dem aktuellen Baustein; bei leerem Absatz an seiner Stelle.
+Auswahl — dieselbe Mechanik wie die @-Liste, gleiche Tasten (Pfeile,
+Enter, Escape), Weitertippen filtert. Eingefügt wird nach dem
+aktuellen Baustein; ein leerer Absatz, aus dem heraus das Menü
+benutzt wurde, wird ersetzt statt leer stehen zu bleiben.
 
-**C4 · Einfügemarke.** Beim Überfahren der Einfügeleiste erscheint
-die vorhandene Einfügemarke (aus der Dateiablage) an der Zielstelle.
+**C4 · Einfügemarke.** Beim Überfahren der Einfügeleiste zeigt die
+vorhandene Einfügemarke (aus der Dateiablage), wo der Baustein
+landen würde — beim Anhangbeginn immer am Dokumentende.
 
-**B4 · Duplizieren.** Vierter Knopf in der Blockleiste und Strg+D:
-Baustein klonen (`Verlauf.klone`, neue Id), darunter einfügen.
-Abbildungen teilen sich die Bilddaten (Daten-URL wird kopiert, das
-ist im Modell nur eine geteilte Zeichenkette).
+**B4 · Duplizieren.** Vierter Knopf in der Blockleiste (⧉) und
+Strg+D: Baustein klonen (`Verlauf.klone`, neue Id), darunter
+einfügen. Bilddaten sind im Modell nur eine Zeichenkette und werden
+geteilt, nicht kopiert.
 
 *Abnahme:* Eine Hausarbeit-Gliederung komplett ohne Maus anlegen.
 

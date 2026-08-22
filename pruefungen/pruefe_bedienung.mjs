@@ -192,6 +192,171 @@ p('Zeilen-/Spaltenwerkzeuge sind am gewählten Baustein sichtbar (ohne Hover)',
 p('Meldungen tragen role="status" für Screenreader',
   await s.evaluate(() => document.getElementById('meldungen').getAttribute('role') === 'status'));
 
+/* ---------------- Markdown-Kürzel ---------------- */
+
+console.log('\nMarkdown-Kürzel\n');
+await setze(() => {
+  App.dok.bloecke = [Modell.neuerBlock('absatz', { runs: [{ text: 'Einleitung' }] })];
+  Editor.zeichne();
+});
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('Home');
+await s.keyboard.type('## '); await s.waitForTimeout(400);
+p('"## " am Absatzanfang macht eine Überschrift der Ebene 2',
+  await s.evaluate(() => App.dok.bloecke[0].typ === 'ueberschrift' &&
+    App.dok.bloecke[0].ebene === 2 && App.dok.bloecke[0].text === 'Einleitung'),
+  await s.evaluate(() => JSON.stringify(App.dok.bloecke[0])));
+await s.keyboard.type('X'); await s.waitForTimeout(300);
+p('die Marke steht am Anfang der neuen Überschrift',
+  await s.evaluate(() => App.dok.bloecke[0].text === 'XEinleitung'),
+  await s.evaluate(() => App.dok.bloecke[0].text));
+
+await setze(() => {
+  App.dok.bloecke = [Modell.neuerBlock('absatz', { runs: [{ text: 'Erster Punkt' }] })];
+  Editor.zeichne();
+});
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('Home');
+await s.keyboard.type('- '); await s.waitForTimeout(400);
+p('"- " macht eine Liste, der Text wird ihr erster Punkt',
+  await s.evaluate(() => App.dok.bloecke[0].typ === 'liste' &&
+    App.dok.bloecke[0].ordnung === 'punkte' &&
+    Richtext.zuText(App.dok.bloecke[0].punkte[0], {}) === 'Erster Punkt'));
+
+await setze(() => {
+  App.dok.bloecke = [Modell.neuerBlock('absatz')];
+  Editor.zeichne();
+});
+await s.locator('.block .tx').first().click();
+await s.keyboard.type('1. '); await s.waitForTimeout(400);
+p('"1. " macht eine nummerierte Liste',
+  await s.evaluate(() => App.dok.bloecke[0].typ === 'liste' &&
+    App.dok.bloecke[0].ordnung === 'nummern'));
+
+await setze(() => {
+  App.dok.bloecke = [Modell.neuerBlock('absatz')];
+  Editor.zeichne();
+});
+await s.locator('.block .tx').first().click();
+await s.keyboard.type('> '); await s.waitForTimeout(400);
+p('"> " macht ein Blockzitat',
+  await s.evaluate(() => App.dok.bloecke[0].typ === 'blockzitat'));
+
+await setze(() => {
+  App.dok.quellen = [{ key: 'holland1997', typ: 'buch',
+    felder: { autoren: 'Holland, John L.', jahr: '1997', titel: 'T', verlag: 'P' } }];
+  App.dok.bloecke = [Modell.neuerBlock('absatz',
+    { runs: [{ zitat: 'holland1997', form: 'klammer' }] })];
+  Editor.zeichne();
+});
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('Home');
+await s.keyboard.type('# '); await s.waitForTimeout(400);
+p('mit einem Chip im Absatz wird KEINE Überschrift daraus',
+  await s.evaluate(() => App.dok.bloecke[0].typ === 'absatz' &&
+    App.dok.bloecke[0].runs.some(r => r.zitat)));
+
+/* ---------------- Umwandeln über die Objektleiste ---------------- */
+
+console.log('\nUmwandeln\n');
+await setze(() => {
+  App.dok.bloecke = [Modell.neuerBlock('ueberschrift', { ebene: 2, text: 'Methode' })];
+  Editor.zeichne();
+  Editor.waehle(App.dok.bloecke[0].id, false);
+});
+p('die Objektleiste bietet das Umwandeln-Feld an',
+  await s.evaluate(() => {
+    const w = document.querySelector('#kontextleiste .ktx-wandel');
+    return w && w.value === 'ueberschrift:2';
+  }));
+await s.evaluate(() => {
+  const w = document.querySelector('#kontextleiste .ktx-wandel');
+  w.value = 'absatz';
+  w.dispatchEvent(new Event('change'));
+});
+await s.waitForTimeout(300);
+p('Überschrift → Absatz behält den Text',
+  await s.evaluate(() => App.dok.bloecke[0].typ === 'absatz' &&
+    Richtext.zuText(App.dok.bloecke[0].runs, {}) === 'Methode'),
+  await s.evaluate(() => JSON.stringify(App.dok.bloecke[0])));
+
+await setze(() => {
+  App.dok.bloecke = [Modell.neuerBlock('liste', { ordnung: 'punkte',
+    punkte: [[{ text: 'eins' }], [{ text: 'zwei' }]] })];
+  Editor.zeichne();
+});
+p('Liste → Absätze: je Punkt einer',
+  await s.evaluate(() => {
+    Editor.wandleUm(App.dok.bloecke[0].id, 'absatz');
+    return App.dok.bloecke.length === 2 &&
+      App.dok.bloecke.every(b => b.typ === 'absatz') &&
+      Richtext.zuText(App.dok.bloecke[1].runs, {}) === 'zwei';
+  }));
+
+/* ---------------- /-Menü ---------------- */
+
+console.log('\n/-Menü\n');
+await setze(() => {
+  App.dok.bloecke = [Modell.neuerBlock('absatz')];
+  Editor.zeichne();
+});
+await s.locator('.block .tx').first().click();
+await s.keyboard.type('/seit'); await s.waitForTimeout(300);
+p('das /-Menü erscheint und filtert beim Tippen',
+  await s.evaluate(() => {
+    const l = document.getElementById('slashliste');
+    return l && l.textContent.includes('Seitenumbruch') &&
+      !l.textContent.includes('Tabelle');
+  }));
+await s.keyboard.press('Enter'); await s.waitForTimeout(400);
+p('Enter fügt ein — der leere Absatz wird ersetzt',
+  await s.evaluate(() => App.dok.bloecke.length === 1 &&
+    App.dok.bloecke[0].typ === 'seitenumbruch'),
+  await s.evaluate(() => JSON.stringify(App.dok.bloecke.map(x => x.typ))));
+
+await setze(() => {
+  App.dok.bloecke = [Modell.neuerBlock('absatz', { runs: [{ text: 'Text davor' }] })];
+  Editor.zeichne();
+});
+await s.locator('.block .tx').first().click();
+await s.keyboard.press('End');
+await s.keyboard.type(' /abs'); await s.waitForTimeout(300);
+await s.keyboard.press('Enter'); await s.waitForTimeout(400);
+p('im vollen Absatz: das /wort verschwindet, der neue Baustein folgt',
+  await s.evaluate(() => App.dok.bloecke.length === 2 &&
+    Richtext.zuText(App.dok.bloecke[0].runs, {}).trim() === 'Text davor' &&
+    App.dok.bloecke[1].typ === 'absatz'),
+  await s.evaluate(() => JSON.stringify(App.dok.bloecke.map(x =>
+    Richtext.zuText(x.runs || [], {})))));
+
+/* ---------------- Duplizieren ---------------- */
+
+console.log('\nDuplizieren\n');
+await setze(() => {
+  App.dok.bloecke = [Modell.neuerBlock('tabelle', { titel: 'Vorlage' })];
+  Editor.zeichne();
+  Editor.waehle(App.dok.bloecke[0].id, false);
+});
+await s.keyboard.press('Control+d'); await s.waitForTimeout(400);
+p('Strg+D dupliziert den gewählten Baustein',
+  await s.evaluate(() => App.dok.bloecke.length === 2 &&
+    App.dok.bloecke[1].typ === 'tabelle' && App.dok.bloecke[1].titel === 'Vorlage'),
+  await s.evaluate(() => JSON.stringify(App.dok.bloecke.map(x => x.typ))));
+p('die Kopie hat eine eigene Id',
+  await s.evaluate(() => App.dok.bloecke[0].id !== App.dok.bloecke[1].id));
+
+/* ---------------- Einfügemarke ---------------- */
+
+await s.evaluate(() => Editor.waehle(App.dok.bloecke[0].id, false));
+await s.locator('.einfuegen-knoepfe button', { hasText: 'Abbildung' }).hover();
+await s.waitForTimeout(200);
+p('die Einfügeleiste zeigt beim Überfahren, wo es hinginge',
+  await s.evaluate(() => {
+    const m = document.querySelector('#blockliste .einfuegemarke');
+    return m && m.previousElementSibling ===
+      document.querySelector(`.block[data-id="${App.dok.bloecke[0].id}"]`);
+  }));
+
 console.log(`\n${ok} bestanden, ${fehl} durchgefallen`);
 await b.close(); d.kill();
 process.exit(fehl ? 1 : 0);

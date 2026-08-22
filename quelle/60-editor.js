@@ -203,6 +203,92 @@ const Editor = (() => {
     fuegeAmCursorEin(chipHtml({ zitat: key, form: 'klammer' }));
   }
 
+  /* ---------------- /-Menü ----------------
+     Ein / am Wortanfang öffnet die Baustein-Auswahl: Weitertippen
+     filtert, Pfeile wählen, Enter fügt ein -- dieselbe Mechanik wie
+     das @-Zitieren, nur für die Einfügeleiste.                       */
+
+  let slashListe = null;
+  let slashTreffer = [];
+  let slashIndex = 0;
+  let slashFeld = null;
+
+  const SLASH_EINTRAEGE = [
+    ['absatz', '¶', 'Absatz'], ['ueberschrift', 'H', 'Überschrift'],
+    ['liste', '•', 'Liste'], ['tabelle', '▦', 'Tabelle'],
+    ['abbildung', '🖼', 'Abbildung'], ['diagramm', '📊', 'Diagramm'],
+    ['blockzitat', '❝', 'Blockzitat'], ['formel', '∑', 'Formel'],
+    ['seitenumbruch', '⤓', 'Seitenumbruch'], ['anhangstart', '§', 'Anhang beginnt']
+  ];
+
+  function slashSchliesse() {
+    if (slashListe) slashListe.remove();
+    slashListe = null; slashTreffer = []; slashFeld = null;
+  }
+
+  function slashVorCursor(feld) {
+    const auswahl = window.getSelection();
+    if (!auswahl || !auswahl.rangeCount || !auswahl.isCollapsed) return null;
+    const marke = auswahl.getRangeAt(0);
+    const knoten = marke.startContainer;
+    if (knoten.nodeType !== 3 || !feld.contains(knoten)) return null;
+    const text = knoten.nodeValue.slice(0, marke.startOffset);
+    const m = text.match(/(^|[\s\u200B])\/([a-zäöüß]*)$/i);
+    return m ? { wort: m[2], knoten, offset: marke.startOffset } : null;
+  }
+
+  function slashZeige(feld, fund) {
+    slashFeld = feld;
+    const w = fund.wort.toLowerCase();
+    slashTreffer = SLASH_EINTRAEGE.filter(([typ, , name]) =>
+      !w || name.toLowerCase().includes(w) || typ.includes(w));
+    if (!slashTreffer.length) { slashSchliesse(); return; }
+    if (slashIndex >= slashTreffer.length) slashIndex = 0;
+    if (!slashListe) {
+      slashListe = el('div');
+      slashListe.id = 'slashliste';
+      document.body.append(slashListe);
+    }
+    slashListe.innerHTML = '';
+    slashTreffer.forEach(([typ, zeichen, name], i) => {
+      const zeile = el('div', 'at-eintrag' + (i === slashIndex ? ' aktiv' : ''),
+        `<b>${escHtml(zeichen)}&nbsp; ${escHtml(name)}</b>`);
+      zeile.addEventListener('mousedown', (ev) => ev.preventDefault());
+      zeile.addEventListener('click', () => { slashIndex = i; slashUebernehmen(); });
+      slashListe.append(zeile);
+    });
+    const r = window.getSelection().getRangeAt(0).getBoundingClientRect();
+    const eigen = slashListe.getBoundingClientRect();
+    slashListe.style.left = Math.max(8, Math.min(
+      window.innerWidth - eigen.width - 8, r.left)) + 'px';
+    slashListe.style.top = Math.min(window.innerHeight - eigen.height - 8, r.bottom + 4) + 'px';
+  }
+
+  function slashPruefe(feld, ev) {
+    if (ev && ev.isComposing) return;
+    const fund = slashVorCursor(feld);
+    if (!fund) { slashSchliesse(); return; }
+    slashIndex = 0;
+    slashZeige(feld, fund);
+  }
+
+  function slashUebernehmen() {
+    const feld = slashFeld;
+    const treffer = slashTreffer[slashIndex];
+    if (!feld || !treffer) { slashSchliesse(); return; }
+    const fund = slashVorCursor(feld);
+    slashSchliesse();
+    if (!fund) return;
+    /* das getippte /wort entfernen, dann einfügen wie über die Leiste */
+    Verlauf.merke(dok(), 'tx:' + feld.dataset.blockId + ':' + (feld.dataset.feld || ''));
+    const bereich = document.createRange();
+    bereich.setStart(fund.knoten, fund.offset - fund.wort.length - 1);
+    bereich.setEnd(fund.knoten, fund.offset);
+    bereich.deleteContents();
+    feld.dispatchEvent(new Event('input', { bubbles: true }));
+    fuegeBlockEin(treffer[0], feld.dataset.blockId);
+  }
+
   /* ---------------- Textfeld ---------------- */
 
   function textfeld(block, feldname, klassen, leertext, runsAus) {
@@ -237,12 +323,14 @@ const Editor = (() => {
          also an jedem Tastendruck, nicht nur an Überschriften. */
       zeichneGliederung();
       if (feldname !== 'text') atPruefe(feld, ev);
+      slashPruefe(feld, ev);
     });
 
     feld.addEventListener('focus', () => waehle(block.id, false));
 
     feld.addEventListener('blur', () => {
       if (atFeld === feld) atSchliesse();
+      if (slashFeld === feld) slashSchliesse();
       /* Platzhaltertext verschwindet, sobald wirklich getippt wurde */
       const runs = feldname === 'text' ? null : (block.runs || []);
       if (runs && runs.length === 1 && runs[0].platzhalter) return;
@@ -290,6 +378,25 @@ const Editor = (() => {
   function tasten(ev, block, feld, feldname) {
     const strg = ev.ctrlKey || ev.metaKey;
 
+    /* Offenes /-Menü: Pfeile wählen, Enter/Tab übernimmt, Escape
+       schließt -- alles andere läuft normal weiter. */
+    if (slashListe && slashFeld === feld) {
+      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+        ev.preventDefault();
+        slashIndex = (slashIndex + (ev.key === 'ArrowDown' ? 1 : slashTreffer.length - 1))
+                     % slashTreffer.length;
+        const fund = slashVorCursor(feld);
+        if (fund) slashZeige(feld, fund); else slashSchliesse();
+        return;
+      }
+      if (ev.key === 'Enter' || ev.key === 'Tab') {
+        ev.preventDefault();
+        slashUebernehmen();
+        return;
+      }
+      if (ev.key === 'Escape') { ev.preventDefault(); slashSchliesse(); return; }
+    }
+
     /* Offene @-Vorschlagsliste: Pfeile wählen, Enter/Tab übernimmt,
        Escape schließt -- alles andere läuft normal weiter. */
     if (atListe && atFeld === feld) {
@@ -322,6 +429,40 @@ const Editor = (() => {
     if (strg && ev.key.toLowerCase() === 'i') { ev.preventDefault(); Verlauf.merke(dok());
       document.execCommand('italic');
       feld.dispatchEvent(new Event('input', { bubbles: true })); return; }
+
+    /* Markdown-Kürzel: "## " am Absatzanfang macht eine Überschrift,
+       "- " eine Liste, "1. " eine nummerierte, "> " ein Blockzitat.
+       Das Leerzeichen löst aus; ohne Treffer wird es normal getippt. */
+    if (ev.key === ' ' && block.typ === 'absatz' && feldname === 'runs') {
+      const KUERZEL = { '#': 'ueberschrift:1', '##': 'ueberschrift:2', '###': 'ueberschrift:3',
+                        '-': 'liste:punkte', '*': 'liste:punkte', '1.': 'liste:nummern',
+                        '>': 'blockzitat' };
+      const auswahl = window.getSelection();
+      if (auswahl && auswahl.isCollapsed && auswahl.rangeCount &&
+          feld.contains(auswahl.getRangeAt(0).startContainer)) {
+        const vor = document.createRange();
+        vor.selectNodeContents(feld);
+        vor.setEnd(auswahl.getRangeAt(0).startContainer, auswahl.getRangeAt(0).startOffset);
+        const praefix = vor.toString().replace(UNSICHTBARE, '');
+        const ziel = KUERZEL[praefix];
+        if (ziel && !vor.cloneContents().querySelector('.chip')) {
+          const alle = Richtext.vonHtml(feld);
+          const rest = alle.length && alle[0].text != null
+            ? [{ ...alle[0], text: alle[0].text.slice(praefix.length) }, ...alle.slice(1)]
+                .filter(r => r.text !== '')
+            : alle;
+          /* Eine Überschrift verträgt keine Chips -- dann bleibt es
+             ein normales Leerzeichen. */
+          if (!(ziel.startsWith('ueberschrift') && rest.some(r => r.text == null))) {
+            ev.preventDefault();
+            Verlauf.merke(dok());
+            block.runs = rest;
+            wandleUm(block.id, ziel, true);
+            return;
+          }
+        }
+      }
+    }
 
     /* Pfeile über die Blockgrenze: am Rand des Felds geht es im
        nächsten (oder vorigen) Textfeld weiter -- wie in Word.
@@ -721,6 +862,7 @@ const Editor = (() => {
     leiste.append(
       w('↑', 'Nach oben', () => verschiebe(block.id, -1)),
       w('↓', 'Nach unten', () => verschiebe(block.id, +1)),
+      w('⧉', 'Baustein duplizieren (Strg+D)', () => dupliziere(block.id)),
       w('✕', 'Baustein löschen', () => loesche(block.id), 'gefahr')
     );
     return leiste;
@@ -1086,6 +1228,101 @@ const Editor = (() => {
 
   /* ---------------- Umsortieren und Löschen ---------------- */
 
+  /* Eine einmal eingerichtete Tabelle als Vorlage für die nächste --
+     der naheliegendste Weg. Bilddaten sind nur eine Zeichenkette und
+     werden geteilt, nicht kopiert. */
+  function dupliziere(id) {
+    const b = findeBlock(id);
+    if (!b) return;
+    if (b.typ === 'anhangstart') { App.melde('Es gibt schon einen Anhangbeginn.', true); return; }
+    Verlauf.merke(dok());
+    const kopie = Verlauf.klone(b);
+    kopie.id = Modell.neueId();
+    dok().bloecke.splice(indexVon(id) + 1, 0, kopie);
+    App.aenderung(); zeichne(); zeichneGliederung();
+    waehle(kopie.id);
+  }
+
+  /* ---------------- Umwandeln ----------------
+     Ein Textbaustein wechselt seine Art, der Inhalt bleibt: Absatz zu
+     Überschrift, Liste zu Absätzen und so weiter. `still` sagt, dass
+     der Aufrufer den Verlauf schon gemerkt hat (Markdown-Kürzel).   */
+
+  const WANDELBAR = ['absatz', 'ueberschrift', 'liste', 'blockzitat'];
+
+  function wandleUm(id, ziel, still) {
+    const block = findeBlock(id);
+    if (!block) return false;
+    const [art, extra] = String(ziel).split(':');
+
+    /* Gleiche Art: nur Ebene bzw. Ordnung stellen. */
+    if (art === block.typ) {
+      if (art === 'ueberschrift' && (block.ebene || 1) !== +extra) {
+        if (!still) Verlauf.merke(dok());
+        block.ebene = +extra;
+      } else if (art === 'liste' && block.ordnung !== extra) {
+        if (!still) Verlauf.merke(dok());
+        block.ordnung = extra;
+      } else return true;
+      App.aenderung(); zeichne(); zeichneGliederung();
+      waehle(id, false);
+      return true;
+    }
+
+    if (!WANDELBAR.includes(block.typ) || !WANDELBAR.includes(art)) return false;
+
+    /* Eine Liste wird zu Absätzen: je Punkt einer -- wie in Word. */
+    if (block.typ === 'liste') {
+      if (art !== 'absatz') {
+        App.melde('Eine Liste lässt sich nur in Absätze umwandeln — je Punkt einer.', true);
+        return false;
+      }
+      if (!still) Verlauf.merke(dok());
+      const stelle = indexVon(id);
+      const neue = (block.punkte || []).filter(p => p && p.length)
+        .map(p => Modell.neuerBlock('absatz', { runs: p }));
+      if (!neue.length) neue.push(Modell.neuerBlock('absatz'));
+      dok().bloecke.splice(stelle, 1, ...neue);
+      App.aenderung(); zeichne(); zeichneGliederung();
+      waehle(neue[0].id, false);
+      fokussiere(neue[0].id);
+      return true;
+    }
+
+    const runs = block.typ === 'ueberschrift'
+      ? (block.text ? [{ text: block.text }] : [])
+      : (block.runs || []);
+
+    /* Eine Überschrift ist reiner Text: ein Zitat darin würde zu
+       totem Text -- also lieber gar nicht. */
+    if (art === 'ueberschrift' && runs.some(r => r.text == null)) {
+      App.melde('Zitate, Verweise und Formeln können nicht in einer Überschrift stehen.', true);
+      return false;
+    }
+
+    if (!still) Verlauf.merke(dok());
+    delete block.runs; delete block.text; delete block.ebene;
+    delete block.quelle; delete block.seite;
+    delete block.ordnung; delete block.punkte; delete block.hinweis;
+    block.typ = art;
+    if (art === 'ueberschrift') {
+      block.ebene = +extra || 1;
+      block.text = Richtext.zuText(runs, ctx());
+    } else if (art === 'liste') {
+      block.ordnung = extra === 'nummern' ? 'nummern' : 'punkte';
+      block.punkte = [runs];
+    } else if (art === 'blockzitat') {
+      block.runs = runs; block.quelle = ''; block.seite = '';
+    } else {
+      block.runs = runs;
+    }
+
+    App.aenderung(); zeichne(); zeichneGliederung();
+    waehle(id, false);
+    fokussiere(id);
+    return true;
+  }
+
   function verschiebe(id, richtung) {
     const i = indexVon(id);
     const j = i + richtung;
@@ -1237,14 +1474,29 @@ const Editor = (() => {
       ['diagramm', '📊 Diagramm'], ['blockzitat', '❝ Blockzitat'],
       ['formel', '∑ Formel'], ['seitenumbruch', '⤓ Seitenumbruch'], ['anhangstart', '§ Anhang beginnt']
     ];
+    /* Beim Überfahren zeigt eine Marke, wo der Baustein landen würde:
+       nach dem gewählten -- der Anhangbeginn immer am Ende. Dieselbe
+       Marke, die auch das Ablegen von Dateien benutzt. */
+    const marke = el('div', 'einfuegemarke');
     for (const [typ, beschriftung] of eintraege) {
       const b = el('button', 'knopf knopf-klein', escHtml(beschriftung));
       b.addEventListener('click', () => fuegeBlockEin(typ));
+      b.addEventListener('mouseenter', () => {
+        const liste = document.getElementById('blockliste');
+        if (!liste) return;
+        marke.remove();
+        const kasten = typ !== 'anhangstart' && gewaehlteId
+          ? liste.querySelector(`.block[data-id="${gewaehlteId}"]`) : null;
+        if (kasten) kasten.after(marke); else liste.append(marke);
+      });
+      b.addEventListener('mouseleave', () => marke.remove());
       behaelter.append(b);
     }
   }
 
-  async function fuegeBlockEin(typ) {
+  /* `ersetzeId` kommt vom /-Menü: War der Absatz, aus dem heraus es
+     benutzt wurde, leer, wird er ersetzt statt leer stehen zu bleiben. */
+  async function fuegeBlockEin(typ, ersetzeId) {
     if (typ === 'anhangstart' && dok().bloecke.some(b => b.typ === 'anhangstart')) {
       App.melde('Es gibt schon einen Anhangbeginn.', true);
       return;
@@ -1260,10 +1512,19 @@ const Editor = (() => {
        stillschweigend zu Anhang A, B, C -- ein Fehler, den man erst
        im fertigen PDF bemerkt.                                       */
     Verlauf.merke(dok());
-    const nach = block.typ === 'anhangstart'
-      ? dok().bloecke.length
-      : (gewaehlteId ? indexVon(gewaehlteId) + 1 : dok().bloecke.length);
-    dok().bloecke.splice(nach, 0, block);
+    const alt = ersetzeId ? findeBlock(ersetzeId) : null;
+    const leererAbsatz = alt && alt.typ === 'absatz' &&
+      !Richtext.zuText(alt.runs || [], ctx()).trim();
+    if (block.typ === 'anhangstart') {
+      dok().bloecke.splice(dok().bloecke.length, 0, block);
+    } else if (leererAbsatz) {
+      dok().bloecke.splice(indexVon(ersetzeId), 1, block);
+    } else {
+      const anker = (alt && ersetzeId) || gewaehlteId;
+      const nach = anker && indexVon(anker) >= 0
+        ? indexVon(anker) + 1 : dok().bloecke.length;
+      dok().bloecke.splice(nach, 0, block);
+    }
     App.aenderung(); zeichne(); zeichneGliederung();
     waehle(block.id);
     if (['absatz', 'ueberschrift', 'liste', 'blockzitat'].includes(typ)) fokussiere(block.id);
@@ -1271,7 +1532,7 @@ const Editor = (() => {
 
   return { zeichne, zeichneGliederung, baueEinfuegeleiste, waehle, fokussiere,
            fokussiereAn, fuegeAmCursorEin, chipHtml, fuegeBlockEin,
-           legeBildAn, legeTabelleAn,
+           legeBildAn, legeTabelleAn, wandleUm, dupliziere,
            diagrammAusTabelle: legeDiagrammAnAusTabelle,
            gewaehlteId: () => gewaehlteId };
 })();

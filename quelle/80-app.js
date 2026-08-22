@@ -564,6 +564,14 @@ const App = (() => {
       if (ev.defaultPrevented) return;
       const strg = ev.ctrlKey || ev.metaKey;
       if (strg && ev.key.toLowerCase() === 's') { ev.preventDefault(); sichere(false); }
+      /* Strg+D dupliziert den gewählten Baustein -- nicht das
+         Browser-Lesezeichen. */
+      if (strg && !ev.shiftKey && ev.key.toLowerCase() === 'd') {
+        ev.preventDefault();
+        const id = Editor.gewaehlteId();
+        if (id) Editor.dupliziere(id);
+        else melde('Erst einen Baustein wählen — dann dupliziert Strg+D ihn.');
+      }
       /* Die Browsersuche fände nur, was gerade im DOM steht -- unsere
          durchsucht das Modell, samt Tabellen und Beschriftungen. */
       if (strg && ev.key.toLowerCase() === 'f') { ev.preventDefault(); Suche.oeffne(false); }

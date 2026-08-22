@@ -69,6 +69,13 @@ Bausteingrenzen hinweg, Enter im leeren letzten Listenpunkt beendet die
 Liste. Zitate und Querverweise werden dabei nie zerrissen. Den Titel einer
 Tabelle oder Abbildung tippt man direkt an ihrer Karte.
 
+**Struktur ohne Maus:** `## `, `- `, `1. ` oder `> ` am Absatzanfang machen
+aus dem Absatz eine Überschrift, Liste oder ein Blockzitat; ein `/` öffnet
+das Einfügen-Menü direkt an der Schreibmarke. *Umwandeln* in der
+Objektleiste wechselt die Art eines Bausteins nachträglich, Strg+D
+dupliziert ihn — eine fertig eingerichtete Tabelle wird so zur Vorlage für
+die nächste.
+
 **Strg+Z nimmt alles zurück**, nicht nur Getipptes: ein gelöschter Baustein,
 eine verschobene Überschrift, eine eingefügte Tabelle, ein Zahnrad-Dialog.
 Strg+Y stellt es wieder her. Ein Tippfluss zählt als ein Schritt, nicht als
@@ -298,8 +305,9 @@ node     pruefungen/pruefe_formeln.mjs   # 31 Prüfungen: MathML-Vorschau,
 npm install                              # einmalig, holt playwright-core
 node     pruefungen/pruefe_bausteine.mjs # Absätze, Einfügen, Tabellen, Dialoge,
                                          #   Literaturschlüssel, Export
-node     pruefungen/pruefe_bedienung.mjs # 19 Prüfungen: Pfeile über Blockgrenzen,
-                                         #   Listenverhalten, Tastenkürzel, Kartentitel
+node     pruefungen/pruefe_bedienung.mjs # 34 Prüfungen: Pfeile über Blockgrenzen,
+                                         #   Listenverhalten, Tastenkürzel, Kartentitel,
+                                         #   Markdown-Kürzel, /-Menü, Umwandeln, Duplizieren
 node     pruefungen/pruefe_ganz.mjs      # 16 Schritte: Browser bis fertiges PDF
 ```
 

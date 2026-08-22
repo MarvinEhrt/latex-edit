@@ -166,6 +166,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .ktx-eingabe:focus { outline: none; border-color: var(--akzent); }
 .ktx-zahl { width: 64px; min-width: 64px; }
+.ktx-wandel { width: auto; min-width: 0; cursor: pointer; }
 .ktx-schalter {
   display: flex; align-items: center; gap: 5px; flex: none;
   font-size: 12.5px; color: var(--tinte-2); cursor: pointer;
@@ -391,21 +392,23 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #exportmenue button span { font-size: 11px; color: var(--tinte-2); }
 #exportmenue button:hover { background-color: var(--akzent-hell); }
 
-/* ---------------- @-Zitieren: Vorschlagsliste ---------------- */
+/* ------ @-Zitieren und /-Menü: Vorschlagslisten an der Marke ------ */
 
-#atliste {
+#atliste, #slashliste {
   position: fixed; z-index: 60; min-width: 240px; max-width: 380px;
   border-radius: var(--r); overflow: hidden;
   border: 1px solid var(--linie-stark); background-color: var(--flaeche);
   box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
   font-family: var(--schrift-ui); font-size: 12.5px;
 }
-#atliste .at-eintrag { padding: 6px 10px; cursor: pointer; }
-#atliste .at-eintrag.aktiv { background-color: var(--akzent-hell); }
+#slashliste { min-width: 180px; }
+#atliste .at-eintrag, #slashliste .at-eintrag { padding: 6px 10px; cursor: pointer; }
+#atliste .at-eintrag.aktiv, #slashliste .at-eintrag.aktiv { background-color: var(--akzent-hell); }
 #atliste .at-eintrag .at-titel {
   color: var(--tinte-2); font-size: 11.5px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+#slashliste .at-eintrag b { font-weight: 500; }
 
 /* ---------------- Tabellen im Editor ---------------- */
 

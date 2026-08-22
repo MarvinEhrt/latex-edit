@@ -108,6 +108,36 @@ const Kontextleiste = (() => {
 
   /* ---------------- Werkzeuge je Bausteinart ---------------- */
 
+  /* Ein Textbaustein wechselt seine Art, der Inhalt bleibt -- ersetzt
+     auch die früheren H1-H3-Knöpfe und den Listen-Umschalter. */
+  function umwandeln(block) {
+    const wahl = el('select', 'ktx-eingabe ktx-wandel');
+    wahl.title = 'Baustein umwandeln — der Inhalt bleibt erhalten';
+    const aktuell = block.typ === 'ueberschrift'
+        ? 'ueberschrift:' + Math.min(3, Math.max(1, block.ebene || 1))
+      : block.typ === 'liste'
+        ? 'liste:' + (block.ordnung === 'nummern' ? 'nummern' : 'punkte')
+      : block.typ;
+    const optionen = block.typ === 'liste'
+      ? [['liste:punkte', '• Liste'], ['liste:nummern', '1. Nummerierte Liste'],
+         ['absatz', '¶ Absätze — je Punkt einer']]
+      : [['absatz', '¶ Absatz'],
+         ['ueberschrift:1', 'Überschrift 1'], ['ueberschrift:2', 'Überschrift 2'],
+         ['ueberschrift:3', 'Überschrift 3'],
+         ['liste:punkte', '• Liste'], ['liste:nummern', '1. Nummerierte Liste'],
+         ['blockzitat', '❝ Blockzitat']];
+    for (const [w, l] of optionen) {
+      const o = el('option', null, escHtml(l));
+      o.value = w;
+      wahl.append(o);
+    }
+    wahl.value = aktuell;
+    wahl.addEventListener('change', () => {
+      if (!Editor.wandleUm(block.id, wahl.value)) wahl.value = aktuell;
+    });
+    return wahl;
+  }
+
   const textwerkzeuge = () => [
     knopf('<b>B</b>', 'Fett (Strg+B)', () => befehl('bold')),
     knopf('<i>I</i>', 'Kursiv (Strg+I)', () => befehl('italic')),
@@ -123,28 +153,18 @@ const Kontextleiste = (() => {
     switch (block.typ) {
 
       case 'absatz':
-        return textwerkzeuge();
+        return [umwandeln(block), trenner(), ...textwerkzeuge()];
 
       case 'ueberschrift':
-        return [1, 2, 3].map(e => {
-          const k = knopf('H' + e, `Ebene ${e}`, () => aendere(() => { block.ebene = e; }));
-          if ((block.ebene || 1) === e) k.classList.add('aktiv');
-          return k;
-        });
+        return [umwandeln(block)];
 
       case 'liste':
-        return [
-          knopf(block.ordnung === 'nummern' ? '1. Nummern' : '• Punkte',
-            'Zwischen Punkten und Nummern wechseln',
-            () => aendere(() => {
-              block.ordnung = block.ordnung === 'nummern' ? 'punkte' : 'nummern';
-            })),
-          trenner(),
-          ...textwerkzeuge()
-        ];
+        return [umwandeln(block), trenner(), ...textwerkzeuge()];
 
       case 'blockzitat':
         return [
+          umwandeln(block),
+          trenner(),
           knopf('§ Quelle …', 'Quelle des Zitats festlegen', async () => {
             const z = await Dialoge.zitatEinfuegen(dok(), { einzeln: true });
             if (z) aendere(() => { block.quelle = z.zitat; block.seite = z.seite; });

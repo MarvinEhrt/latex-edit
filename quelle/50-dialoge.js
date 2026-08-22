@@ -963,7 +963,9 @@ const Dialoge = (() => {
         <b>Objektleiste</b> oben seine Werkzeuge — bei einer Tabelle den
         <b>Tabellenentwurf</b>, bei einem Bild das <b>Bildformat</b>. Den Titel
         einer Tabelle oder Abbildung tippst du direkt an der Karte (oder oben in
-        der Leiste). Fahr mit der Maus über einen Baustein: links erscheint
+        der Leiste). Über <b>Umwandeln</b> in der Objektleiste wird aus einem
+        Absatz eine Überschrift, Liste oder ein Blockzitat — der Inhalt bleibt.
+        Fahr mit der Maus über einen Baustein: links erscheint
         ein Griff zum Verschieben, oben rechts Verschieben und Löschen. Am unteren
         Rand der Textspalte liegt immer die Leiste <b>Einfügen</b> — Absatz, Tabelle,
         Diagramm, Formel und so weiter; Neues erscheint nach dem gerade gewählten
@@ -1004,6 +1006,10 @@ const Dialoge = (() => {
         <b>@</b>+Anfangsbuchstaben tippen zitiert direkt beim Schreiben<br>
         Die <b>Pfeiltasten</b> laufen über Bausteingrenzen hinweg &nbsp;·&nbsp;
         <b>Enter</b> im leeren letzten Listenpunkt beendet die Liste<br>
+        <b>/</b> am Wortanfang öffnet das Einfügen-Menü &nbsp;·&nbsp;
+        <b>Strg</b>+<b>D</b> dupliziert den gewählten Baustein<br>
+        <b>##&nbsp;</b>, <b>-&nbsp;</b>, <b>1.&nbsp;</b> oder <b>&gt;&nbsp;</b> am
+        Absatzanfang machen Überschrift, Liste oder Blockzitat<br>
         Text auswählen zeigt eine kleine Leiste: fett, kursiv, zitieren — ohne Umweg
         </div>
       </div>
