@@ -4,8 +4,10 @@ bauen.py -- fügt die Quelldateien zu EINER HTML-Datei zusammen.
 
     python3 bauen.py
 
-Ergebnis: Schreibtisch.html -- doppelklickbar, läuft ohne Installation,
-ohne Internet, auf jedem Betriebssystem.
+Ergebnis: oberflaeche.html -- eine Datei, ohne Installation und ohne
+Internet. Doppelklicken genügt allerdings nicht: das Zeichen für den
+Begleiter setzt erst der Dienst beim Ausliefern ein. Gestartet wird
+über start.sh bzw. start.bat.
 """
 
 from pathlib import Path

@@ -14,6 +14,8 @@ const App = (() => {
   let baeuftGerade = false, nochmalBauen = false;
   let letzteZeilenkarte = [];
   let ungesichert = false;        // seit dem letzten Sichern verändert
+  let pdfFassung = 0;             // Nummer des zuletzt gelungenen Baus
+  let pdfVeraltet = true;         // seit diesem Bau wurde wieder getippt
 
   const VERZOEGERUNG = 2000;      // Millisekunden nach der letzten Eingabe
 
@@ -89,6 +91,7 @@ const App = (() => {
     clearTimeout(sicherTimer);
     sicherTimer = setTimeout(() => sichere(true), 4000);
     ungesichert = true;
+    pdfVeraltet = true;
     if (!optionen.nurBau) aktualisiereKopf();
     aktualisiereWortzahl();
     PdfAnsicht.zustand('wartet', 'Änderung erkannt …');
@@ -154,6 +157,8 @@ const App = (() => {
 
       if (ergebnis.status === 'ok') {
         PdfAnsicht.merkeSeite();
+        pdfFassung = ergebnis.pdfFassung;
+        pdfVeraltet = false;
         PdfAnsicht.zeige(ergebnis.pdfFassung);
         const hinweise = warnungen.length + vorab.length;
         PdfAnsicht.zustand(hinweise ? 'hinweis' : 'ok',
@@ -403,9 +408,43 @@ const App = (() => {
     }
   }
 
-  /* Zwei Wege, ein Knopf: "LaTeX ansehen" ist Nachschauen, "ZIP" ist
-     Weitergeben -- beides ist Export, also stehen sie zusammen in
-     einem kleinen Menü statt einzeln in der Kopfzeile. */
+  /* Das einzige, was am Ende wirklich abgegeben wird. Es lag bisher
+     nur in der Anzeige rechts -- erreichbar allein über die Knopfleiste
+     des eingebetteten Betrachters, die je nach Browser anders aussieht
+     oder fehlt. */
+  async function pdfHerunterladen() {
+    if (!Begleiter.verbunden) {
+      melde('Ohne Begleiter lässt sich kein PDF bauen.', true);
+      return;
+    }
+    if (baeuftGerade) { melde('Das PDF wird gerade gebaut — gleich noch einmal.'); return; }
+    /* Erst bauen, dann geben: heruntergeladen wird, was im Text steht,
+       nicht der Stand von vor drei Absätzen. */
+    if (pdfVeraltet || !pdfFassung) {
+      melde('Das PDF wird gebaut …');
+      clearTimeout(bauTimer);
+      await baue();
+    }
+    if (!pdfFassung) {
+      melde('Es gibt noch kein PDF — der Bau ist fehlgeschlagen. '
+            + 'Die Meldung steht über der Anzeige.', true);
+      return;
+    }
+    try {
+      const a = await fetch(Begleiter.pdfAdresse(pdfFassung));
+      if (!a.ok) throw new Error('Der Begleiter hat kein PDF.');
+      ladeHerunter(await a.blob(), dateiname('.pdf'));
+      melde('PDF heruntergeladen.'
+            + (pdfVeraltet ? ' Achtung: der letzte Bau ist fehlgeschlagen, '
+                             + 'es ist der Stand davor.' : ''));
+    } catch (f) {
+      melde('Das PDF ließ sich nicht herunterladen: ' + f.message, true);
+    }
+  }
+
+  /* Drei Wege, ein Knopf: das fertige PDF zum Abgeben, das LaTeX zum
+     Nachschauen, das ZIP zum Weitergeben -- alles Export, also
+     zusammen in einem kleinen Menü statt einzeln in der Kopfzeile. */
   function zeigeExportMenue() {
     const alt = document.getElementById('exportmenue');
     if (alt) { alt.remove(); return; }
@@ -419,6 +458,8 @@ const App = (() => {
       b.addEventListener('click', () => { menue.remove(); aktion(); });
       menue.append(b);
     };
+    eintrag('PDF herunterladen', 'das fertige Dokument — das, was abgegeben wird',
+            pdfHerunterladen);
     eintrag('LaTeX ansehen', 'nur zum Nachschauen — nichts wird gespeichert',
             () => Dialoge.texAnsehen(dok));
     eintrag('ZIP herunterladen', 'LaTeX-Projekt für Overleaf oder zum Weitergeben',
@@ -621,7 +662,7 @@ const App = (() => {
   return {
     get dok() { return dok; },
     set dok(d) { dok = d; },
-    start, aenderung, melde, sichere, exportiere, baue,
+    start, aenderung, melde, sichere, exportiere, baue, pdfHerunterladen,
     nimmZurueck, wiederhole,
     zitatEinfuegen, verweisEinfuegen, kennwertEinfuegen, fussnoteEinfuegen
   };

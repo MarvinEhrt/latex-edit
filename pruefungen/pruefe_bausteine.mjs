@@ -756,6 +756,24 @@ p('kein Zeilenumbruch am Anfang oder Ende eines Absatzes',
   umbruch.includes('Text danach') && !/\n\\\\\s*\nText danach/.test(umbruch),
   umbruch.split('Text danach')[0].slice(-40));
 
+// U) Das fertige PDF ist über das Export-Menü erreichbar
+await s.locator('#knopf-export').click();
+await s.waitForTimeout(300);
+const menue = await s.evaluate(()=>[...document.querySelectorAll('#exportmenue button b')]
+  .map(x=>x.textContent));
+p('das Export-Menü bietet das PDF an', menue.includes('PDF herunterladen'),
+  JSON.stringify(menue));
+p('und zwar an erster Stelle — es ist das, was abgegeben wird',
+  menue[0]==='PDF herunterladen', JSON.stringify(menue));
+// Ohne LaTeX gibt es kein PDF; dann muss die Meldung das ehrlich sagen,
+// statt eine leere Datei anzubieten.
+await s.locator('#exportmenue button', {hasText:'PDF herunterladen'}).click();
+await s.waitForTimeout(2500);
+const meldungen = await s.evaluate(()=>[...document.querySelectorAll('#meldungen .meldung')]
+  .map(x=>x.textContent).join(' | '));
+p('ohne gebautes PDF kommt eine ehrliche Meldung statt einer leeren Datei',
+  /kein PDF|wird gebaut|fehlgeschlagen/.test(meldungen), meldungen);
+
 console.log(`\n  ${ok} bestanden, ${fehl} durchgefallen`);
 await b.close(); d.kill();
 rmSync(ABLAGE,{recursive:true,force:true});

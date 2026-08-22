@@ -983,8 +983,11 @@ const Dialoge = (() => {
         auch gelöschte Bausteine kommen damit zurück<br>
         <b>Strg</b>+<b>F</b> suchen &nbsp;·&nbsp; <b>Strg</b>+<b>H</b> suchen und ersetzen —
         auch in Tabellen und Beschriftungen<br>
-        <b>Enter</b> im Absatz: neuer Absatz darunter &nbsp;·&nbsp;
-        <b>Rücktaste</b> im leeren Absatz: löscht ihn<br>
+        <b>Enter</b> teilt den Absatz an der Schreibmarke &nbsp;·&nbsp;
+        <b>Umschalt</b>+<b>Enter</b> nur ein Zeilenumbruch<br>
+        <b>Rücktaste</b> am Absatzanfang führt mit dem darüber zusammen,
+        im leeren Absatz löscht sie ihn<br>
+        <b>Strg</b>+<b>Enter</b> baut das PDF sofort<br>
         <b>Strg</b>+<b>Umschalt</b>+<b>Z</b> Quelle zitieren &nbsp;·&nbsp;
         <b>@</b>+Anfangsbuchstaben tippen zitiert direkt beim Schreiben<br>
         Text auswählen zeigt eine kleine Leiste: fett, kursiv, zitieren — ohne Umweg
@@ -997,6 +1000,8 @@ const Dialoge = (() => {
         anklicken, dann stehen sie zusammen in einer Klammer<br>
         <span class="chip chip-verweis">Tabelle 3</span> &nbsp;ein Querverweis — die Nummer stimmt immer,
         auch nach dem Umsortieren<br>
+        <span class="chip chip-fussnote">¹ Vgl. dazu …</span> &nbsp;eine Fußnote — der Anfang
+        ihres Textes steht im Chip, ein Klick öffnet sie ganz<br>
         <span class="chip chip-kennwert"><i>SW</i>&nbsp;=&nbsp;104</span> &nbsp;ein statistischer Kennwert —
         Symbol kursiv, wie APA 7 es will<br>
         <b>Klick auf einen Chip</b> öffnet ihn zum Bearbeiten — dort lässt er
@@ -1031,8 +1036,9 @@ const Dialoge = (() => {
         Überschreiben wird die Vorfassung nach <b>.sicherungen</b> kopiert —
         unter <b>Öffnen &rarr; Frühere Fassungen</b> lässt sich jede davon
         mit einem Klick wiederherstellen.
-        <b>Export</b> zeigt das erzeugte LaTeX oder packt das Projekt als
-        ZIP — zum Weitergeben oder für Overleaf.</p>
+        <b>Export</b> lädt das fertige <b>PDF</b> herunter — das, was du
+        abgibst. Daneben zeigt es das erzeugte LaTeX oder packt das
+        Projekt als ZIP, zum Weitergeben oder für Overleaf.</p>
       </div>`;
     fuss.append(knopf('Alles klar', 'knopf-haupt', schliessen));
     return geschlossen;

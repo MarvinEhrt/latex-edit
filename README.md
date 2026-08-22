@@ -43,6 +43,15 @@ Beim Start prüft der Schreibtisch beides und sagt, was fehlt.
 
 ---
 
+Beim allerersten Start ist nichts da — die **Kurzanleitung** geht auf, und
+unter *Neu* steht neben den fünf Arbeitstypen **„Mit der Beispielarbeit
+starten“**: eine fertige kleine Hausarbeit mit Tabelle, Diagramm, Zitaten und
+Fußnote, zum Ausprobieren. Sie ist eine Vorlage neben dem Programm, keine
+Arbeit in `Arbeiten/`; was man darin ändert, wird beim ersten Sichern zur
+eigenen Kopie.
+
+---
+
 ## Wie es sich anfühlt
 
 Links die **Gliederung**, in der Mitte der **Text**, rechts das **PDF** — das
@@ -174,8 +183,13 @@ Zotero-Exporte (BibTeX, RIS, CSL-JSON).
 ## Wo die Arbeit liegt
 
 Eine JSON-Datei je Arbeit im Ordner **Arbeiten**. Beim Überschreiben
-wandert die Vorfassung nach `Arbeiten/.sicherungen` (die letzten 20
-bleiben).
+wandert die Vorfassung nach `Arbeiten/.sicherungen`. Aufgehoben wird
+gestaffelt: die letzten zwölf Fassungen immer, davor je Stunde eine für
+einen Tag, davor je Tag eine für einen Monat. Gesichert wird vier
+Sekunden nach der letzten Eingabe — zwanzig Fassungen am Stück deckten
+sonst keine zwei Minuten ab, und „gestern stand das Kapitel noch da“
+wäre nicht mehr zu retten. Über den Öffnen-Dialog kommt man an jede
+davon heran (**Frühere Fassungen …**).
 
 Bilder liegen daneben in `Arbeiten/<Name>.bilder`, benannt nach ihrer
 Prüfsumme; in der JSON steht nur der Verweis. Ein Bildschirmfoto wiegt
@@ -184,6 +198,10 @@ Sicherung alle vier Sekunden und zwanzig aufbewahrten Vorfassungen wären
 das schnell Hunderte Megabytes. Über die Prüfsumme teilen sich alle
 Sicherungen dieselbe Bilddatei. Wer eine Arbeit weitergibt, nimmt den
 Bilderordner mit — oder gleich das ZIP.
+
+**Export → PDF herunterladen** gibt das fertige Dokument heraus — das,
+was abgegeben wird. Ist seit dem letzten Bau noch etwas getippt worden,
+wird vorher gebaut; heruntergeladen wird also nie ein alter Stand.
 
 **Export → ZIP herunterladen** packt das reine LaTeX-Projekt (`arbeit.tex`,
 `literatur.bib`, Stildatei, Bilder, Bauskript) **und** die Arbeit als JSON in
@@ -201,8 +219,10 @@ Schreibtisch/
 ├── begleiter/           nur Standardbibliothek — kein pip, kein venv
 │   ├── uebersetzen.py   pdflatex/biber-Läufe, Logauswertung
 │   ├── zotero.py        Web-API von Zotero
+│   ├── nachschlagen.py  Quelle per DOI bei Crossref
 │   └── ablage.py        Projekte und Einstellungen
-├── quelle/              Oberfläche (14 Module)
+├── quelle/              Oberfläche (17 Module)
+├── beispiel/            die Beispielarbeit — Vorlage, keine Arbeit
 ├── bauen.py             quelle/* → oberflaeche.html
 ├── pruefungen/
 └── Arbeiten/            deine Arbeiten (+ <Name>.bilder daneben)
@@ -236,15 +256,20 @@ selben Browser mitreden kann.
 ## Prüfungen
 
 ```
-python3 pruefungen/pruefe_begleiter.py   # 36 Prüfungen: LaTeX-Läufe, Logauswertung,
-                                         #   Zeilenkarte, Zotero-Abbildung, Ablage
+python3 pruefungen/pruefe_begleiter.py   # LaTeX-Läufe, Logauswertung, Zeilenkarte,
+                                         #   Zotero- und Crossref-Abbildung, Ablage,
+                                         #   Sicherungen. Ohne LaTeX läuft der Teil,
+                                         #   der die Arbeiten auf der Platte betrifft.
+python3 pruefungen/pruefe_absicherung.py # 16 Prüfungen: Zeichen, fremder Hostname,
+                                         #   POST-Riegel, Pfadausbruch
 python3 pruefungen/pruefe_abbruch.py     #  4 Prüfungen: Dienst übersteht Abbrüche
 node     pruefungen/pruefe_dokument.mjs  # 16 Prüfungen: lange Tabellen verlieren
                                          #   keine Zeilen, Vorspann ohne Platzhalter
 node     pruefungen/pruefe_diagramme.mjs # 16 Prüfungen: alle vier Diagrammarten,
                                          #   erzeugt und wirklich übersetzt
 npm install                              # einmalig, holt playwright-core
-node     pruefungen/pruefe_bausteine.mjs # 16 Prüfungen: Absätze, Einfügen, Tabellen
+node     pruefungen/pruefe_bausteine.mjs # Absätze, Einfügen, Tabellen, Dialoge,
+                                         #   Literaturschlüssel, Export
 node     pruefungen/pruefe_ganz.mjs      # 16 Schritte: Browser bis fertiges PDF
 ```
 
@@ -258,8 +283,10 @@ SCHREIBTISCH_BILDER=/pfad/fuer/screenshots \
 node pruefungen/pruefe_ganz.mjs
 ```
 
-Die erste Prüfung braucht ein installiertes LaTeX, die zweite zusätzlich einen
-Browser. Stand: beide vollständig grün, keine Konsolenfehler.
+Die LaTeX-Läufe brauchen ein installiertes LaTeX, die Browserprüfungen
+zusätzlich einen Browser. Ohne LaTeX überspringt `pruefe_begleiter.py` die
+Läufe und prüft den Rest weiter — was mit den Arbeiten auf der Platte
+passiert, muss überall nachprüfbar sein.
 
 ---
 
@@ -278,5 +305,10 @@ Browser. Stand: beide vollständig grün, keine Konsolenfehler.
   nachgeladen, das dauert einmalig länger.
 - Boxplots speichern die Rohwerte im Projekt — bei sehr großen Datensätzen
   wächst die Datei entsprechend.
-- Kein gleichzeitiges Bearbeiten zu zweit, keine Änderungsverfolgung.
-- Bilder liegen in der Projektdatei; sehr große Scans lassen sie wachsen.
+- Kein gleichzeitiges Bearbeiten zu zweit, keine Änderungsverfolgung. Zwei
+  Fenster auf derselben Arbeit merken einander aber: wer den älteren Stand
+  sichern will, wird gefragt statt wortlos überschrieben.
+- Noch nicht da: Kapitel in der Gliederung per Ziehen umsortieren,
+  verschachtelte Listen, mehrabsätzige Fußnoten, Word-Export, der Sprung
+  vom Text an die passende PDF-Stelle (SyncTeX). Ein Absatzwechsel in
+  einer Fußnote wird zum Zeilenumbruch, statt den Bau abzubrechen.
