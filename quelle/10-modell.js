@@ -505,12 +505,21 @@ const Modell = (() => {
       r => { if (r.zitat) Zitate.schluesselliste(r.zitat).forEach(k => menge.add(k)); });
     for (const b of dok.bloecke) {
       if (b.runs) ausRuns(b.runs);
-      if (b.quelle) menge.add(b.quelle);
+      /* Nur das Blockzitat nennt hier eine Quelle. Beim Diagramm steht
+         in `quelle` die Herkunft der Zahlen ("eigen"/"tabelle") -- das
+         ist kein Literaturschlüssel. */
+      if (b.typ === 'blockzitat' && b.quelle) menge.add(b.quelle);
       if (b.punkte) b.punkte.forEach(ausRuns);
-      if (b.typ === 'tabelle' || b.typ === 'abbildung') {
+      /* Auch das Diagramm: sein Titel und seine Anmerkung laufen durch
+         dieselbe Token-Ersetzung. Fehlte es hier, stand der Schlüssel
+         zwar im LaTeX, aber die Quelle nie in literatur.bib -- im PDF
+         der rohe Schlüssel, dazu eine PRÜFEN-Karte, gegen die sich
+         nichts tun ließ, weil die Quelle ja angelegt war.
+         `zitn` (narrativ) zählt genauso wie `zit`. */
+      if (['tabelle', 'abbildung', 'diagramm'].includes(b.typ)) {
         [b.titel, b.anmerkung].forEach(t => {
-          const treffer = String(t || '').match(/\{\{zit:([^}|]+)/g) || [];
-          treffer.forEach(x => menge.add(x.slice(6)));
+          const treffer = String(t || '').match(/\{\{zitn?:([^}|]+)/g) || [];
+          treffer.forEach(x => menge.add(x.replace(/^\{\{zitn?:/, '')));
         });
       }
     }

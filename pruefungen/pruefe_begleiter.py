@@ -202,6 +202,36 @@ def pruefe_ohne_latex():
     ohne pdflatex soll wenigstens der Teil laufen, der die Arbeiten der
     Nutzerin auf der Platte betrifft.
     """
+    # ------------------------------------------------ Biber-Meldungen
+    # Scheiterte biber, war das bisher völlig unsichtbar: die Ausgabe
+    # wurde eingesammelt und beim Überschreiben des Protokolls verworfen.
+    b_syntax = uebersetzen_modul.werte_biber_aus(
+        "INFO - This is Biber 2.19\n"
+        "ERROR - BibTeX subsystem: /tmp/x.bib_1.utf8, line 7, syntax error\n"
+        "INFO - ERRORS: 1")
+    pruefe("ein kaputter Quelleneintrag wird als Fehler gemeldet",
+           len(b_syntax) == 1 and b_syntax[0]["art"] == "fehler"
+           and "fehlerhaft aufgebaut" in b_syntax[0]["meldung"], str(b_syntax))
+    pruefe("die Biber-Meldung nennt einen Rat auf Deutsch",
+           "Quellen-Dialog" in b_syntax[0]["rat"], str(b_syntax[0]["rat"]))
+    b_doppelt = uebersetzen_modul.werte_biber_aus(
+        "ERROR - Duplicate entry key 'mueller2020' in file")
+    pruefe("ein doppelter Quellenschlüssel wird benannt",
+           len(b_doppelt) == 1 and "mueller2020" in b_doppelt[0]["meldung"],
+           str(b_doppelt))
+    pruefe("unbekannte Biber-Fehler kommen trotzdem durch",
+           len(uebersetzen_modul.werte_biber_aus(
+               "ERROR - Etwas ganz Neues ging schief")) == 1)
+    pruefe("dieselbe Biber-Meldung nur einmal",
+           len(uebersetzen_modul.werte_biber_aus(
+               "ERROR - Etwas ging schief\nERROR - Etwas ging schief")) == 1)
+    pruefe("ohne ERROR-Zeile keine Fehlerkarte",
+           uebersetzen_modul.werte_biber_aus(
+               "INFO - This is Biber 2.19\nINFO - WARNINGS: 0") == [])
+    pruefe("die Bitte um einen Biber-Lauf wird erkannt",
+           uebersetzen_modul._braucht_biber(
+               "Package biblatex Warning: Please (re)run Biber on the file"))
+
     # ------------------------------------------------ Zotero-Abbildung
     from begleiter import zotero as zotero_modul
     roh = [

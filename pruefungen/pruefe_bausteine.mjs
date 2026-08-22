@@ -672,6 +672,37 @@ p('der Aufrufer wartet nicht ewig auf den weggeklickten Dialog',
     ]);
   })==='aufgeloest');
 
+// Y) Zitate in Beschriftungen landen wirklich im Literaturverzeichnis
+// Wurde ein Schlüssel nicht eingesammelt, stand er zwar im LaTeX, die
+// Quelle aber nie in literatur.bib -- im PDF der rohe Schlüssel.
+const bib = await s.evaluate(()=>{
+  App.dok.quellen = [
+    {key:'holland1997', typ:'artikel', felder:{autoren:'Holland, John',
+     jahr:'1997', titel:'Interessen', zeitschrift:'Journal für A&O'}},
+    {key:'weber2020', typ:'buch', felder:{autoren:'Weber, Anna',
+     jahr:'2020 %', titel:'Zu 100% geklärt', verlag:'Verlag'}},
+    {key:'nurdiagramm', typ:'buch', felder:{autoren:'Meier, Eva',
+     jahr:'2019', titel:'Zahlen', verlag:'V'}}
+  ];
+  App.dok.bloecke = [
+    Modell.neuerBlock('tabelle', {titel:'Werte nach {{zitn:holland1997}}',
+      kopf:['a'], zeilen:[['1']], anmerkung:'Nach {{zit:weber2020}}.'}),
+    Modell.neuerBlock('diagramm', {titel:'Bild', quelle:'eigen',
+      gitter:[['x','y'],['1','2']], anmerkung:'Daten aus {{zit:nurdiagramm}}.'})
+  ];
+  return Latex.erzeuge(App.dok).dateien['literatur.bib'];
+});
+p('ein {{zitn:}} in der Beschriftung kommt ins Literaturverzeichnis',
+  bib.includes('holland1997'), bib.slice(0,200));
+p('ein Zitat in der Tabellenanmerkung ebenso', bib.includes('weber2020'));
+p('auch die Anmerkung eines Diagramms zählt', bib.includes('nurdiagramm'), bib);
+p('das Und-Zeichen im Zeitschriftennamen ist maskiert',
+  bib.includes('A\\&O') && !bib.includes('A&O'), bib.match(/journaltitle.*/)?.[0]);
+p('das Prozentzeichen im Jahr ist maskiert — sonst scheitert biber stumm',
+  bib.includes('2020 \\%'), bib.match(/year.*/)?.[0]);
+p('die Herkunft der Diagrammzahlen ist kein Quellenschlüssel',
+  !bib.includes('{eigen,'), bib);
+
 console.log(`\n  ${ok} bestanden, ${fehl} durchgefallen`);
 await b.close(); d.kill();
 rmSync(ABLAGE,{recursive:true,force:true});
