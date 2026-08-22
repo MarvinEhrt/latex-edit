@@ -79,6 +79,11 @@ class Ablage:
     def _bildordner(self, name: str) -> str:
         return os.path.join(self.wurzel, sauberer_name(name) + ".bilder")
 
+    def bildordner(self, name: str) -> str:
+        """Wo die Bilder einer Arbeit liegen -- die Versionierung legt
+        sie mit ins Repository."""
+        return self._bildordner(name)
+
     # ------------------------------------------------------------- Bilder
 
     @staticmethod
@@ -196,7 +201,9 @@ class Ablage:
     def liste(self) -> list[dict]:
         raus = []
         for eintrag in sorted(os.listdir(self.wurzel)):
-            if not eintrag.endswith(".json"):
+            # Punktdateien gehören dem Programm, nicht der Nutzerin --
+            # .verbindungen.json ist keine Arbeit.
+            if eintrag.startswith(".") or not eintrag.endswith(".json"):
                 continue
             voll = os.path.join(self.wurzel, eintrag)
             try:

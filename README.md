@@ -180,6 +180,38 @@ Zotero-Exporte (BibTeX, RIS, CSL-JSON).
 
 ---
 
+## Auf GitHub sichern
+
+Eine Arbeit, ein Repository. Über **GitHub** in der Kopfzeile lässt sich
+die aktuelle Arbeit mit einem Repository verbinden — neu angelegt oder
+ein vorhandenes eingetragen. Danach wird jeder gesicherte Stand
+festgeschrieben und hochgeladen.
+
+Dafür braucht es einmalig `git` (Linux: `sudo apt install git`, Windows:
+git-scm.com) und ein Zeichen von
+[github.com/settings/tokens](https://github.com/settings/tokens) mit dem
+Recht **repo**, einzutragen unter ⚙. Das Zeichen bleibt auf diesem
+Rechner: es steht weder in der Adresse des Repositories noch in
+`.git/config` noch in der Prozessliste, sondern geht nur an git selbst.
+
+**Wie oft.** Beim Sichern von Hand (Strg+S) sofort, beim automatischen
+Sichern höchstens alle zehn Minuten. Alle vier Sekunden ein Commit wären
+neunhundert pro Stunde und ein Verlauf, in dem sich nichts mehr finden
+lässt.
+
+**Was im Repository liegt:** die Arbeit als `arbeit.json`, die Bilder,
+und das daraus erzeugte LaTeX (`arbeit.tex`, `literatur.bib`,
+`arbeit-stil.sty`). Das LaTeX ist der eigentliche Grund: ein Diff der
+JSON sagt niemandem etwas, ein Diff des Fließtexts zeigt den geänderten
+Satz. Auf GitHub sieht man damit Woche für Woche, was dazugekommen ist.
+
+Geht das Hochladen schief — kein Netz, Zeichen abgelaufen —, ist der
+Stand trotzdem örtlich festgeschrieben und geht beim nächsten Mal mit.
+Die Verbindung lässt sich jederzeit trennen; Repository und bisherige
+Stände bleiben, wo sie sind.
+
+---
+
 ## Wo die Arbeit liegt
 
 Eine JSON-Datei je Arbeit im Ordner **Arbeiten**. Beim Überschreiben
@@ -220,6 +252,7 @@ Schreibtisch/
 │   ├── uebersetzen.py   pdflatex/biber-Läufe, Logauswertung
 │   ├── zotero.py        Web-API von Zotero
 │   ├── nachschlagen.py  Quelle per DOI bei Crossref
+│   ├── versionierung.py git und GitHub je Arbeit
 │   └── ablage.py        Projekte und Einstellungen
 ├── quelle/              Oberfläche (17 Module)
 ├── beispiel/            die Beispielarbeit — Vorlage, keine Arbeit
@@ -260,8 +293,10 @@ python3 pruefungen/pruefe_begleiter.py   # LaTeX-Läufe, Logauswertung, Zeilenka
                                          #   Zotero- und Crossref-Abbildung, Ablage,
                                          #   Sicherungen. Ohne LaTeX läuft der Teil,
                                          #   der die Arbeiten auf der Platte betrifft.
-python3 pruefungen/pruefe_absicherung.py # 16 Prüfungen: Zeichen, fremder Hostname,
+python3 pruefungen/pruefe_absicherung.py # 18 Prüfungen: Zeichen, fremder Hostname,
                                          #   POST-Riegel, Pfadausbruch
+python3 pruefungen/pruefe_versionierung.py # 30 Prüfungen: Arbeitsbaum, Festschreiben,
+                                         #   Verlauf, Abstand, Askpass (ohne Netz)
 python3 pruefungen/pruefe_abbruch.py     #  4 Prüfungen: Dienst übersteht Abbrüche
 node     pruefungen/pruefe_dokument.mjs  # 16 Prüfungen: lange Tabellen verlieren
                                          #   keine Zeilen, Vorspann ohne Platzhalter
@@ -305,6 +340,10 @@ passiert, muss überall nachprüfbar sein.
   nachgeladen, das dauert einmalig länger.
 - Boxplots speichern die Rohwerte im Projekt — bei sehr großen Datensätzen
   wächst die Datei entsprechend.
+- Die GitHub-Anbindung schreibt nur fort und lädt hoch. Sie holt nichts
+  herunter und führt nichts zusammen: hat das Repository neuere Stände
+  (etwa vom zweiten Rechner), meldet sie das und überlässt das
+  Zusammenführen git von Hand.
 - Kein gleichzeitiges Bearbeiten zu zweit, keine Änderungsverfolgung. Zwei
   Fenster auf derselben Arbeit merken einander aber: wer den älteren Stand
   sichern will, wird gefragt statt wortlos überschrieben.

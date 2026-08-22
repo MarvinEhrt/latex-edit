@@ -1044,6 +1044,80 @@ p('eine im Zitierfluss angelegte Quelle wird angelegt',
 p('und Strg+Z nimmt sie zurück, statt sie verwaist stehen zu lassen',
   quellenUndo.nachUndo===0, JSON.stringify(quellenUndo));
 
+// H) GitHub: verbinden und festschreiben (örtlich, ohne Netz)
+// gitVerbinden ohne "anlegen" spricht nicht mit GitHub -- der ganze Weg
+// bis zum Commit lässt sich damit echt prüfen.
+await setze(()=>{
+  App.dok = Modell.neu('bachelor');
+  App.dok.meta.titel = 'Versionierte Arbeit';
+  App.dok.meta.verfasser = 'Anna Beispiel';
+  App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'Erster Stand.'}]})];
+  Editor.zeichne();});
+await s.evaluate(()=>App.sichere(false));
+await s.waitForTimeout(900);
+
+await s.locator('#knopf-git').click(); await s.waitForTimeout(600);
+let gtext = await s.evaluate(()=>document.querySelector('.dialog')?.textContent||'');
+p('der GitHub-Dialog meldet: noch nicht verbunden',
+  gtext.includes('Noch nicht verbunden'), gtext.slice(0,160));
+p('und schlägt einen Repositorynamen vor',
+  await s.evaluate(()=>document.querySelector('.dialog input')?.value||'')
+    === 'versionierte-arbeit',
+  await s.evaluate(()=>document.querySelector('.dialog input')?.value||''));
+
+// vorhandenes Repository eintragen
+await s.evaluate(()=>{
+  const felder=[...document.querySelectorAll('.dialog input[type=text]')];
+  const f=felder[felder.length-1];
+  f.value='nutzerin/abschlussarbeit';
+  f.dispatchEvent(new Event('input',{bubbles:true}));
+  [...document.querySelectorAll('.dialog button')]
+    .find(b=>b.textContent==='Vorhandenes verbinden').click();
+});
+await s.waitForTimeout(1200);
+gtext = await s.evaluate(()=>document.querySelector('.dialog')?.textContent||'');
+p('nach dem Verbinden steht das Repository da',
+  gtext.includes('nutzerin/abschlussarbeit') && gtext.includes('Verbunden'),
+  gtext.slice(0,200));
+
+// festschreiben (ohne Netz schlägt nur das Hochladen fehl)
+await s.evaluate(()=>[...document.querySelectorAll('.dialog button')]
+  .find(b=>b.textContent==='Jetzt festschreiben').click());
+await s.waitForTimeout(3000);
+const verlauf = await s.evaluate(()=>Begleiter.gitVerlauf('Versionierte Arbeit'));
+p('der Stand ist festgeschrieben', verlauf.verlauf.length===1,
+  JSON.stringify(verlauf));
+p('die Meldung nennt Datum und Umfang',
+  /\d{2}\.\d{2}\.\d{4}/.test(verlauf.verlauf[0]?.betreff||'')
+  && (verlauf.verlauf[0]?.betreff||'').includes('Wörter'),
+  verlauf.verlauf[0]?.betreff);
+const gstand = await s.evaluate(()=>Begleiter.gitStand('Versionierte Arbeit'));
+p('der Zustand meldet die Verbindung',
+  gstand.verbunden && gstand.repo==='nutzerin/abschlussarbeit' && gstand.offen===0,
+  JSON.stringify(gstand));
+
+// ein zweiter Stand ergibt einen zweiten Commit
+await s.keyboard.press('Escape'); await s.waitForTimeout(300);
+await setze(()=>{App.dok.bloecke.push(
+  Modell.neuerBlock('absatz',{runs:[{text:'Zweiter Stand mit mehr Text.'}]}));
+  Editor.zeichne(); App.aenderung();});
+await s.evaluate(()=>App.sichere(false));
+await s.waitForTimeout(3000);
+const verlauf2 = await s.evaluate(()=>Begleiter.gitVerlauf('Versionierte Arbeit'));
+p('Sichern von Hand schreibt sofort wieder fest', verlauf2.verlauf.length===2,
+  JSON.stringify(verlauf2.verlauf.map(x=>x.betreff)));
+
+// die automatische Sicherung hält Abstand
+await setze(()=>{App.dok.bloecke.push(
+  Modell.neuerBlock('absatz',{runs:[{text:'Dritter Stand.'}]}));
+  Editor.zeichne(); App.aenderung();});
+await s.evaluate(()=>App.schreibeFest(false));
+await s.waitForTimeout(1500);
+const verlauf3 = await s.evaluate(()=>Begleiter.gitVerlauf('Versionierte Arbeit'));
+p('die automatische Sicherung schreibt nicht sofort wieder fest',
+  verlauf3.verlauf.length===2, String(verlauf3.verlauf.length));
+
+
 console.log(`\n  ${ok} bestanden, ${fehl} durchgefallen`);
 await b.close(); d.kill();
 rmSync(ABLAGE,{recursive:true,force:true});

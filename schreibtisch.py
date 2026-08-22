@@ -33,6 +33,7 @@ sys.path.insert(0, HIER)
 from begleiter import ablage as ablage_modul          # noqa: E402
 from begleiter import nachschlagen as nachschlagen_modul  # noqa: E402
 from begleiter import uebersetzen as uebersetzen_modul  # noqa: E402
+from begleiter import versionierung as versionierung_modul  # noqa: E402
 from begleiter import zotero as zotero_modul          # noqa: E402
 
 OBERFLAECHE = os.path.join(HIER, "oberflaeche.html")
@@ -50,6 +51,7 @@ ARBEITEN = os.environ.get("SCHREIBTISCH_ARBEITEN") or os.path.join(HIER, "Arbeit
 ZEICHEN = secrets.token_urlsafe(24)
 
 ABLAGE = ablage_modul.Ablage(ARBEITEN)
+VERSION = versionierung_modul.Versionierung(ARBEITEN)
 # mkdtemp legt mit 0700 an: im Arbeitsordner liegen der ganze Text der
 # Arbeit, das Literaturverzeichnis und die Bilder. Unter /tmp mit den
 # üblichen 0755 könnte jeder andere Benutzer des Rechners mitlesen.
@@ -134,7 +136,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         try:
             if weg == "/pruefung":
-                return _json_antwort(self, uebersetzen_modul.pruefe_werkzeuge())
+                e = dict(uebersetzen_modul.pruefe_werkzeuge())
+                # git ist keine Voraussetzung -- ohne git fehlt nur die
+                # Versionierung, nicht das Schreiben. Deshalb steht es
+                # neben den Programmen, nicht in "vollstaendig".
+                e["git"] = versionierung_modul.finde_git()
+                return _json_antwort(self, e)
 
             if weg == "/pdf":
                 return self._sende_pdf()
@@ -166,11 +173,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if e.get("zoteroSchluessel"):     # Schlüssel nie zurückgeben
                     e["zoteroSchluessel"] = "•" * 12
                     e["zoteroGesetzt"] = True
+                if e.get("githubZeichen"):
+                    e["githubZeichen"] = "•" * 12
+                    e["githubGesetzt"] = True
                 return _json_antwort(self, e)
 
             if weg == "/nachschlagen":
                 return _json_antwort(self, nachschlagen_modul.per_doi(
                     teile.get("doi", [""])[0]))
+
+            if weg == "/git/stand":
+                return _json_antwort(self, VERSION.stand(teile.get("name", [""])[0]))
+
+            if weg == "/git/verlauf":
+                return _json_antwort(self, {"verlauf": VERSION.verlauf(
+                    teile.get("name", [""])[0])})
+
+            if weg == "/github/pruefen":
+                e = ABLAGE.einstellungen()
+                z = teile.get("zeichen", [""])[0] or e.get("githubZeichen", "")
+                return _json_antwort(self, versionierung_modul.pruefe_zeichen(z))
 
             if weg == "/zotero/pruefen":
                 e = ABLAGE.einstellungen()
@@ -193,6 +215,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except VERBINDUNG_WEG:
             return                                # Browser ist weg
         except zotero_modul.ZoteroFehler as f:
+            return _json_antwort(self, {"fehler": str(f)}, 400)
+        except versionierung_modul.GitFehler as f:
             return _json_antwort(self, {"fehler": str(f)}, 400)
         except nachschlagen_modul.NachschlagFehler as f:
             return _json_antwort(self, {"fehler": str(f)}, 400)
@@ -254,15 +278,52 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 ABLAGE.loesche(daten.get("name", ""))
                 return _json_antwort(self, {"gut": True})
 
+            if weg == "/git/verbinden":
+                e = ABLAGE.einstellungen()
+                zeichen = e.get("githubZeichen", "")
+                repo = (daten.get("repo") or "").strip()
+                if daten.get("anlegen"):
+                    # Erst bei GitHub anlegen, dann örtlich verknüpfen --
+                    # andersherum bliebe eine Verbindung ins Leere stehen.
+                    wer = versionierung_modul.pruefe_zeichen(zeichen)
+                    angelegt = versionierung_modul.lege_repo_an(
+                        zeichen, repo, bool(daten.get("privat", True)),
+                        daten.get("beschreibung") or "")
+                    repo = angelegt["vollname"] or f"{wer['benutzer']}/{repo}"
+                return _json_antwort(self, VERSION.verbinde(
+                    daten.get("name") or "", repo, zeichen,
+                    daten.get("zweig") or "main"))
+
+            if weg == "/git/trennen":
+                VERSION.trenne(daten.get("name") or "",
+                               bool(daten.get("mitBaum")))
+                return _json_antwort(self, {"gut": True})
+
+            if weg == "/git/sichern":
+                e = ABLAGE.einstellungen()
+                name = daten.get("name") or ""
+                return _json_antwort(self, VERSION.sichere(
+                    name, daten.get("dokument") or {},
+                    daten.get("dateien") or {},
+                    ABLAGE.bildordner(name),
+                    e.get("githubZeichen", ""),
+                    daten.get("meldung") or "",
+                    bool(daten.get("erzwinge", True)),
+                    bool(daten.get("schiebe", True))))
+
             if weg == "/einstellungen":
                 if daten.get("zoteroSchluessel", "").startswith("•"):
                     daten.pop("zoteroSchluessel")   # unveränderte Maske ignorieren
+                if daten.get("githubZeichen", "").startswith("•"):
+                    daten.pop("githubZeichen")
                 return _json_antwort(self, {"gut": True,
                                             "anzahl": len(ABLAGE.setze_einstellungen(daten))})
 
         except VERBINDUNG_WEG:
             return                                # Browser ist weg
         except zotero_modul.ZoteroFehler as f:
+            return _json_antwort(self, {"fehler": str(f)}, 400)
+        except versionierung_modul.GitFehler as f:
             return _json_antwort(self, {"fehler": str(f)}, 400)
         except Exception as f:                    # noqa: BLE001
             return _json_antwort(self, {"fehler": f"{type(f).__name__}: {f}"}, 500)

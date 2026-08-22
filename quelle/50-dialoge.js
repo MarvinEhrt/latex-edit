@@ -1167,6 +1167,11 @@ const Dialoge = (() => {
         <b>Export</b> lädt das fertige <b>PDF</b> herunter — das, was du
         abgibst. Daneben zeigt es das erzeugte LaTeX oder packt das
         Projekt als ZIP, zum Weitergeben oder für Overleaf.</p>
+        <p style="margin:8px 0 0;font-size:13.5px;line-height:1.6">
+        <b>GitHub</b> verbindet diese Arbeit mit einem Repository. Jeder
+        gesicherte Stand wird dann festgeschrieben — mit Datum und Umfang,
+        vergleichbar, und außerhalb dieses Rechners. Beim Sichern von Hand
+        sofort, beim automatischen Sichern höchstens alle zehn Minuten.</p>
       </div>`;
     fuss.append(knopf('Alles klar', 'knopf-haupt', schliessen));
     return geschlossen;

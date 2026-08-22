@@ -81,6 +81,14 @@ const Begleiter = (() => {
     zoteroSammlungen: (art) => hole('/zotero/sammlungen', { art: art || 'users' }),
     zoteroBibliothek: (art, sammlung) =>
       hole('/zotero/bibliothek', { art: art || 'users', sammlung: sammlung || '' }),
+    /* Versionierung. `erzwinge:false` heißt: nur festschreiben, wenn
+       der Abstand eingehalten ist -- der Begleiter entscheidet. */
+    gitStand:        (name) => hole('/git/stand', { name }),
+    gitVerlauf:      (name) => hole('/git/verlauf', { name }),
+    githubPruefen:   (zeichen) => hole('/github/pruefen', { zeichen: zeichen || '' }),
+    gitVerbinden:    (felder) => sende('/git/verbinden', felder),
+    gitTrennen:      (name, mitBaum) => sende('/git/trennen', { name, mitBaum: !!mitBaum }),
+    gitSichern:      (felder) => sende('/git/sichern', felder),
     beenden:         () => sende('/beenden', {})
   };
 })();

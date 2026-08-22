@@ -398,6 +398,18 @@ const DialogeExtra = (() => {
          „Pakete immer installieren“ wählen, sonst wartet ein Dialog im
          Hintergrund und der Bau bleibt hängen.</span></div>`}
       </div>
+      <div class="gruppe"><h3>GitHub</h3>
+        <div class="schalterzeile"><span style="font-size:16px">${
+          werkzeuge.git && werkzeuge.git.gefunden ? (stand.githubGesetzt ? '✓' : '–') : '✕'}</span>
+          <div class="txt"><b>${!werkzeuge.git || !werkzeuge.git.gefunden
+            ? 'git fehlt' : stand.githubGesetzt ? 'Zeichen hinterlegt' : 'kein Zeichen'}</b>
+          <span>${!werkzeuge.git || !werkzeuge.git.gefunden
+            ? 'Ohne git keine Versionierung — Schreiben geht trotzdem. '
+              + 'Linux: sudo apt install git, Windows: git-scm.com'
+            : 'Damit lassen sich Arbeiten mit einem Repository verbinden. '
+              + 'Zeichen unter github.com/settings/tokens anlegen (Recht „repo“).'}
+          </span></div></div>
+      </div>
       <div class="gruppe"><h3>Zotero</h3>
         <div class="schalterzeile"><span style="font-size:16px">${stand.zoteroGesetzt ? '✓' : '–'}</span>
           <div class="txt"><b>${stand.zoteroGesetzt ? 'verbunden' : 'nicht verbunden'}</b>
@@ -408,10 +420,219 @@ const DialogeExtra = (() => {
     fuss.append(
       knopf(stand.zoteroGesetzt ? 'Zotero neu verbinden' : 'Zotero verbinden',
             'knopf-still links', async () => { schliessen(); await zoteroEinrichten(); }),
+      knopf(stand.githubGesetzt ? 'GitHub-Zeichen ändern' : 'GitHub verbinden',
+            'knopf-still', async () => { schliessen(); await githubEinrichten(); }),
       knopf('Schließen', 'knopf-haupt', schliessen));
     fuss.firstChild.style.marginRight = 'auto';
     return geschlossen;
   }
 
-  return { projektOeffnen, dateiImport, zoteroImport, zoteroEinrichten, einstellungen };
+  /* Das Zeichen wird sofort ausprobiert: ein falsch kopiertes fällt
+     sonst erst auf, wenn das Hochladen scheitert. */
+  async function githubEinrichten() {
+    const stand = await Begleiter.einstellungen().catch(() => ({}));
+    const aus = await Dialoge.formular({
+      titel: 'GitHub verbinden',
+      unter: 'Ein Zeichen („Personal access token“) unter '
+           + '<b>github.com/settings/tokens</b> anlegen, Recht <b>repo</b>. '
+           + 'Es bleibt auf diesem Rechner und geht nie an den Browser.',
+      werte: { githubZeichen: stand.githubGesetzt ? '••••••••••••' : '' },
+      felder: [{ n: 'githubZeichen', l: 'Zeichen', pflicht: true, breit: true,
+                 h: 'ghp_… oder github_pat_…' }],
+      okText: 'Prüfen und merken'
+    });
+    if (!aus) return false;
+    if (aus.githubZeichen.startsWith('•')) return true;   // unverändert
+    try {
+      const wer = await Begleiter.githubPruefen(aus.githubZeichen);
+      await Begleiter.setzeEinstellungen({ githubZeichen: aus.githubZeichen });
+      App.melde('GitHub verbunden als ' + (wer.benutzer || 'unbekannt') + '.');
+      return true;
+    } catch (f) {
+      App.melde('GitHub: ' + f.message, true);
+      return false;
+    }
+  }
+
+  /* ================================================ GitHub =========
+     Eine Arbeit, ein Repository. Der Verlauf, den .sicherungen nicht
+     leisten kann: mit Begründung, vergleichbar, und außer Haus.      */
+
+  function zeitText(sekunden) {
+    if (!sekunden) return '';
+    const d = new Date(sekunden * 1000);
+    const zwei = (n) => String(n).padStart(2, '0');
+    return `${zwei(d.getDate())}.${zwei(d.getMonth() + 1)}.${d.getFullYear()}, `
+         + `${zwei(d.getHours())}:${zwei(d.getMinutes())}`;
+  }
+
+  async function github(name, dok) {
+    let loese;
+    const geschlossen = new Promise((f) => { loese = f; });
+    const { koerper, fuss, schliessen } = Dialoge.basis({
+      titel: 'Diese Arbeit auf GitHub',
+      unter: 'Jeder gesicherte Stand wird festgeschrieben — mit Datum und '
+           + 'Umfang, vergleichbar, und außerhalb dieses Rechners.',
+      breit: true, beimSchliessen: () => loese()
+    });
+
+    const zeichne = async () => {
+      koerper.innerHTML = '<div class="leerhinweis">Wird nachgesehen …</div>';
+      if (!name) {
+        koerper.innerHTML = '<div class="notiz warnung"><span>&#9888;</span><span>'
+          + 'Diese Arbeit ist noch nie gesichert worden. Sichere sie einmal '
+          + '(Strg+S), dann kann sie ein Repository bekommen.</span></div>';
+        return;
+      }
+      let stand;
+      try {
+        stand = await Begleiter.gitStand(name);
+      } catch (f) {
+        koerper.innerHTML = `<div class="notiz warnung"><span>&#9888;</span><span>${
+          escHtml(f.message)}</span></div>`;
+        return;
+      }
+      if (!stand.gitDa) {
+        koerper.innerHTML = '<div class="notiz warnung"><span>&#9888;</span><span>'
+          + '<b>git ist nicht installiert.</b> Ohne git gibt es keine '
+          + 'Versionierung — geschrieben werden kann trotzdem. '
+          + 'Unter Linux: <code>sudo apt install git</code>, unter Windows: '
+          + 'git-scm.com.</span></div>';
+        return;
+      }
+      koerper.innerHTML = '';
+
+      if (!stand.verbunden) { zeichneVerbinden(koerper, name, dok, zeichne); return; }
+
+      const kopf = el('div', 'gruppe');
+      kopf.innerHTML = `<h3>Verbunden</h3>
+        <div class="schalterzeile"><span style="font-size:16px">✓</span>
+          <div class="txt"><b>${escHtml(stand.repo)}</b>
+            <span>Zweig ${escHtml(stand.zweig)} · <a href="${escHtml(stand.adresse)}"
+              target="_blank" rel="noopener">auf GitHub ansehen</a></span></div></div>
+        <div class="notiz">${stand.letzter
+          ? `Zuletzt festgeschrieben am ${escHtml(zeitText(stand.letzter.zeit))}: `
+            + `„${escHtml(stand.letzter.betreff)}“`
+          : 'Noch nichts festgeschrieben.'}${stand.offen
+          ? ` · <b>${stand.offen} Änderung${stand.offen === 1 ? '' : 'en'}</b> `
+            + 'noch nicht festgeschrieben'
+          : ''}</div>`;
+      koerper.append(kopf);
+
+      const verlaufsbox = el('div', 'gruppe');
+      verlaufsbox.innerHTML = '<h3>Verlauf</h3>';
+      const liste = el('div', 'quellenliste');
+      try {
+        const e = await Begleiter.gitVerlauf(name);
+        if (!e.verlauf.length) liste.innerHTML =
+          '<div class="leerhinweis">Noch keine Stände.</div>';
+        for (const c of e.verlauf) {
+          const zeile = el('div', 'quelle-zeile');
+          zeile.innerHTML = `<div class="quelle-txt">
+            <b style="font-family:var(--schrift-ui);font-size:13px">${
+              escHtml(c.betreff)}</b>
+            <div class="quelle-warn">${escHtml(zeitText(c.zeit))} · ${
+              escHtml(c.kurz)}</div></div>`;
+          liste.append(zeile);
+        }
+      } catch (f) {
+        liste.innerHTML = `<div class="leerhinweis">${escHtml(f.message)}</div>`;
+      }
+      verlaufsbox.append(liste);
+      koerper.append(verlaufsbox);
+    };
+
+    function zeichneVerbinden(ziel, name, dok, neuZeichnen) {
+      const box = el('div', 'gruppe');
+      box.innerHTML = `<h3>Noch nicht verbunden</h3>
+        <div class="notiz">Ein Repository je Arbeit. Es kann neu angelegt
+        werden — dann brauchst du ein GitHub-Zeichen unter ⚙ Einstellungen —
+        oder du trägst ein vorhandenes ein.</div>`;
+      const vorschlag = (dok.meta.titel || name || 'abschlussarbeit')
+        .toLowerCase()
+        .replace(/[äÄ]/g, 'ae').replace(/[öÖ]/g, 'oe').replace(/[üÜ]/g, 'ue')
+        .replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '').slice(0, 60) || 'abschlussarbeit';
+
+      const feld = el('input');
+      feld.type = 'text';
+      feld.value = vorschlag;
+      feld.placeholder = 'name-des-repositories';
+      const privat = el('label', 'suche-gross');
+      privat.innerHTML = '<input type="checkbox" checked> Privat (empfohlen)';
+      const zeileNeu = el('div', 'schalterzusatz');
+      zeileNeu.append(feld, privat);
+
+      const vorhandenFeld = el('input');
+      vorhandenFeld.type = 'text';
+      vorhandenFeld.placeholder = 'benutzername/repository';
+      const zeileAlt = el('div', 'schalterzusatz');
+      zeileAlt.append(vorhandenFeld);
+
+      const melde = el('div', 'notiz');
+      melde.style.display = 'none';
+      const zeigeFehler = (t) => {
+        melde.textContent = t; melde.style.display = '';
+        melde.classList.add('warnung');
+      };
+
+      const knopfNeu = Dialoge.knopf('Neues Repository anlegen', 'knopf-haupt',
+        async () => {
+          knopfNeu.disabled = true; knopfNeu.textContent = 'Wird angelegt …';
+          try {
+            await Begleiter.gitVerbinden({
+              name, repo: feld.value.trim(), anlegen: true,
+              privat: privat.querySelector('input').checked,
+              beschreibung: dok.meta.titel || '' });
+            App.melde('Repository angelegt und verbunden.');
+            neuZeichnen();
+          } catch (f) {
+            zeigeFehler(f.message);
+            knopfNeu.disabled = false;
+            knopfNeu.textContent = 'Neues Repository anlegen';
+          }
+        });
+      const knopfAlt = Dialoge.knopf('Vorhandenes verbinden', 'knopf-still',
+        async () => {
+          try {
+            await Begleiter.gitVerbinden({ name, repo: vorhandenFeld.value.trim() });
+            App.melde('Verbunden.');
+            neuZeichnen();
+          } catch (f) { zeigeFehler(f.message); }
+        });
+
+      box.append(el('div', 'hilfe', 'Neu anlegen'), zeileNeu, knopfNeu,
+                 el('div', 'hilfe', 'Oder ein vorhandenes verwenden'),
+                 zeileAlt, knopfAlt, melde);
+      ziel.append(box);
+    }
+
+    await zeichne();
+
+    const jetzt = Dialoge.knopf('Jetzt festschreiben', 'knopf-still', async () => {
+      jetzt.disabled = true;
+      const alt = jetzt.textContent;
+      jetzt.textContent = 'Läuft …';
+      await App.schreibeFest(true);
+      jetzt.textContent = alt; jetzt.disabled = false;
+      zeichne();
+    });
+    const trennen = Dialoge.knopf('Trennen', 'knopf-gefahr links', async () => {
+      const sicher = await Dialoge.bestaetigen({
+        titel: 'Verbindung trennen',
+        text: 'Die Arbeit wird nicht mehr auf GitHub festgeschrieben. Das '
+            + 'Repository selbst und alle bisherigen Stände bleiben, wo sie sind.',
+        okText: 'Trennen' });
+      if (!sicher) return;
+      await Begleiter.gitTrennen(name);
+      App.melde('Verbindung getrennt.');
+      zeichne();
+    });
+    fuss.append(trennen, jetzt, Dialoge.knopf('Schließen', 'knopf-haupt', schliessen));
+    trennen.style.marginRight = 'auto';
+    return geschlossen;
+  }
+
+  return { projektOeffnen, dateiImport, zoteroImport, zoteroEinrichten,
+           einstellungen, github, githubEinrichten };
 })();

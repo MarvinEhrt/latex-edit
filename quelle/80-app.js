@@ -233,9 +233,40 @@ const App = (() => {
           String(jetzt.getMinutes()).padStart(2, '0');
       }
       if (!still) melde('Gesichert als „' + e.name + '“.');
+      /* Erst die Platte, dann die Versionierung -- und ohne darauf zu
+         warten: das Hochladen darf das Tippen nicht bremsen. */
+      schreibeFest(!still);
     } catch (f) {
       if (f.status === 409) { behandleKonflikt(name); return; }
       melde('Sichern fehlgeschlagen: ' + f.message, true);
+    }
+  }
+
+  /* ---------------- Versionierung ----------------
+     Nach jedem gesicherten Stand schreibt der Begleiter fest. Bei der
+     automatischen Sicherung hält er einen Abstand ein -- alle vier
+     Sekunden ein Commit ergäbe neunhundert pro Stunde und einen
+     Verlauf, in dem nichts mehr zu finden ist. Beim Sichern von Hand
+     ist es sofort. */
+  async function schreibeFest(vonHand) {
+    if (!Begleiter.verbunden || !projektname) return;
+    try {
+      const e = await Begleiter.gitSichern({
+        name: projektname, dokument: dok,
+        dateien: Latex.erzeuge(dok).dateien,
+        erzwinge: !!vonHand
+      });
+      if (e.uebersprungen) {
+        if (vonHand && e.uebersprungen === 'nichts geändert')
+          melde('Nichts zu ändern — der letzte Stand steht schon auf GitHub.');
+        return;
+      }
+      if (e.fehler) melde(e.fehler, true);
+      else if (vonHand) melde('Festgeschrieben und hochgeladen.');
+    } catch (f) {
+      /* Nur von Hand melden: sonst risse eine fehlende Netzverbindung
+         beim Tippen alle zehn Minuten eine Meldung auf. */
+      if (vonHand) melde('GitHub: ' + f.message, true);
     }
   }
 
@@ -530,6 +561,7 @@ const App = (() => {
     k('knopf-einstellungen', () => DialogeExtra.einstellungen());
     k('knopf-hilfe', () => Dialoge.hilfe());
     k('knopf-info', () => Dialoge.umfang(dok));
+    k('knopf-git', () => DialogeExtra.github(projektname, dok));
     k('knopf-sichern', () => sichere(false));
     k('knopf-oeffnen', oeffne);
     k('knopf-export', zeigeExportMenue);
@@ -674,6 +706,7 @@ const App = (() => {
     get dok() { return dok; },
     set dok(d) { dok = d; },
     start, aenderung, melde, sichere, exportiere, baue, pdfHerunterladen,
+    schreibeFest,
     nimmZurueck, wiederhole,
     zitatEinfuegen, verweisEinfuegen, kennwertEinfuegen, fussnoteEinfuegen
   };
