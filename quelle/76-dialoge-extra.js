@@ -71,7 +71,15 @@ const DialogeExtra = (() => {
                     `im Unterordner <b>.sicherungen</b> bleiben erhalten.`
             });
             if (ok) {
-              await Begleiter.loescheProjekt(p.name);
+              try {
+                await Begleiter.loescheProjekt(p.name);
+              } catch (f) {
+                /* Bisher verschwand die Zeile aus der Liste, obwohl die
+                   Datei noch da war -- beim nächsten Öffnen stand sie
+                   wieder da. */
+                App.melde('Löschen fehlgeschlagen: ' + f.message, true);
+                return;
+              }
               liste = liste.filter(x => x !== p);
               zeichne();
             }
@@ -177,6 +185,7 @@ const DialogeExtra = (() => {
       const lies = (datei) => {
         if (!datei) return;
         const leser = new FileReader();
+        leser.onerror = () => App.melde('Die Datei ließ sich nicht lesen.', true);
         leser.onload = () => {
           const { art, quellen } = Import.lies(String(leser.result), datei.name);
           gefunden = quellen;

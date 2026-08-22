@@ -31,6 +31,13 @@ const Dialoge = (() => {
   function basis({ titel, unter, breit, beimSchliessen }) {
     const schleier = el('div', 'schleier');
     const dialog = el('div', 'dialog' + (breit ? ' dialog-breit' : ''));
+    /* Ohne diese Auszeichnung ist der Dialog für einen Screenreader
+       nur ein weiteres div, und der Tabulator wandert hinter den
+       Schleier auf Knöpfe, die niemand sehen kann. */
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('aria-label', titel || 'Dialog');
+    const vorherFokussiert = document.activeElement;
     const kopf = el('div', 'dialog-kopf',
       `<h2>${escHtml(titel)}</h2>${unter ? `<p>${unter}</p>` : ''}`);
     const koerper = el('div', 'dialog-koerper');
@@ -45,11 +52,42 @@ const Dialoge = (() => {
       zu = true;
       schleier.remove();
       document.removeEventListener('keydown', taste);
+      /* Zurück, woher der Fokus kam -- sonst steht er nach dem
+         Schließen wieder am Seitenanfang. */
+      if (vorherFokussiert && document.contains(vorherFokussiert))
+        try { vorherFokussiert.focus(); } catch { /* nicht fokussierbar */ }
       if (beimSchliessen) queueMicrotask(beimSchliessen);
     };
-    const taste = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); schliessen(); } };
+    /* Der Tabulator bleibt im Dialog: hinter dem letzten Element geht
+       es beim ersten weiter und umgekehrt. */
+    const fokussierbar = () => [...dialog.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+      .filter(e => !e.disabled && e.offsetParent !== null);
+    const taste = (ev) => {
+      if (ev.key === 'Escape') { ev.preventDefault(); schliessen(); return; }
+      if (ev.key !== 'Tab') return;
+      const liste = fokussierbar();
+      if (!liste.length) return;
+      const erstes = liste[0], letztes = liste[liste.length - 1];
+      if (!dialog.contains(document.activeElement)) {
+        ev.preventDefault(); erstes.focus();
+      } else if (!ev.shiftKey && document.activeElement === letztes) {
+        ev.preventDefault(); erstes.focus();
+      } else if (ev.shiftKey && document.activeElement === erstes) {
+        ev.preventDefault(); letztes.focus();
+      }
+    };
     document.addEventListener('keydown', taste);
     schleier.addEventListener('mousedown', (ev) => { if (ev.target === schleier) schliessen(); });
+
+    /* Irgendetwas im Dialog muss den Fokus bekommen, sonst hängt er
+       noch auf dem Knopf dahinter. `formular` setzt ihn selbst auf das
+       erste Eingabefeld; alle anderen bekommen ihn hier. */
+    setTimeout(() => {
+      if (dialog.contains(document.activeElement)) return;
+      const erstes = fokussierbar()[0];
+      if (erstes) erstes.focus();
+    }, 30);
 
     return { schleier, dialog, koerper, fuss, schliessen };
   }
@@ -511,6 +549,10 @@ const Dialoge = (() => {
       vorhanden.felder = aus;
       return vorhanden;
     }
+    /* Genau hier ändert sich das Modell -- der Schnappschuss muss
+       davor liegen. Bisher merkte erst der Aufrufer NACH dem Dialog,
+       und Strg+Z nahm den Chip zurück, ließ die Quelle aber stehen. */
+    Verlauf.merke(dok);
     const neu = { key: schluesselVorschlag(dok, aus), typ, felder: aus };
     dok.quellen.push(neu);
     return neu;
@@ -868,6 +910,7 @@ const Dialoge = (() => {
           return;
         }
         const leser = new FileReader();
+        leser.onerror = () => App.melde('Die Datei ließ sich nicht lesen.', true);
         leser.onload = () => {
           zustand.datenUrl = leser.result;
           zustand.dateiname = datei.name;

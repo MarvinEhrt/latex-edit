@@ -991,6 +991,59 @@ p('der Verweis auf einen Anhang nennt ihn im PDF Anhang',
   verweis.tex.split('\n').filter(z=>z.includes('ref{sec:')).join(' | '));
 p('und schon im Editor steht "Anhang A"', verweis.chip==='Anhang A', verweis.chip);
 
+// J) Barrierefreiheit der Dialoge
+await s.locator('#knopf-layout').click(); await s.waitForTimeout(350);
+const a11y = await s.evaluate(()=>{
+  const d = document.querySelector('.dialog');
+  return {rolle: d.getAttribute('role'), modal: d.getAttribute('aria-modal'),
+          name: d.getAttribute('aria-label'),
+          fokusDrin: d.contains(document.activeElement),
+          meldungen: document.getElementById('meldungen').getAttribute('aria-live')};
+});
+p('der Dialog ist als solcher ausgezeichnet',
+  a11y.rolle==='dialog' && a11y.modal==='true' && !!a11y.name, JSON.stringify(a11y));
+p('der Fokus steht im Dialog, nicht dahinter', a11y.fokusDrin, JSON.stringify(a11y));
+p('Meldungen werden vorgelesen', a11y.meldungen==='polite', String(a11y.meldungen));
+// Der Tabulator verlässt den Dialog nicht
+const gefangen = await s.evaluate(()=>{
+  const d = document.querySelector('.dialog');
+  const liste = [...d.querySelectorAll('button,input,select,textarea')]
+    .filter(e=>!e.disabled && e.offsetParent!==null);
+  liste[liste.length-1].focus();
+  return d.contains(document.activeElement);
+});
+await s.keyboard.press('Tab'); await s.waitForTimeout(150);
+p('der Tabulator bleibt im Dialog', gefangen &&
+  await s.evaluate(()=>document.querySelector('.dialog').contains(document.activeElement)));
+await s.keyboard.press('Escape'); await s.waitForTimeout(300);
+
+// I) Eine neu angelegte Quelle lässt sich zurücknehmen
+const quellenUndo = await s.evaluate(async ()=>{
+  App.dok.quellen=[]; App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'X'}]})];
+  Editor.zeichne(); Verlauf.leeren();
+  const tiefeVorher = Verlauf.tiefe();
+  // Der Weg, den auch die @-Vervollständigung nimmt
+  const versprechen = Dialoge.quelleBearbeiten(App.dok);
+  await new Promise(r=>setTimeout(r,200));
+  // Quellenart wählen
+  document.querySelector('.dialog .quelle-zeile').click();
+  await new Promise(r=>setTimeout(r,250));
+  const feld = document.querySelector('.dialog input');
+  feld.value='Müller, Anna'; feld.dispatchEvent(new Event('input',{bubbles:true}));
+  for (const e of document.querySelectorAll('.dialog input'))
+    if (!e.value) { e.value='2020'; e.dispatchEvent(new Event('input',{bubbles:true})); }
+  [...document.querySelectorAll('.dialog button')]
+    .find(b=>b.textContent==='Speichern').click();
+  await versprechen;
+  const nachher = App.dok.quellen.length;
+  Verlauf.zurueck(App.dok);
+  return {tiefeVorher, nachher, nachUndo: App.dok.quellen.length};
+});
+p('eine im Zitierfluss angelegte Quelle wird angelegt',
+  quellenUndo.nachher===1, JSON.stringify(quellenUndo));
+p('und Strg+Z nimmt sie zurück, statt sie verwaist stehen zu lassen',
+  quellenUndo.nachUndo===0, JSON.stringify(quellenUndo));
+
 console.log(`\n  ${ok} bestanden, ${fehl} durchgefallen`);
 await b.close(); d.kill();
 rmSync(ABLAGE,{recursive:true,force:true});

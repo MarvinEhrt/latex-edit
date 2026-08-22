@@ -650,7 +650,15 @@ const App = (() => {
         fortgesetzt = true;
         melde('Fortgesetzt: ' + (dok.meta.titel || liste[0].name));
       }
-    } catch { /* nichts da, also frisches Dokument */ }
+    } catch (f) {
+      /* Eine unlesbare Projektdatei ergab bisher wortlos ein leeres
+         Dokument -- das die nächste automatische Sicherung darüber
+         geschrieben hätte. */
+      melde('Die zuletzt bearbeitete Arbeit ließ sich nicht laden: '
+            + f.message + ' Über Öffnen → Frühere Fassungen kommst du '
+            + 'an einen älteren Stand.', true);
+      giltAlsGesichert();
+    }
 
     neuZeichnen();
     if (fortgesetzt) giltAlsGesichert();

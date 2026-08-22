@@ -59,15 +59,15 @@
         <span style="display:flex;gap:6px;align-items:center">
           <span id="speicherstand" style="text-transform:none;letter-spacing:0"></span>
           <button class="knopf knopf-klein knopf-still" id="knopf-zurueck"
-                  title="Rückgängig (Strg+Z)" disabled>↶</button>
+                  title="Rückgängig (Strg+Z)" aria-label="Rückgängig" disabled>↶</button>
           <button class="knopf knopf-klein knopf-still" id="knopf-vor"
-                  title="Wiederholen (Strg+Y)" disabled>↷</button>
+                  title="Wiederholen (Strg+Y)" aria-label="Wiederholen" disabled>↷</button>
           <button class="knopf knopf-klein knopf-still" id="knopf-neu">Neu</button>
           <button class="knopf knopf-klein knopf-still" id="knopf-oeffnen">Öffnen</button>
           <button class="knopf knopf-klein knopf-still" id="knopf-sichern">Sichern</button>
           <button class="knopf knopf-klein knopf-still" id="knopf-export">Export</button>
-          <button class="knopf knopf-klein knopf-still" id="knopf-einstellungen" title="Einstellungen">⚙</button>
-          <button class="knopf knopf-klein knopf-still" id="knopf-thema" title="Hell oder dunkel">◐</button>
+          <button class="knopf knopf-klein knopf-still" id="knopf-einstellungen" title="Einstellungen" aria-label="Einstellungen">⚙</button>
+          <button class="knopf knopf-klein knopf-still" id="knopf-thema" title="Hell oder dunkel" aria-label="Hell oder dunkel umschalten">◐</button>
         </span>
       </div>
       <div class="panelkoerper">
@@ -100,7 +100,8 @@
   </div>
 </div>
 
-<div id="meldungen"></div>
+<!-- role=status: Meldungen sind sonst für Screenreader unsichtbar -->
+<div id="meldungen" role="status" aria-live="polite" aria-atomic="false"></div>
 
 <script>/*<<<JS>>>*/</script>
 </body>

@@ -227,7 +227,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   padding-top: 5px; opacity: 0; transition: opacity .12s;
 }
-.block:hover .block-griff, .block.gewaehlt .block-griff { opacity: 1; }
+/* :focus-within, damit die Werkzeuge auch erscheinen, wenn man sich
+   mit dem Tabulator hineinbewegt -- ohne Maus waren sie unsichtbar
+   und trotzdem im Tabulatorlauf. */
+.block:hover .block-griff, .block.gewaehlt .block-griff,
+.block:focus-within .block-griff { opacity: 1; }
 .block-marke {
   font-family: var(--schrift-ma); font-size: 10px; color: var(--tinte-3);
   cursor: grab; user-select: none; padding: 2px 4px; border-radius: 3px;
@@ -640,8 +644,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .spaltenleiste th, .randspalte { border: 0 !important; padding: 0 !important; }
 .spaltenwerkzeug, .zeileweg { opacity: 0; transition: opacity .12s; }
 .tab-karte:hover .spaltenwerkzeug,
-.tab-karte:hover .zeileweg { opacity: .75; }
-.spaltenwerkzeug:hover, .zeileweg:hover { opacity: 1 !important; }
+.tab-karte:hover .zeileweg,
+.tab-karte:focus-within .spaltenwerkzeug,
+.tab-karte:focus-within .zeileweg { opacity: .75; }
+.spaltenwerkzeug:hover, .zeileweg:hover,
+.spaltenwerkzeug:focus-within, .zeileweg:focus-within { opacity: 1 !important; }
 
 .spaltenwerkzeug { display: flex; gap: 1px; justify-content: center; padding: 1px 0 3px; }
 .spaltenwerkzeug button, .zeileweg {
