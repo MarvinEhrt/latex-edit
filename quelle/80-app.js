@@ -107,9 +107,17 @@ const App = (() => {
     const marke = document.getElementById('wortzahl');
     if (!marke) return;
     const n = Modell.woerter(dok).gesamt;
-    marke.textContent = '· ' +
-      String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202F') +   // schmales Leerzeichen: 4 230
-      (n === 1 ? ' Wort' : ' Wörter');
+    const zahl = (x) => String(x).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202F'); // 4 230
+    const ziel = Math.round(+(dok.einstellungen || {}).wortziel) || 0;
+    marke.textContent = '· ' + zahl(n) +
+      (ziel ? ' / ' + zahl(ziel) : '') +
+      (n === 1 && !ziel ? ' Wort' : ' Wörter');
+    /* Über dem Ziel wird die Zahl ocker -- dezent, aber sichtbar. */
+    marke.style.color = ziel && n > ziel ? 'var(--kennwert)' : '';
+    marke.title = ziel
+      ? (n > ziel ? zahl(n - ziel) + ' Wörter über dem Ziel'
+                  : 'noch ' + zahl(ziel - n) + ' Wörter bis zum Ziel')
+      : '';
   }
 
   /* ---------------- Rückgängig ----------------
@@ -537,6 +545,8 @@ const App = (() => {
 
     k('knopf-gliederung-zu', () => klappeGliederung(true));
     k('knopf-gliederung-auf', () => klappeGliederung(false));
+    k('knopf-pdf-zu', () => klappePdf(true));
+    k('knopf-pdf-auf', () => klappePdf(false));
 
     k('knopf-thema', () => {
       const wurzel = document.documentElement;
@@ -602,6 +612,62 @@ const App = (() => {
     try { localStorage.setItem('schreibtisch-gliederung', zu ? 'zu' : 'auf'); } catch {}
   }
 
+  /* Dasselbe für die PDF-Spalte -- wer nur schreiben will, bekommt
+     die volle Breite. Gebaut wird trotzdem weiter. */
+  function klappePdf(zu) {
+    document.querySelector('.spalte-rechts')?.classList.toggle('eingeklappt', zu);
+    const auf = document.getElementById('knopf-pdf-auf');
+    if (auf) auf.hidden = !zu;
+    try { localStorage.setItem('schreibtisch-pdf', zu ? 'zu' : 'auf'); } catch {}
+  }
+
+  /* Die Spaltenbreiten lassen sich an den Trennern ziehen; Doppelklick
+     setzt zurück. Gesetzt wird eine CSS-Variable, gemerkt in
+     localStorage -- im schmalen Einspalten-Fenster greift beides nicht. */
+  function verdrahteTrenner() {
+    const wurzel = document.documentElement;
+    const trenner = [
+      { id: 'trenner-links', name: '--breite-links',
+        speicher: 'schreibtisch-breite-links',
+        mass: (x, raum) => x - raum.left, min: 160, max: 420 },
+      { id: 'trenner-rechts', name: '--breite-rechts',
+        speicher: 'schreibtisch-breite-rechts',
+        mass: (x, raum) => raum.right - x, min: 280, max: 820 }
+    ];
+    for (const t of trenner) {
+      try {
+        const alt = localStorage.getItem(t.speicher);
+        if (alt) wurzel.style.setProperty(t.name, alt);
+      } catch {}
+      const griff = document.getElementById(t.id);
+      if (!griff) continue;
+      griff.addEventListener('pointerdown', (ev) => {
+        ev.preventDefault();
+        griff.setPointerCapture(ev.pointerId);
+        griff.classList.add('zieht');
+        const raum = document.querySelector('.raum').getBoundingClientRect();
+        const beweg = (e) => {
+          const w = Math.max(t.min, Math.min(t.max, t.mass(e.clientX, raum)));
+          wurzel.style.setProperty(t.name, w + 'px');
+        };
+        const ende = () => {
+          griff.classList.remove('zieht');
+          griff.removeEventListener('pointermove', beweg);
+          griff.removeEventListener('pointerup', ende);
+          try {
+            localStorage.setItem(t.speicher, wurzel.style.getPropertyValue(t.name));
+          } catch {}
+        };
+        griff.addEventListener('pointermove', beweg);
+        griff.addEventListener('pointerup', ende);
+      });
+      griff.addEventListener('dblclick', () => {
+        wurzel.style.removeProperty(t.name);
+        try { localStorage.removeItem(t.speicher); } catch {}
+      });
+    }
+  }
+
   /* Vier Sekunden ungesicherter Text sind wenig -- und trotzdem der
      halbe Absatz, an dem gerade gearbeitet wird. Eine eigene Meldung
      erlauben die Browser hier längst nicht mehr; dass überhaupt
@@ -619,9 +685,11 @@ const App = (() => {
     } catch {}
     try {
       if (localStorage.getItem('schreibtisch-gliederung') === 'zu') klappeGliederung(true);
+      if (localStorage.getItem('schreibtisch-pdf') === 'zu') klappePdf(true);
     } catch {}
 
     verdrahteKopf();
+    verdrahteTrenner();
     Verlauf.beiAenderung(aktualisiereVerlaufknoepfe);
     Editor.baueEinfuegeleiste();
 

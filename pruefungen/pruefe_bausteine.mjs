@@ -199,7 +199,10 @@ p('Zeile und Spalte lassen sich anfügen',
   t2.zeilen.length===2 && t2.kopf.length===3 && t2.zeilen[0].length===3,
   JSON.stringify({z:t2.zeilen.length,s:t2.kopf.length}));
 
-await s.locator('.block .zeileweg').first().click();
+/* Die Randwerkzeuge tragen inzwischen auch Schieben und Einfügen --
+   gelöscht wird über den ✕-Knopf mit seinem Titel. */
+await s.locator('.block tbody tr').first()
+  .locator('button[title="Zeile löschen"]').click();
 await s.waitForTimeout(350);
 p('Zeile lässt sich löschen',
   (await s.evaluate(()=>App.dok.bloecke[0].zeilen.length))===1);

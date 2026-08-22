@@ -1138,6 +1138,37 @@ const Editor = (() => {
             });
             gruppe.append(k);
           }
+          /* Spalten schieben und ergänzen -- ohne Dialog, direkt hier */
+          const tausche = (j) => {
+            merkeTabelle();
+            const k = block.kopf; [k[s], k[j]] = [k[j], k[s]];
+            block.zeilen.forEach(z => { [z[s], z[j]] = [z[j], z[s]]; });
+            const a = block.spaltenAusrichtung || [];
+            [a[s], a[j]] = [a[j], a[s]];
+            neuZeichnenTabelle();
+          };
+          if (s > 0) {
+            const links = el('button', null, '‹');
+            links.title = 'Spalte nach links schieben';
+            links.addEventListener('click', () => tausche(s - 1));
+            gruppe.append(links);
+          }
+          if (s < block.kopf.length - 1) {
+            const rechts = el('button', null, '›');
+            rechts.title = 'Spalte nach rechts schieben';
+            rechts.addEventListener('click', () => tausche(s + 1));
+            gruppe.append(rechts);
+          }
+          const dazu = el('button', null, '+');
+          dazu.title = 'Spalte danach einfügen';
+          dazu.addEventListener('click', () => {
+            merkeTabelle();
+            block.kopf.splice(s + 1, 0, '');
+            block.zeilen.forEach(z => z.splice(s + 1, 0, ''));
+            (block.spaltenAusrichtung = block.spaltenAusrichtung || []).splice(s + 1, 0, 'c');
+            neuZeichnenTabelle();
+          });
+          gruppe.append(dazu);
           const weg = el('button', 'gefahr', '✕');
           weg.title = 'Spalte löschen';
           weg.addEventListener('click', () => {
@@ -1198,16 +1229,35 @@ const Editor = (() => {
             });
             tr.append(td);
           });
+          /* Zeilen schieben, ergänzen, löschen -- am rechten Rand */
           const rand = el('td', 'randspalte');
-          const weg = el('button', 'zeileweg', '✕');
-          weg.title = 'Zeile löschen';
-          weg.addEventListener('click', () => {
+          const zw = el('span', 'zeilenwerkzeug');
+          const zknopf = (zeichen, titel, aktion) => {
+            const k = el('button', 'zeileweg', zeichen);
+            k.title = titel;
+            k.addEventListener('click', aktion);
+            zw.append(k);
+          };
+          const tauscheZeile = (j) => {
+            merkeTabelle();
+            [block.zeilen[z], block.zeilen[j]] = [block.zeilen[j], block.zeilen[z]];
+            neuZeichnenTabelle();
+          };
+          if (z > 0) zknopf('˄', 'Zeile nach oben schieben', () => tauscheZeile(z - 1));
+          if (z < block.zeilen.length - 1)
+            zknopf('˅', 'Zeile nach unten schieben', () => tauscheZeile(z + 1));
+          zknopf('+', 'Zeile danach einfügen', () => {
+            merkeTabelle();
+            block.zeilen.splice(z + 1, 0, block.kopf.map(() => ''));
+            neuZeichnenTabelle();
+          });
+          zknopf('✕', 'Zeile löschen', () => {
             if (block.zeilen.length <= 1) { App.melde('Die letzte Zeile bleibt.', true); return; }
             merkeTabelle();
             block.zeilen.splice(z, 1);
             neuZeichnenTabelle();
           });
-          rand.append(weg);
+          rand.append(zw);
           tr.append(rand);
           koerper.append(tr);
         });
@@ -1226,11 +1276,42 @@ const Editor = (() => {
         kartenkopf.append(kartenTitel(block, 'Titel der Abbildung eintragen …'));
         karte.append(kartenkopf);
         if (block.datenUrl) {
+          const rahmen = el('div', 'abb-rahmen');
+          rahmen.style.width = (block.breite || 80) + '%';
           const bild = el('img', 'abb-vorschau');
           bild.src = block.datenUrl;
           bild.alt = block.titel || '';
-          bild.style.width = (block.breite || 80) + '%';
-          karte.append(bild);
+          /* Griff am rechten Rand: Breite direkt ziehen -- das
+             Zahlenfeld in der Objektleiste bleibt der genaue Weg. */
+          const griff = el('div', 'abb-griff');
+          griff.title = 'Breite ziehen — genau geht es über das Zahlenfeld oben';
+          griff.addEventListener('pointerdown', (ev) => {
+            ev.preventDefault();
+            griff.setPointerCapture(ev.pointerId);
+            Verlauf.merke(dok(), 'breite:' + block.id);
+            const mass = karte.getBoundingClientRect();
+            const mitte = mass.left + mass.width / 2;
+            const beweg = (e) => {
+              /* Das Bild ist zentriert: vom Mittelpunkt zum Zeiger
+                 reicht die halbe Breite. */
+              const prozent = Math.round(((e.clientX - mitte) * 2 / mass.width) * 100);
+              block.breite = Math.max(10, Math.min(100, prozent));
+              rahmen.style.width = block.breite + '%';
+              const eingabe = document.querySelector('#kontextleiste .ktx-zahl');
+              if (eingabe && eingabe !== document.activeElement)
+                eingabe.value = block.breite;
+              App.aenderung({ nurVorschau: true });
+            };
+            const ende = () => {
+              griff.removeEventListener('pointermove', beweg);
+              griff.removeEventListener('pointerup', ende);
+              App.aenderung();
+            };
+            griff.addEventListener('pointermove', beweg);
+            griff.addEventListener('pointerup', ende);
+          });
+          rahmen.append(bild, griff);
+          karte.append(rahmen);
         } else {
           const leer = el('div', 'abb-leer',
             '<div style="font-size:20px">&#128247;</div><div>Noch kein Bild — hier klicken</div>');
@@ -1290,8 +1371,17 @@ const Editor = (() => {
           if (await Dialoge.formel(block)) { App.aenderung(); zeichne(); }
           else Verlauf.verwerfeLetzten();
         };
-        if (block.tex) karte.addEventListener('dblclick', bearbeiten);
-        else karte.addEventListener('click', bearbeiten);
+        if (block.tex) {
+          karte.addEventListener('dblclick', bearbeiten);
+          /* Der sichtbare Weg -- Tooltips liest nicht jeder. */
+          const stift = el('button', 'formel-stift', '✎');
+          stift.type = 'button';
+          stift.title = 'Formel bearbeiten — auch Doppelklick oder Enter';
+          stift.addEventListener('click', bearbeiten);
+          karte.append(stift);
+        } else {
+          karte.addEventListener('click', bearbeiten);
+        }
         return karte;
       }
 

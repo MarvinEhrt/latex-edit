@@ -568,6 +568,122 @@ p('die @-Liste ist eine Listbox, das Feld nennt die aktive Option',
   }));
 await s.keyboard.press('Escape'); await s.waitForTimeout(200);
 
+/* ---------------- Fläche: Trenner und PDF-Spalte ---------------- */
+
+console.log('\nFläche\n');
+await s.locator('#knopf-pdf-zu').click(); await s.waitForTimeout(200);
+p('⟩ klappt die PDF-Spalte zu',
+  await s.evaluate(() => {
+    const sp = document.querySelector('.spalte-rechts');
+    return sp.classList.contains('eingeklappt') &&
+      getComputedStyle(sp).display === 'none' &&
+      !document.getElementById('knopf-pdf-auf').hidden;
+  }));
+await s.locator('#knopf-pdf-auf').click(); await s.waitForTimeout(200);
+p('⟨ PDF holt sie zurück',
+  await s.evaluate(() =>
+    getComputedStyle(document.querySelector('.spalte-rechts')).display !== 'none'));
+
+const trennerKasten = await s.locator('#trenner-rechts').boundingBox();
+await s.mouse.move(trennerKasten.x + 3, trennerKasten.y + 200);
+await s.mouse.down();
+await s.mouse.move(trennerKasten.x - 97, trennerKasten.y + 200, { steps: 4 });
+await s.mouse.up();
+await s.waitForTimeout(200);
+p('der Trenner zieht die PDF-Spalte breiter',
+  await s.evaluate(() => {
+    const w = parseFloat(getComputedStyle(document.querySelector('.spalte-rechts')).width);
+    return w > 540 && w < 620;
+  }),
+  await s.evaluate(() => getComputedStyle(document.querySelector('.spalte-rechts')).width));
+await s.locator('#trenner-rechts').dblclick(); await s.waitForTimeout(200);
+p('Doppelklick setzt die Breite zurück',
+  await s.evaluate(() =>
+    !document.documentElement.style.getPropertyValue('--breite-rechts')));
+
+await setze(() => {
+  App.dok.bloecke = [Modell.neuerBlock('absatz', { runs: [{ text: 'eins zwei drei' }] })];
+  App.dok.einstellungen.wortziel = '2';
+  Editor.zeichne();
+  App.aenderung();
+});
+p('das Wortziel erscheint in der Zählung und warnt über dem Ziel',
+  await s.evaluate(() => {
+    const m = document.getElementById('wortzahl');
+    return m.textContent.includes('/') && m.style.color !== '';
+  }),
+  await s.evaluate(() => document.getElementById('wortzahl').textContent));
+await setze(() => { App.dok.einstellungen.wortziel = ''; App.aenderung(); });
+
+/* ---------------- Tabellenwerkzeuge ---------------- */
+
+console.log('\nTabellenwerkzeuge\n');
+await setze(() => {
+  App.dok.bloecke = [Modell.neuerBlock('tabelle', {
+    kopf: ['A', 'B'], zeilen: [['1', '2'], ['3', '4']],
+    spaltenAusrichtung: ['l', 'c'] })];
+  Editor.zeichne();
+});
+p('Spalte dazwischen einfügen',
+  await s.evaluate(() => {
+    document.querySelector(
+      '.block .spaltenleiste th button[title="Spalte danach einfügen"]').click();
+    const b = App.dok.bloecke[0];
+    return b.kopf.join('|') === 'A||B' && b.zeilen[0].join('|') === '1||2';
+  }),
+  await s.evaluate(() => JSON.stringify(App.dok.bloecke[0].kopf)));
+p('Spalte nach rechts schieben',
+  await s.evaluate(() => {
+    document.querySelector(
+      '.block .spaltenleiste th button[title="Spalte nach rechts schieben"]').click();
+    return App.dok.bloecke[0].kopf.join('|') === '|A|B';
+  }),
+  await s.evaluate(() => JSON.stringify(App.dok.bloecke[0].kopf)));
+p('Zeile nach oben schieben',
+  await s.evaluate(() => {
+    document.querySelectorAll('.block tbody tr')[1]
+      .querySelector('button[title="Zeile nach oben schieben"]').click();
+    const b = App.dok.bloecke[0];
+    return b.zeilen[0].includes('3') && b.zeilen[1].includes('1');
+  }),
+  await s.evaluate(() => JSON.stringify(App.dok.bloecke[0].zeilen)));
+p('Zeile dazwischen einfügen',
+  await s.evaluate(() => {
+    document.querySelectorAll('.block tbody tr')[0]
+      .querySelector('button[title="Zeile danach einfügen"]').click();
+    return App.dok.bloecke[0].zeilen.length === 3 &&
+      App.dok.bloecke[0].zeilen[1].every(x => x === '');
+  }));
+
+/* ---------------- Formel-Stift und Bildgriff ---------------- */
+
+console.log('\nFormel und Bild\n');
+await setze(() => {
+  App.dok.bloecke = [Modell.neuerBlock('formel', { tex: 'x^2' })];
+  Editor.zeichne();
+});
+await s.locator('.formel-stift').click(); await s.waitForTimeout(400);
+p('der ✎-Knopf öffnet den Formeleditor',
+  await s.evaluate(() => !!document.querySelector('.schleier')));
+await s.keyboard.press('Escape'); await s.waitForTimeout(300);
+
+await setze(() => {
+  App.dok.bloecke = [Modell.neuerBlock('abbildung', {
+    titel: 'B', breite: 80,
+    datenUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ' +
+      'AAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' })];
+  Editor.zeichne();
+});
+const griffKasten = await s.locator('.abb-griff').boundingBox();
+await s.mouse.move(griffKasten.x + 6, griffKasten.y + 18);
+await s.mouse.down();
+await s.mouse.move(griffKasten.x - 54, griffKasten.y + 18, { steps: 4 });
+await s.mouse.up();
+await s.waitForTimeout(200);
+p('der Ziehgriff ändert die Bildbreite',
+  await s.evaluate(() => App.dok.bloecke[0].breite < 80 && App.dok.bloecke[0].breite >= 10),
+  await s.evaluate(() => String(App.dok.bloecke[0].breite)));
+
 console.log(`\n${ok} bestanden, ${fehl} durchgefallen`);
 await b.close(); d.kill();
 process.exit(fehl ? 1 : 0);

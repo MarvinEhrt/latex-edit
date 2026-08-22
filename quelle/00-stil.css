@@ -176,14 +176,28 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .raum { display: flex; flex: 1; min-height: 0; }
 
 .spalte { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
-.spalte-links  { width: 248px; flex: none; background-color: var(--flaeche);
+/* Breiten als Variablen: die Trenner setzen sie beim Ziehen,
+   localStorage merkt sie sich (80-app.js). */
+.spalte-links  { width: var(--breite-links, 248px); flex: none;
+                 background-color: var(--flaeche);
                  border-right: 1px solid var(--linie); }
 /* Nur für breite Fenster -- im schmalen Fenster gewinnt .sichtbar
    (drei Klassen), dort schalten weiter die Kopfknöpfe die Spalten um. */
 .spalte-links.eingeklappt { display: none; }
 .spalte-mitte  { flex: 1; background-color: var(--grund); }
-.spalte-rechts { width: 470px; flex: none; background-color: var(--flaeche);
+.spalte-rechts { width: var(--breite-rechts, 470px); flex: none;
+                 background-color: var(--flaeche);
                  border-left: 1px solid var(--linie); }
+.spalte-rechts.eingeklappt { display: none; }
+
+/* Die ziehbaren Trenner zwischen den Spalten */
+.zieh-trenner {
+  flex: none; width: 6px; margin: 0 -3px; position: relative; z-index: 5;
+  cursor: col-resize; background: transparent; touch-action: none;
+}
+.zieh-trenner:hover, .zieh-trenner.zieht { background-color: var(--akzent); opacity: .35; }
+.raum:has(.spalte-links.eingeklappt) #trenner-links { display: none; }
+.raum:has(.spalte-rechts.eingeklappt) #trenner-rechts { display: none; }
 
 .panelkopf {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -458,6 +472,17 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .abb-vorschau { display: block; max-width: 100%; margin: 0 auto;
                 border: 1px solid var(--linie); border-radius: 3px; }
+/* Bild mit Ziehgriff für die Breite */
+.abb-rahmen { position: relative; margin: 0 auto; max-width: 100%; }
+.abb-rahmen .abb-vorschau { width: 100%; margin: 0; }
+.abb-griff {
+  position: absolute; right: -8px; top: 50%; transform: translateY(-50%);
+  width: 12px; height: 36px; border-radius: 7px;
+  border: 1px solid var(--linie-stark); background-color: var(--flaeche-2);
+  box-shadow: var(--schatten); cursor: ew-resize;
+  opacity: 0; transition: opacity .12s; touch-action: none;
+}
+.abb-karte:hover .abb-griff, .block.gewaehlt .abb-griff { opacity: 1; }
 .abb-leer {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 8px; padding: 26px; border: 1.5px dashed var(--linie-stark);
@@ -469,6 +494,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
   display: flex; align-items: center; gap: 10px; cursor: default;
   min-height: 52px;
 }
+.formel-stift {
+  flex: none; border: 0; background: transparent; cursor: pointer;
+  color: var(--tinte-3); font-size: 14px; padding: 4px 7px; border-radius: 3px;
+}
+.formel-stift:hover { background-color: var(--akzent-hell); color: var(--akzent); }
 .formel-karte code, .formel-quelltext {
   font-family: var(--schrift-ma); font-size: 13px; color: var(--tinte);
 }
@@ -735,12 +765,13 @@ math mtable.formel-links mtd { text-align: left; }
 
 .ansichtswahl { display: none; gap: 4px; }
 @media (max-width: 1100px) {
-  .spalte-rechts { width: 380px; }
-  .spalte-links { width: 210px; }
+  .spalte-rechts { width: var(--breite-rechts, 380px); }
+  .spalte-links { width: var(--breite-links, 210px); }
 }
 @media (max-width: 900px) {
   .ansichtswahl { display: flex; }
-  #knopf-gliederung-zu, #knopf-gliederung-auf { display: none; }
+  #knopf-gliederung-zu, #knopf-gliederung-auf,
+  #knopf-pdf-zu, #knopf-pdf-auf, .zieh-trenner { display: none; }
   .spalte-links, .spalte-rechts { width: 100%; border: 0; }
   .raum > .spalte { display: none; }
   .raum > .spalte.sichtbar { display: flex; }
@@ -778,7 +809,8 @@ math mtable.formel-links mtd { text-align: left; }
 }
 .spaltenwerkzeug button.aktiv { color: var(--akzent); background-color: var(--akzent-hell); }
 .spaltenwerkzeug button.gefahr:hover, .zeileweg:hover { background-color: var(--warn-bg); color: var(--warn); }
-.randspalte { width: 22px; text-align: center; }
+.randspalte { width: 1%; white-space: nowrap; text-align: center; }
+.zeilenwerkzeug { display: flex; gap: 1px; }
 .zeileweg { font-size: 10px; }
 
 /* ---------------- Diagramme ---------------- */

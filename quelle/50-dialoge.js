@@ -400,6 +400,17 @@ const Dialoge = (() => {
           [{ w: 'blocksatz', l: 'Blocksatz' }, { w: 'linksbuendig', l: 'Linksbündig' }],
           'APA 7 will linksbündig; deutsche Hochschulen meist Blocksatz.')
       );
+      /* Das Wortziel der Prüfungsordnung -- die Anzeige oben zählt mit. */
+      {
+        const { wrap, eingabe } = feldElement(
+          { n: 'wortziel', l: 'Wortziel (Fließtext)', typ: 'number', kurz: true,
+            h: 'Leer lassen, wenn es keins gibt. Die Anzeige oben zählt dann '
+             + '„4 230 / 8 000 Wörter“ mit.' },
+          e.wortziel || '');
+        eingabe.min = 0;
+        eingabe.addEventListener('input', () => { e.wortziel = eingabe.value.trim(); });
+        gitter1.append(wrap);
+      }
       g1.append(gitter1);
       g1.append(schalter('absatzEinzug', 'Absätze einrücken',
         'APA 7: erste Zeile eingerückt, keine Leerzeile dazwischen.'));
@@ -1084,7 +1095,9 @@ const Dialoge = (() => {
         <p style="margin:0;font-size:13.5px;line-height:1.6">
         Geht etwas schief, erscheint der Fehler über dem PDF — auf Deutsch und
         mit einem Klick zur betroffenen Stelle. Das <b>zuletzt gelungene PDF
-        bleibt dabei stehen</b>, du verlierst also nie die Ansicht.</p>
+        bleibt dabei stehen</b>, du verlierst also nie die Ansicht. Die
+        Spaltenbreiten lassen sich an den <b>Trennern ziehen</b>; das <b>⟩</b>
+        oben rechts klappt die PDF-Spalte zu, wenn du nur schreiben willst.</p>
       </div>
       <div class="gruppe"><h3>Quellen von anderswo</h3>
         <p style="margin:0 0 8px;font-size:13.5px;line-height:1.6">

@@ -13,7 +13,8 @@ auf die Befunde.
 | 4 · Struktur per Tastatur | C2, C3, C4, B4 | **umgesetzt** |
 | 5 · Suchen und Sichtbarkeit | E1, E2, H2, H3 | **umgesetzt** |
 | 6 · Auswahl und Abschnitte | B2, C1, G2–G4 | **umgesetzt** |
-| 7 · Fläche und Feinschliff | F1, D2–D4, H1, H4–H6 | offen |
+| 7 · Fläche und Feinschliff | F1, D2–D4, H4 | **umgesetzt** |
+| Beobachten | H1, H5, H6, SyncTeX | zurückgestellt |
 
 ---
 
@@ -183,18 +184,30 @@ Dialog, wenn kein Feld ihn holt. @-Liste und /-Menü tragen
 `role="listbox"`/`role="option"` mit `aria-activedescendant` am
 Textfeld.
 
-## Paket 7 — Fläche und Feinschliff *(offen)*
+## Paket 7 — Fläche und Feinschliff *(umgesetzt)*
 
-- **F1** Ziehbare Trennlinien zwischen den Spalten, Breite gemerkt;
-  Zuklapp-Knopf für die PDF-Spalte (symmetrisch zur Gliederung).
-- **D3** Tabellen: „+ davor/danach“ und Verschieben je Zeile und
-  Spalte, an den vorhandenen Randwerkzeugen.
-- **D2** Formel-Karte: sichtbarer ✎-Knopf, Enter öffnet.
-- **D4** Ziehgriff für die Bildbreite (Zahlenfeld bleibt).
-- **H1** Überschriftenebenen 4–5 (APA 7), Nummerierung und
-  Gliederung ziehen mit.
-- **H4** Wortziel je Arbeit einstellbar, dezente Anzeige neben der
-  Wortzahl.
+- **F1** Die Spaltenbreiten lassen sich an den Trennern ziehen
+  (Doppelklick setzt zurück, localStorage merkt sie); die PDF-Spalte
+  ist zuklappbar wie die Gliederung. Im schmalen Einspalten-Fenster
+  greifen weiter die Kopfknöpfe.
+- **D3** Tabellen: Spalten lassen sich nach links/rechts schieben und
+  dazwischen einfügen, Zeilen nach oben/unten schieben und
+  dazwischen einfügen — direkt an den Randwerkzeugen, ohne Dialog.
+- **D2** Die Formel-Karte trägt einen sichtbaren ✎-Knopf; Enter (im
+  Auswahlmodus) und Doppelklick öffnen weiterhin.
+- **D4** Bilder haben einen Ziehgriff für die Breite; das Zahlenfeld
+  in der Objektleiste bleibt der genaue Weg, beide halten sich
+  aktuell.
+- **H4** Unter *Layout* lässt sich ein Wortziel eintragen; die
+  Anzeige zählt „4 230 / 8 000 Wörter“ mit und wird ocker über dem
+  Ziel.
+
+## Beobachten *(bewusst zurückgestellt)*
+
+- **H1** Überschriftenebenen 4–5: ändert das erzeugte LaTeX
+  (\paragraph-Ebene, secnumdepth, Stildatei) und gehört darum in
+  eine Umgebung, in der der Bau wirklich läuft — blind ändern wäre
+  riskanter als warten.
 - **H5** Fett/Kursiv ohne `execCommand` (eigene Run-Umschaltung) —
   zusammen mit der Chip-Technik Voraussetzung, um auch Anmerkungen
   direkt editierbar zu machen (Rest von D1).

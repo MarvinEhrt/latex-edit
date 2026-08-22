@@ -56,7 +56,9 @@ eigenen Kopie.
 
 Links die **Gliederung**, in der Mitte der **Text**, rechts das **PDF** — das
 echte, nicht ein Nachbau. Zwei Sekunden nach der letzten Eingabe wird neu
-gebaut; eiliger geht es mit **Strg+Enter**.
+gebaut; eiliger geht es mit **Strg+Enter**. Die Spaltenbreiten lassen sich
+an den Trennern ziehen (Doppelklick setzt zurück), Gliederung und
+PDF-Spalte auch ganz zuklappen — beides bleibt gemerkt.
 
 Jeder Abschnitt ist ein **Baustein**: Absatz, Überschrift, Tabelle, Abbildung,
 Diagramm, Blockzitat, Liste, Formel. Maus darüber — links ein Griff zum
@@ -99,6 +101,10 @@ Wort im PDF — *Anmerkung./Note.*, *Literaturverzeichnis/References*,
 *S./p.*, die Beschriftungen des Deckblatts, die eidesstattliche
 Erklärung. Auch die Chips im Editor und die Rechtschreibprüfung des
 Browsers ziehen mit. Die Oberfläche selbst bleibt deutsch.
+
+**Wortziel:** Unter *Layout* lässt sich das Wortziel der Prüfungsordnung
+eintragen — die Zählung oben zeigt dann *4 230 / 8 000 Wörter* und wird
+ocker, sobald das Ziel überschritten ist.
 
 **Mehrere Belege in einer Klammer:** Im Zitat-Fenster klickt man so viele
 Quellen an, wie der Satz braucht — im Text steht dann
@@ -312,11 +318,12 @@ node     pruefungen/pruefe_formeln.mjs   # 31 Prüfungen: MathML-Vorschau,
 npm install                              # einmalig, holt playwright-core
 node     pruefungen/pruefe_bausteine.mjs # Absätze, Einfügen, Tabellen, Dialoge,
                                          #   Literaturschlüssel, Export
-node     pruefungen/pruefe_bedienung.mjs # 56 Prüfungen: Pfeile über Blockgrenzen,
+node     pruefungen/pruefe_bedienung.mjs # 67 Prüfungen: Pfeile über Blockgrenzen,
                                          #   Listenverhalten, Tastenkürzel, Kartentitel,
                                          #   Markdown-Kürzel, /-Menü, Umwandeln, Duplizieren,
                                          #   Suche samt Markierung, Einfügen in Zellen,
-                                         #   Abschnitte, Auswahlmodus, Dialog-Semantik
+                                         #   Abschnitte, Auswahlmodus, Dialog-Semantik,
+                                         #   Trenner, Tabellenwerkzeuge, Bildgriff
 node     pruefungen/pruefe_ganz.mjs      # 16 Schritte: Browser bis fertiges PDF
 ```
 

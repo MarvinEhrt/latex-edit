@@ -345,6 +345,7 @@ const Modell = (() => {
 
   const STANDARD_EINSTELLUNGEN = {
     sprache: 'de',                 // Sprache der ARBEIT, nicht der Oberfläche
+    wortziel: '',                  // Wortziel der Prüfungsordnung, leer = keins
     schrift: 'times',
     schriftgroesse: 12,
     zeilenabstand: 1.5,

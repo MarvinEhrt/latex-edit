@@ -217,9 +217,9 @@ const Kontextleiste = (() => {
         const uebernimm = (wert) => {
           Verlauf.merke(dok(), 'breite:' + block.id);
           block.breite = wert;
-          const bild = document.querySelector(
-            `.block[data-id="${block.id}"] .abb-vorschau`);
-          if (bild) bild.style.width = block.breite + '%';
+          const rahmen = document.querySelector(
+            `.block[data-id="${block.id}"] .abb-rahmen`);
+          if (rahmen) rahmen.style.width = block.breite + '%';
           App.aenderung({ nurVorschau: true });
         };
         breite.addEventListener('input', () => {

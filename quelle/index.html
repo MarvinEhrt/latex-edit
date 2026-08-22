@@ -56,6 +56,9 @@
       </div>
     </aside>
 
+    <!-- Ziehbarer Trenner zwischen Gliederung und Text -->
+    <div class="zieh-trenner" id="trenner-links" title="Breite ziehen — Doppelklick setzt zurück"></div>
+
     <main class="spalte spalte-mitte sichtbar" data-ansicht="editor">
       <div class="panelkopf">
         <span style="display:flex;gap:6px;align-items:center">
@@ -75,6 +78,8 @@
           <button class="knopf knopf-klein knopf-still" id="knopf-export">Export</button>
           <button class="knopf knopf-klein knopf-still" id="knopf-einstellungen" title="Einstellungen">⚙</button>
           <button class="knopf knopf-klein knopf-still" id="knopf-thema" title="Hell oder dunkel">◐</button>
+          <button class="knopf knopf-klein knopf-still" id="knopf-pdf-auf"
+                  title="PDF einblenden" hidden>⟨ PDF</button>
         </span>
       </div>
       <div class="panelkoerper">
@@ -87,10 +92,17 @@
       </div>
     </main>
 
+    <!-- Ziehbarer Trenner zwischen Text und PDF -->
+    <div class="zieh-trenner" id="trenner-rechts" title="Breite ziehen — Doppelklick setzt zurück"></div>
+
     <aside class="spalte spalte-rechts" data-ansicht="pdf">
       <div class="panelkopf">
         <span>PDF</span>
-        <span id="bauzustand" class="bauzustand"></span>
+        <span style="display:flex;gap:6px;align-items:center">
+          <span id="bauzustand" class="bauzustand"></span>
+          <button class="knopf knopf-klein knopf-still" id="knopf-pdf-zu"
+                  title="PDF ausblenden">⟩</button>
+        </span>
       </div>
       <div id="fehlerliste" class="fehlerliste"></div>
       <div class="panelkoerper pdfbereich">
