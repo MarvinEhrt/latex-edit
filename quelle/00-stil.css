@@ -125,6 +125,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .spalte { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .spalte-links  { width: 248px; flex: none; background-color: var(--flaeche);
                  border-right: 1px solid var(--linie); }
+/* Nur für breite Fenster -- im schmalen Fenster gewinnt .sichtbar
+   (drei Klassen), dort schalten weiter die Kopfknöpfe die Spalten um. */
+.spalte-links.eingeklappt { display: none; }
 .spalte-mitte  { flex: 1; background-color: var(--grund); }
 .spalte-rechts { width: 470px; flex: none; background-color: var(--flaeche);
                  border-left: 1px solid var(--linie); }
@@ -161,6 +164,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .knopf-gefahr { color: var(--warn); border-color: var(--warn); background: transparent; }
 .knopf-gefahr:hover { background-color: var(--warn-bg); border-color: var(--warn); }
 .knopf[disabled] { opacity: .45; cursor: not-allowed; }
+.knopf[hidden] { display: none; }
 
 /* ---------------- Gliederung ---------------- */
 
@@ -605,6 +609,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 @media (max-width: 900px) {
   .ansichtswahl { display: flex; }
+  #knopf-gliederung-zu, #knopf-gliederung-auf { display: none; }
   .spalte-links, .spalte-rechts { width: 100%; border: 0; }
   .raum > .spalte { display: none; }
   .raum > .spalte.sichtbar { display: flex; }
