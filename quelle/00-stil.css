@@ -23,6 +23,8 @@
   --verweis-bg:  #e6ecf3;
   --kennwert:    #7a5b12;
   --kennwert-bg: #f6eedb;
+  --formel:      #5b3f8a;
+  --formel-bg:   #efe9f7;
   --warn:        #9a3412;
   --warn-bg:     #fbeae4;
   --ok:          #1f6f4a;
@@ -49,6 +51,7 @@
     --zitat: #6cc0b0; --zitat-bg: #1a2e2b;
     --verweis: #8fb4dd; --verweis-bg: #1d2836;
     --kennwert: #d4ac5e; --kennwert-bg: #2e2718;
+    --formel: #b39ddb; --formel-bg: #271f35;
     --warn: #e8927a; --warn-bg: #33201a;
     --ok: #6cc08d;
     --schatten: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
@@ -63,6 +66,7 @@
   --zitat: #6cc0b0; --zitat-bg: #1a2e2b;
   --verweis: #8fb4dd; --verweis-bg: #1d2836;
   --kennwert: #d4ac5e; --kennwert-bg: #2e2718;
+  --formel: #b39ddb; --formel-bg: #271f35;
   --warn: #e8927a; --warn-bg: #33201a; --ok: #6cc08d;
   --schatten: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
 }
@@ -75,6 +79,7 @@
   --zitat: #1f6f63; --zitat-bg: #e4f0ed;
   --verweis: #2d4869; --verweis-bg: #e6ecf3;
   --kennwert: #7a5b12; --kennwert-bg: #f6eedb;
+  --formel: #5b3f8a; --formel-bg: #efe9f7;
   --warn: #9a3412; --warn-bg: #fbeae4; --ok: #1f6f4a;
   --schatten: 0 1px 2px rgba(22,27,34,.06), 0 8px 24px rgba(22,27,34,.06);
 }
@@ -278,6 +283,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .chip-verweis  { background-color: var(--verweis-bg);  color: var(--verweis); }
 .chip-kennwert { background-color: var(--kennwert-bg); color: var(--kennwert); }
 .chip-fussnote { background-color: var(--linie);       color: var(--tinte-2); }
+.chip-formel   { background-color: var(--formel-bg);   color: var(--formel); }
+/* MathML im Chip: gleiche Zeilenhöhe wie der Text drumherum */
+.chip-formel math { font-size: 1.1em; }
 .chip:hover { filter: brightness(.94); }
 /* In der Papiervorschau kein Chip-Aussehen -- da zählt, wie es gedruckt wird */
 .blatt .chip { box-shadow: none; }
@@ -389,7 +397,62 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .abb-leer.hover { border-color: var(--akzent); background-color: var(--akzent-hell); color: var(--akzent); }
 
-.formel-karte code { font-family: var(--schrift-ma); font-size: 13px; color: var(--tinte); }
+.formel-karte {
+  display: flex; align-items: center; gap: 10px; cursor: default;
+  min-height: 52px;
+}
+.formel-karte code, .formel-quelltext {
+  font-family: var(--schrift-ma); font-size: 13px; color: var(--tinte);
+}
+.formel-satz {
+  flex: 1; min-width: 0; text-align: center; overflow-x: auto;
+  font-family: var(--schrift-doc); font-size: 19px;
+}
+.formel-nr {
+  flex: none; font-family: var(--schrift-doc); font-size: 15px;
+  color: var(--tinte-2); font-variant-numeric: tabular-nums;
+}
+/* Fallunterscheidungen und aligned: Zellen linksbündig */
+math mtable.formel-links mtd { text-align: left; }
+
+/* ---------------- Formeleditor (Dialog) ---------------- */
+
+.formel-editor {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: stretch;
+}
+@media (max-width: 700px) { .formel-editor { grid-template-columns: 1fr; } }
+.formel-eingabe {
+  width: 100%; resize: vertical; min-height: 96px;
+  padding: 8px 10px; border: 1px solid var(--linie-stark); border-radius: var(--r);
+  background-color: var(--flaeche-2); color: var(--tinte);
+  font-family: var(--schrift-ma); font-size: 13.5px; line-height: 1.5;
+}
+.formel-eingabe:focus {
+  outline: none; border-color: var(--akzent); box-shadow: 0 0 0 3px var(--akzent-hell);
+}
+.formel-vorschau {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 96px; padding: 10px; overflow: auto;
+  border: 1px solid var(--linie); border-radius: var(--r);
+  background-color: var(--flaeche);
+  font-family: var(--schrift-doc); font-size: 20px;
+}
+.formel-leer { color: var(--tinte-3); font-family: var(--schrift-ui); font-size: 12.5px; }
+.formel-warnung { margin-top: 10px; }
+.formel-warnung .notiz { margin-bottom: 0; }
+.formel-reiter { margin: 12px 0 8px; }
+.symbolflaeche { display: flex; flex-wrap: wrap; gap: 4px; }
+.symbolknopf {
+  min-width: 34px; padding: 5px 7px; cursor: pointer;
+  border: 1px solid var(--linie-stark); border-radius: var(--r);
+  background-color: var(--flaeche-2); color: var(--tinte);
+  font-family: var(--schrift-doc); font-size: 15px; line-height: 1.2;
+}
+.symbolknopf:hover { background-color: var(--akzent-hell); border-color: var(--akzent); }
+/* Statistik-Vorlagen: Namen statt Symbole, deshalb breiter und in UI-Schrift */
+.symbolflaeche-beschriftet .symbolknopf {
+  font-family: var(--schrift-ui); font-size: 12.5px; padding: 6px 10px;
+}
 
 .umbruch-marke {
   display: flex; align-items: center; gap: 10px; color: var(--tinte-3);

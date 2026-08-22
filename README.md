@@ -89,8 +89,31 @@ Quellen an, wie der Satz braucht — im Text steht dann
 *(Müller & Weber, 2020; Schmidt, 2021)*, alphabetisch geordnet, wie APA 7 es
 verlangt. Im Satz statt in Klammern bleiben sie getrennt.
 
-**Drei Farben, drei Bedeutungen** im Fließtext:
-Quellenangaben türkis, Querverweise blau, statistische Kennwerte ocker.
+**Vier Farben, vier Bedeutungen** im Fließtext:
+Quellenangaben türkis, Querverweise blau, statistische Kennwerte ocker,
+Formeln violett.
+
+### Formeln
+
+**Einfügen → ∑ Formel** öffnet den Formeleditor: links LaTeX, rechts die
+**gesetzte Formel, die beim Tippen mitgeht** — ohne Bibliothek und ohne
+Internet, der Browser setzt MathML von Haus aus. Wer kein LaTeX kann,
+klickt sich die Formel zusammen: Brüche, Wurzeln, Summen, griechische
+Buchstaben, Matrizen — markierter Text wandert dabei in die erste Lücke
+der Vorlage. Unter **Statistik** liegen die Formeln, die in empirischen
+Arbeiten ohnehin gebraucht werden: z-Wert, Standardabweichung, Cohens *d*,
+Korrelation, χ², Konfidenzintervall, Cronbachs α.
+
+Fehlende Klammern, ein verirrtes `$`, ein unbekannter Befehl — all das wird
+**beim Tippen gemeldet**, nicht erst nach dem LaTeX-Lauf. Eingefügtes mit
+`$…$` oder `\[…\]` drumherum wird automatisch ausgezogen, ein `\\` für
+mehrzeilige Formeln automatisch in eine `gathered`-Umgebung gesetzt.
+
+**Nummerierte Formeln** bekommen eine (1) am rechten Rand und lassen sich
+per **Querverweis** ansprechen — „Formel (1)“ stimmt auch nach dem
+Umsortieren, im Editor wie im PDF. Für ein η² mitten im Satz gibt es die
+**Formel im Satz**: Werkzeugleiste (oder Auswahlleiste) → ∑, sie erscheint
+als violetter Chip, gesetzt wie im PDF, ein Klick öffnet sie wieder.
 
 ### Diagramme
 
@@ -221,7 +244,7 @@ Schreibtisch/
 │   ├── zotero.py        Web-API von Zotero
 │   ├── nachschlagen.py  Quelle per DOI bei Crossref
 │   └── ablage.py        Projekte und Einstellungen
-├── quelle/              Oberfläche (17 Module)
+├── quelle/              Oberfläche (19 Module)
 ├── beispiel/            die Beispielarbeit — Vorlage, keine Arbeit
 ├── bauen.py             quelle/* → oberflaeche.html
 ├── pruefungen/
@@ -267,6 +290,9 @@ node     pruefungen/pruefe_dokument.mjs  # 16 Prüfungen: lange Tabellen verlier
                                          #   keine Zeilen, Vorspann ohne Platzhalter
 node     pruefungen/pruefe_diagramme.mjs # 16 Prüfungen: alle vier Diagrammarten,
                                          #   erzeugt und wirklich übersetzt
+node     pruefungen/pruefe_formeln.mjs   # 31 Prüfungen: MathML-Vorschau,
+                                         #   nummerierte und mehrzeilige Formeln,
+                                         #   Formeln im Satz; mit LaTeX auch übersetzt
 npm install                              # einmalig, holt playwright-core
 node     pruefungen/pruefe_bausteine.mjs # Absätze, Einfügen, Tabellen, Dialoge,
                                          #   Literaturschlüssel, Export

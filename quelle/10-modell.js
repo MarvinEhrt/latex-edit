@@ -169,7 +169,7 @@ const Modell = (() => {
                                      fehlerArt: 'sd', achseX: '', achseY: '',
                                      graustufen: false, regression: true,
                                      breite: 85, hoehe: 6.4, ...daten };
-      case 'formel':        return { ...grund, tex: '', ...daten };
+      case 'formel':        return { ...grund, tex: '', nummeriert: false, ...daten };
       default:              return { ...grund, ...daten };
     }
   };
@@ -410,7 +410,7 @@ const Modell = (() => {
 
   function nummeriere(dok) {
     const zaehl = [0, 0, 0];
-    let tab = 0, abb = 0, imAnhang = false, anhangBuchstabe = 0;
+    let tab = 0, abb = 0, form = 0, imAnhang = false, anhangBuchstabe = 0;
     const karte = new Map();
 
     for (const b of dok.bloecke) {
@@ -438,6 +438,12 @@ const Modell = (() => {
       if (b.typ === 'tabelle')   karte.set(b.id, { nummer: String(++tab), imAnhang });
       if (b.typ === 'abbildung' || b.typ === 'diagramm')
         karte.set(b.id, { nummer: String(++abb), imAnhang });
+      /* Nur nummerierte Formeln zählen -- genau die bekommen im PDF
+         eine (n) und lassen sich per Querverweis ansprechen. LaTeX
+         zählt equation-Umgebungen in derselben Reihenfolge, die
+         Nummern stimmen also überein. */
+      if (b.typ === 'formel' && b.nummeriert)
+        karte.set(b.id, { nummer: String(++form), imAnhang });
     }
     return karte;
   }
@@ -463,6 +469,7 @@ const Modell = (() => {
         const n = (nummern.get(ziel) || {}).nummer || '?';
         return b.typ === 'tabelle' ? `${w.tabelle} ${n}`
              : (b.typ === 'abbildung' || b.typ === 'diagramm') ? `${w.abbildung} ${n}`
+             : b.typ === 'formel' ? `${w.formel} (${n})`
              : `${w.abschnitt} ${n}`;
       }
     };

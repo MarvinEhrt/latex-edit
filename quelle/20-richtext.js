@@ -7,6 +7,7 @@
      {kennwert:'SW', wert:'104'}       statistischer Kennwert (kursiv)
      {verweis:'blockId'}               "Tabelle 3" / "Abbildung 1"
      {fussnote:'...'}                  Fußnote
+     {formel:'\\eta^2'}                Formel im Satz (LaTeX)
    Diese Zwischenschicht ist der Grund, warum eingefügter Word-Text
    nie kaputte Formatierung einschleppen kann.
    =================================================================== */
@@ -29,10 +30,10 @@ const Zitate = (() => {
   const WORT = {
     de: { und: 'und', hrsg: 'Hrsg.', seiten: 'S.', auflage: 'Aufl.',
           tabelle: 'Tabelle', abbildung: 'Abbildung', abschnitt: 'Abschnitt',
-          gelöscht: '?? gelöscht' },
+          formel: 'Formel', gelöscht: '?? gelöscht' },
     en: { und: 'and', hrsg: 'Eds.', seiten: 'pp.', auflage: 'ed.',
           tabelle: 'Table', abbildung: 'Figure', abschnitt: 'Section',
-          gelöscht: '?? deleted' }
+          formel: 'Equation', gelöscht: '?? deleted' }
   };
   const wort = (sprache) => WORT[sprache === 'en' ? 'en' : 'de'];
 
@@ -258,6 +259,7 @@ const Richtext = (() => {
       }
       if (r.kennwert) return `${r.kennwert} = ${r.wert}`;
       if (r.verweis) return ctx.verweisText ? ctx.verweisText(r.verweis) : '[Verweis]';
+      if (r.formel) return r.formel;
       return '';
     }).join('');
   }
@@ -301,6 +303,13 @@ const Richtext = (() => {
         return chip('fussnote', '¹ ' + (escHtml(kurz) || 'Fußnote'),
                     { text: r.fussnote }, voll);
       }
+      if (r.formel) {
+        /* Gesetzt statt Quelltext: die MathML-Vorschau aus 34-mathe.js.
+           Was sie nicht lesen kann, bleibt als Quelltext sichtbar. */
+        const v = Mathe.vorschauHtml(r.formel, false);
+        return chip('formel', v.html || escHtml(r.formel),
+                    { tex: r.formel }, r.formel);
+      }
       return '';
     }).join('') || '';
   }
@@ -337,6 +346,7 @@ const Richtext = (() => {
           if (d.typ === 'kennwert') raus.push({ kennwert: d.sym, wert: d.wert });
           if (d.typ === 'verweis')  raus.push({ verweis: d.ziel });
           if (d.typ === 'fussnote') raus.push({ fussnote: d.text });
+          if (d.typ === 'formel')   raus.push({ formel: d.tex });
           continue;
         }
         if (tag === 'br') { schiebe({ text: '\n', ...stil }); continue; }
@@ -405,6 +415,10 @@ const Richtext = (() => {
       if (r.kennwert) return `\\kennwert{${escLatex(r.kennwert)}}{${escLatex(r.wert)}}`;
       if (r.verweis)  return ctx.verweisLatex ? ctx.verweisLatex(r.verweis) : '';
       if (r.fussnote != null) return `\\footnote{${fussnoteLatex(r.fussnote)}}`;
+      /* Rohes LaTeX wie beim Formel-Baustein -- NICHT maskieren.
+         Unsichtbare Zeichen (der Editor setzt ​ hinter Chips)
+         müssen trotzdem raus, sie brächen den Bau. */
+      if (r.formel) return `$${String(r.formel).replace(UNSICHTBAR, '').trim()}$`;
       return '';
     }).join('');
   }

@@ -54,6 +54,7 @@ const Auswahlleiste = (() => {
     k('→', 'Querverweis einfügen', () => { verstecke(); App.verweisEinfuegen(); });
     k('𝑀', 'Kennwert einfügen', () => { verstecke(); App.kennwertEinfuegen(); });
     k('¹', 'Fußnote einfügen', () => { verstecke(); App.fussnoteEinfuegen(); });
+    k('∑', 'Formel im Satz einfügen', () => { verstecke(); App.formelEinfuegen(); });
     document.body.append(leiste);
   }
 

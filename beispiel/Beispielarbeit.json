@@ -274,7 +274,8 @@
   {
    "id": "beisp-f01",
    "typ": "formel",
-   "tex": "r_{xy} = \\frac{\\mathrm{cov}(X, Y)}{s_X \\cdot s_Y}"
+   "tex": "r_{xy} = \\frac{\\mathrm{cov}(X, Y)}{s_X \\cdot s_Y}",
+   "nummeriert": true
   },
   {
    "id": "beisp-h10",
