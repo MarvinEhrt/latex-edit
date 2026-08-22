@@ -532,6 +532,9 @@ const App = (() => {
     k('knopf-export', zeigeExportMenue);
     k('knopf-bauen', () => { clearTimeout(bauTimer); baue(); });
 
+    k('knopf-gliederung-zu', () => klappeGliederung(true));
+    k('knopf-gliederung-auf', () => klappeGliederung(false));
+
     k('knopf-thema', () => {
       const wurzel = document.documentElement;
       const dunkel = wurzel.dataset.theme
@@ -572,6 +575,15 @@ const App = (() => {
     });
   }
 
+  /* Im schmalen Fenster übernehmen die Kopfknöpfe die Spalten; dieses
+     Zuklappen gilt nur für die breite Dreiteilung und bleibt gemerkt. */
+  function klappeGliederung(zu) {
+    document.querySelector('.spalte-links')?.classList.toggle('eingeklappt', zu);
+    const auf = document.getElementById('knopf-gliederung-auf');
+    if (auf) auf.hidden = !zu;
+    try { localStorage.setItem('schreibtisch-gliederung', zu ? 'zu' : 'auf'); } catch {}
+  }
+
   /* Vier Sekunden ungesicherter Text sind wenig -- und trotzdem der
      halbe Absatz, an dem gerade gearbeitet wird. Eine eigene Meldung
      erlauben die Browser hier längst nicht mehr; dass überhaupt
@@ -586,6 +598,9 @@ const App = (() => {
     try {
       const thema = localStorage.getItem('schreibtisch-thema');
       if (thema) document.documentElement.dataset.theme = thema;
+    } catch {}
+    try {
+      if (localStorage.getItem('schreibtisch-gliederung') === 'zu') klappeGliederung(true);
     } catch {}
 
     verdrahteKopf();
