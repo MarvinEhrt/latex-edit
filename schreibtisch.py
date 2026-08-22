@@ -11,11 +11,13 @@ Braucht nur die Standardbibliothek — kein pip, kein venv, kein Internet
 
 from __future__ import annotations
 
+import atexit
 import base64
 import http.server
 import json
 import os
 import secrets
+import shutil
 import socket
 import socketserver
 import sys
@@ -48,8 +50,12 @@ ARBEITEN = os.environ.get("SCHREIBTISCH_ARBEITEN") or os.path.join(HIER, "Arbeit
 ZEICHEN = secrets.token_urlsafe(24)
 
 ABLAGE = ablage_modul.Ablage(ARBEITEN)
-ARBEITSORDNER = os.path.join(tempfile.gettempdir(),
-                             f"schreibtisch-{os.getpid()}")
+# mkdtemp legt mit 0700 an: im Arbeitsordner liegen der ganze Text der
+# Arbeit, das Literaturverzeichnis und die Bilder. Unter /tmp mit den
+# üblichen 0755 könnte jeder andere Benutzer des Rechners mitlesen.
+# Und er verschwindet zum Schluss wieder, statt sich je Start zu häufen.
+ARBEITSORDNER = tempfile.mkdtemp(prefix="schreibtisch-")
+atexit.register(shutil.rmtree, ARBEITSORDNER, True)
 UEBERSETZER = uebersetzen_modul.Uebersetzer(ARBEITSORDNER)
 
 
@@ -83,10 +89,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _erlaubt(self, teile) -> bool:
         """Nur von diesem Rechner, nur mit gültigem Zeichen."""
-        host = (self.headers.get("Host") or "").split(":")[0]
-        if host not in ("127.0.0.1", "localhost", "[::1]"):
+        if not self._eigener_host():
             return False
-        return teile.get("t", [""])[0] == ZEICHEN
+        return secrets.compare_digest(teile.get("t", [""])[0], ZEICHEN)
+
+    def _eigener_host(self) -> bool:
+        host = (self.headers.get("Host") or "").split(":")[0]
+        return host in ("127.0.0.1", "localhost", "[::1]")
+
+    def _fremde_seite(self) -> bool:
+        """Eine Anfrage, die eine andere Seite im Browser ausgelöst hat.
+
+        Der Browser sagt es selbst. Fehlt die Angabe (alte Browser,
+        curl), wird nicht abgewiesen -- das Zeichen bleibt die
+        eigentliche Sperre, das hier ist der Riegel davor."""
+        woher = self.headers.get("Sec-Fetch-Site")
+        return woher is not None and woher not in ("same-origin", "none")
 
     # ------------------------------------------------------------------- GET
 
@@ -95,6 +113,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         weg, teile = zerlegt.path, urllib.parse.parse_qs(zerlegt.query)
 
         if weg in ("/", "/index.html"):
+            # Die Seite trägt das Zeichen im Text -- wer sie bekommt,
+            # bekommt vollen Zugriff auf alle Arbeiten. Sie ist deshalb
+            # genauso geschützt wie jede andere Antwort. Die Adresse,
+            # die start.sh öffnet, bringt das Zeichen mit.
+            if not self._erlaubt(teile):
+                return self._sende_hinweis_statt_seite()
             return self._sende_oberflaeche()
 
         if weg == "/favicon.ico":
@@ -166,10 +190,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     teile.get("art", ["users"])[0],
                     teile.get("sammlung", [""])[0])})
 
-            if weg == "/beenden":
-                threading.Timer(0.4, lambda: os._exit(0)).start()
-                return _json_antwort(self, {"gut": True})
-
         except VERBINDUNG_WEG:
             return                                # Browser ist weg
         except zotero_modul.ZoteroFehler as f:
@@ -188,10 +208,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         zerlegt = urllib.parse.urlparse(self.path)
         weg, teile = zerlegt.path, urllib.parse.parse_qs(zerlegt.query)
-        if not self._erlaubt(teile):
+        if not self._erlaubt(teile) or self._fremde_seite():
             return _json_antwort(self, {"fehler": "nicht erlaubt"}, 403)
 
-        laenge = int(self.headers.get("Content-Length") or 0)
+        # Ein <form> einer fremden Seite kann zwar POSTen, aber keinen
+        # eigenen Content-Type setzen -- text/plain reichte sonst aus,
+        # um gültiges JSON zu schmuggeln.
+        if not (self.headers.get("Content-Type") or "").startswith("application/json"):
+            return _json_antwort(self, {"fehler": "nur application/json"}, 415)
+
+        try:
+            laenge = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return _json_antwort(self, {"fehler": "kaputte Längenangabe"}, 400)
         if laenge > 300 * 1024 * 1024:
             return _json_antwort(self, {"fehler": "Anfrage zu groß"}, 413)
         rumpf = self.rfile.read(laenge) if laenge else b"{}"
@@ -214,6 +243,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 except ablage_modul.VeralteterStand as f:
                     return _json_antwort(self, {"fehler": str(f)}, 409)
 
+            if weg == "/beenden":
+                # Kein GET: eine Adresse, die den Dienst mitten im
+                # Sichern abschießt, hat im Browserverlauf nichts zu
+                # suchen.
+                threading.Timer(0.4, lambda: os._exit(0)).start()
+                return _json_antwort(self, {"gut": True})
+
             if weg == "/projekt/loeschen":
                 ABLAGE.loesche(daten.get("name", ""))
                 return _json_antwort(self, {"gut": True})
@@ -235,6 +271,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     # ------------------------------------------------------------- Bausteine
 
+    def _sende_hinweis_statt_seite(self):
+        """Wer die Adresse ohne Zeichen aufruft, ist kein Angreifer,
+        sondern hat ein Lesezeichen gesetzt. Also eine Erklärung statt
+        eines nackten 403."""
+        seite = ("<!doctype html><meta charset=utf-8>"
+                 "<title>Schreibtisch</title>"
+                 "<style>body{font-family:system-ui,sans-serif;max-width:34em;"
+                 "margin:14vh auto;padding:0 1.5em;line-height:1.6;color:#242830}"
+                 "code{background:#eee;padding:.1em .35em;border-radius:3px}</style>"
+                 "<h1>Fast.</h1><p>Diese Adresse allein genügt nicht — der "
+                 "Schreibtisch verlangt bei jeder Anfrage ein Zeichen, das beim "
+                 "Start erzeugt wird. Damit kann keine fremde Seite im selben "
+                 "Browser an deine Arbeiten.</p>"
+                 "<p>Öffne den Schreibtisch über <code>start.sh</code> "
+                 "(Linux) oder <code>start.bat</code> (Windows). Das Fenster, "
+                 "das dabei aufgeht, bringt das Zeichen mit; ein Lesezeichen "
+                 "auf diese Adresse tut es nicht.</p>").encode("utf-8")
+        self.send_response(403)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(seite)))
+        self.send_header("X-Frame-Options", "DENY")
+        self.end_headers()
+        try:
+            self.wfile.write(seite)
+        except VERBINDUNG_WEG:
+            pass
+
     def _sende_oberflaeche(self):
         try:
             with open(OBERFLAECHE, encoding="utf-8") as f:
@@ -247,6 +310,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         roh = seite.encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        # Niemand rahmt diese Seite ein: ein unsichtbarer Rahmen über
+        # einem fremden Knopf ließe sich sonst auf "Löschen" legen.
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
         self.send_header("Content-Length", str(len(roh)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
@@ -268,7 +335,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except VERBINDUNG_WEG:
             pass
 
+    # Genau die Dateien, die quelle/30-latex.js erzeugt. Der Name wurde
+    # bisher ungeprüft in os.path.join gegeben -- ein "../" oder ein
+    # absoluter Pfad schrieb damit irgendwohin ins Dateisystem.
+    ERLAUBTE_DATEIEN = frozenset({
+        "arbeit.tex", "literatur.bib", "arbeit-stil.sty",
+        "bauen.sh", "latexmkrc", "LIESMICH.md"})
+
     def _uebersetze(self, daten):
+        dateien = {name: inhalt
+                   for name, inhalt in (daten.get("dateien") or {}).items()
+                   if name in self.ERLAUBTE_DATEIEN}
         bilder = []
         for b in daten.get("bilder") or []:
             try:
@@ -277,7 +354,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception:
                 pass
         UEBERSETZER.brich_ab()                  # eine neuere Fassung geht vor
-        ergebnis = UEBERSETZER.uebersetze(daten.get("dateien") or {}, bilder)
+        ergebnis = UEBERSETZER.uebersetze(dateien, bilder)
         return _json_antwort(self, ergebnis)
 
 

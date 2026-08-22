@@ -81,6 +81,6 @@ const Begleiter = (() => {
     zoteroSammlungen: (art) => hole('/zotero/sammlungen', { art: art || 'users' }),
     zoteroBibliothek: (art, sammlung) =>
       hole('/zotero/bibliothek', { art: art || 'users', sammlung: sammlung || '' }),
-    beenden:         () => hole('/beenden')
+    beenden:         () => sende('/beenden', {})
   };
 })();

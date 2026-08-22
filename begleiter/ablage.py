@@ -415,6 +415,17 @@ class Ablage:
     def setze_einstellungen(self, werte: dict) -> dict:
         alt = self.einstellungen()
         alt.update(werte)
-        with open(self.einstellungsdatei, "w", encoding="utf-8") as f:
+        # Wie beim Projekt: erst daneben, dann umlegen. Eine volle
+        # Platte hätte die Datei sonst gekürzt -- mitsamt Zotero-Schlüssel.
+        vorlaeufig = self.einstellungsdatei + ".neu"
+        with open(vorlaeufig, "w", encoding="utf-8") as f:
             json.dump(alt, f, ensure_ascii=False, indent=1)
+        try:
+            # Hier liegt der Zotero-Schlüssel im Klartext. Die README
+            # verkauft das als sicherer als im Browser -- dann soll ihn
+            # auch niemand sonst auf dem Rechner lesen können.
+            os.chmod(vorlaeufig, 0o600)
+        except OSError:
+            pass                     # Windows kennt das so nicht
+        os.replace(vorlaeufig, self.einstellungsdatei)
         return alt

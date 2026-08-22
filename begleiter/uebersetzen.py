@@ -264,10 +264,15 @@ class Uebersetzer:
     # -------------------------------------------------- Dateien vorbereiten
 
     def _schreibe_wenn_neu(self, name: str, inhalt: bytes) -> bool:
+        # Der Name kommt von außen. Er darf nur in diesen Ordner zeigen
+        # -- der Aufrufer prüft schon, hier steht der Riegel am Ziel.
+        pfad = os.path.abspath(os.path.join(self.ordner, name))
+        if os.path.commonpath([os.path.abspath(self.ordner), pfad]) \
+                != os.path.abspath(self.ordner):
+            raise ValueError(f"Dateiname zeigt aus dem Arbeitsordner: {name}")
         h = hashlib.sha1(inhalt).hexdigest()
         if self._hashes.get(name) == h:
             return False
-        pfad = os.path.join(self.ordner, name)
         os.makedirs(os.path.dirname(pfad) or self.ordner, exist_ok=True)
         with open(pfad, "wb") as f:
             f.write(inhalt)
@@ -344,7 +349,12 @@ class Uebersetzer:
                             or zitate != self._letzte_zitate
                             or not os.path.exists(bbl))
 
+            # -no-shell-escape: der Formel-Baustein reicht getipptes
+            # LaTeX unverändert durch. Bei einer weitergegebenen oder
+            # heruntergeladenen .json-Arbeit liefe darin sonst fremder
+            # Code, sobald man sie das erste Mal baut.
             grundbefehl = [pdflatex, "-interaction=nonstopmode",
+                           "-no-shell-escape",
                            "-halt-on-error", "-file-line-error",
                            HAUPTDATEI + ".tex"]
 
