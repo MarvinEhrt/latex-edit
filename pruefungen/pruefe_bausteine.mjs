@@ -204,6 +204,31 @@ await s.waitForTimeout(350);
 p('Zeile lässt sich löschen',
   (await s.evaluate(()=>App.dok.bloecke[0].zeilen.length))===1);
 
+// K2) Bildbreite in der Objektleiste: die halb getippte 6 (von 65) darf die
+// Vorschau nicht auf das Minimum von 10 % schnurren lassen
+await setze(()=>{App.dok.bloecke=[Modell.neuerBlock('abbildung',
+  {datenUrl:'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==',breite:80})];
+  Editor.zeichne();Editor.waehle(App.dok.bloecke[0].id,false);});
+const breitenfeld = s.locator('#kontextleiste input[type=number]');
+await breitenfeld.click({clickCount:3});
+await breitenfeld.type('6', {delay:20});
+await s.waitForTimeout(200);
+p('eine unfertige 6 lässt die Breite in Ruhe',
+  (await s.evaluate(()=>App.dok.bloecke[0].breite))===80,
+  ''+await s.evaluate(()=>App.dok.bloecke[0].breite));
+await breitenfeld.type('5', {delay:20});
+await s.waitForTimeout(200);
+p('die fertige 65 kommt an',
+  (await s.evaluate(()=>App.dok.bloecke[0].breite))===65,
+  ''+await s.evaluate(()=>App.dok.bloecke[0].breite));
+await breitenfeld.click({clickCount:3});
+await breitenfeld.type('7', {delay:20});
+await breitenfeld.press('Tab');
+await s.waitForTimeout(250);
+p('Verlassen des Felds rundet in den erlaubten Bereich',
+  (await s.evaluate(()=>App.dok.bloecke[0].breite))===10,
+  ''+await s.evaluate(()=>App.dok.bloecke[0].breite));
+
 
 // ---------------------------------------------- Rückgängig
 
