@@ -365,6 +365,20 @@ const Richtext = (() => {
     }).filter(r => r.text !== '' || r.zitat || r.kennwert || r.verweis || r.fussnote != null);
   }
 
+  /* Das Argument von \footnote verträgt keinen Absatz: eine Leerzeile
+     im Fußnotentext beendete ihn mitten in der Klammer, LaTeX meldete
+     das als nicht geschlossene Klammer, und die Übersetzung schickte
+     die Nutzerin zum Zählen von Klammern in einer Formel, die es gar
+     nicht gab. Das Eingabefeld ist mehrzeilig, der Fall also nicht
+     ausgedacht. Mehrabsätzige Fußnoten kann der Schreibtisch noch
+     nicht -- bis dahin wird aus jedem Absatzwechsel ein Zeilenumbruch,
+     und leere Zeilen am Rand fallen weg (ein \\ am Anfang wäre der
+     nächste Fehler). */
+  function fussnoteLatex(text) {
+    return escLatex(String(text || ''))
+      .split(/\n+/).map(z => z.trim()).filter(Boolean).join('\\\\ ');
+  }
+
   /* ---------- Runs -> LaTeX ---------- */
   function zuLatex(runs, ctx = {}) {
     return (runs || []).map(r => {
@@ -390,7 +404,7 @@ const Richtext = (() => {
       }
       if (r.kennwert) return `\\kennwert{${escLatex(r.kennwert)}}{${escLatex(r.wert)}}`;
       if (r.verweis)  return ctx.verweisLatex ? ctx.verweisLatex(r.verweis) : '';
-      if (r.fussnote != null) return `\\footnote{${escLatex(r.fussnote)}}`;
+      if (r.fussnote != null) return `\\footnote{${fussnoteLatex(r.fussnote)}}`;
       return '';
     }).join('');
   }

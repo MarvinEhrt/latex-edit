@@ -62,6 +62,12 @@ const App = (() => {
     const run = await dialogFn();
     if (!run) return;
     if (!stelleAuswahlHer()) { melde('Die Textstelle ist nicht mehr da.', true); return; }
+    /* An das ENDE der Auswahl, nicht an ihre Stelle. Die schwebende
+       Leiste erscheint nur über markiertem Text -- wer "Holland 1997"
+       markiert und auf ❝ drückt, will die Wörter behalten und einen
+       Beleg dahinter. fuegeAmCursorEin räumt sonst erst die Auswahl
+       weg, und die markierten Wörter sind fort. */
+    window.getSelection().collapseToEnd();
     Verlauf.merke(dok);                 // fuegeAmCursorEin löst kein beforeinput aus
     Editor.fuegeAmCursorEin(Editor.chipHtml(run));
     aenderung();

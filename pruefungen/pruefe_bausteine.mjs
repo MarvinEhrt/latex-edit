@@ -703,6 +703,59 @@ p('das Prozentzeichen im Jahr ist maskiert — sonst scheitert biber stumm',
 p('die Herkunft der Diagrammzahlen ist kein Quellenschlüssel',
   !bib.includes('{eigen,'), bib);
 
+// X) Die schwebende Leiste hängt an, statt zu ersetzen
+await setze(()=>{App.dok.quellen=[{key:'holland1997', typ:'buch',
+                   felder:{autoren:'Holland, John', jahr:'1997', titel:'T', verlag:'V'}}];
+                 App.dok.bloecke=[Modell.neuerBlock('absatz',
+                   {runs:[{text:'Wie Holland 1997 zeigte'}]})];
+                 Editor.zeichne(); Verlauf.leeren();});
+// "Holland 1997" markieren (Zeichen 4 bis 17)
+await s.evaluate(()=>{
+  const feld = document.querySelector('.block .tx');
+  const knoten = feld.firstChild;
+  const bereich = document.createRange();
+  bereich.setStart(knoten, 4); bereich.setEnd(knoten, 17);
+  const a = window.getSelection(); a.removeAllRanges(); a.addRange(bereich);
+  feld.focus();
+});
+await s.waitForTimeout(300);
+p('die Leiste erscheint über der Auswahl',
+  await s.locator('#auswahlleiste').isVisible().catch(()=>false));
+await s.locator('#auswahlleiste button[title^="Quelle zitieren"]').click();
+await s.waitForTimeout(400);
+await s.locator('.dialog .quelle-zeile').first().click();
+await s.waitForTimeout(200);
+await s.locator('.dialog .knopf-haupt').last().click();
+await s.waitForTimeout(450);
+let xt = await txt();
+p('der markierte Text bleibt stehen, das Zitat kommt dahinter',
+  xt[0] && xt[0].startsWith('Wie Holland 1997'), JSON.stringify(xt));
+p('und ein Zitat-Run ist wirklich entstanden',
+  await s.evaluate(()=>App.dok.bloecke[0].runs.some(r=>r.zitat)),
+  JSON.stringify(await s.evaluate(()=>App.dok.bloecke[0].runs)));
+
+// W) Ein Absatz in der Fußnote bricht den Bau nicht mehr
+const fn = await s.evaluate(()=>{
+  App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[
+    {text:'Satz'}, {fussnote:'Erste Zeile\n\nZweite Zeile\n'}]})];
+  return Latex.erzeuge(App.dok).dateien['arbeit.tex'];
+});
+p('die Fußnote enthält keinen Absatzwechsel mehr',
+  /\\footnote\{[^}]*\}/.test(fn) && !/\\footnote\{[^}]*\n\n/.test(fn),
+  fn.match(/\\footnote\{[^}]*\}/)?.[0]);
+p('aus dem Absatzwechsel wird ein Zeilenumbruch',
+  fn.includes('Erste Zeile\\\\ Zweite Zeile'),
+  fn.match(/\\footnote\{[^}]*\}/)?.[0]);
+
+// V) Umschalt+Enter am Absatzanfang erzeugt kein nacktes \\
+const umbruch = await s.evaluate(()=>{
+  App.dok.bloecke=[Modell.neuerBlock('absatz',{runs:[{text:'\nText danach\n'}]})];
+  return Latex.erzeuge(App.dok).dateien['arbeit.tex'];
+});
+p('kein Zeilenumbruch am Anfang oder Ende eines Absatzes',
+  umbruch.includes('Text danach') && !/\n\\\\\s*\nText danach/.test(umbruch),
+  umbruch.split('Text danach')[0].slice(-40));
+
 console.log(`\n  ${ok} bestanden, ${fehl} durchgefallen`);
 await b.close(); d.kill();
 rmSync(ABLAGE,{recursive:true,force:true});

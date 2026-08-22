@@ -33,6 +33,10 @@ const Latex = (() => {
       .join(' and ');
   }
 
+  /* \\ am Anfang oder Ende eines Absatzes bricht den Bau. */
+  const ohneRandumbrueche = (t) =>
+    t.replace(/^(?:\s*\\\\)+\s*/, '').replace(/(?:\\\\\s*)+$/, '');
+
   function erzeugeBib(dok) {
     const genutzt = Modell.zitierteSchluessel(dok);
     const zeilen = [
@@ -308,7 +312,10 @@ const Latex = (() => {
           break;
         }
         case 'absatz': {
-          const t = Richtext.zuLatex(b.runs, ctx).trim();
+          /* Ein Zeilenumbruch (Umschalt+Enter) direkt am Absatzanfang
+             ergäbe ein \\ als erstes Zeichen -- "There's no line here
+             to end". Am Ende ebenso. */
+          const t = ohneRandumbrueche(Richtext.zuLatex(b.runs, ctx).trim());
           if (t) { K.push(''); K.push(t); }
           break;
         }
